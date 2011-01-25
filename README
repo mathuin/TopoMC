@@ -9,11 +9,11 @@ Currently only small (like 300x200) datasets work, and the only Minecraft worlds
 To build a Minecraft world based on a dataset, here's what to do:
 
 1.  Build the elevation and land cover images.
-    jmt@belle:~/TopoMC$ ./BuildImages.py NewOrleans
+    jmt@belle:~/TopoMC$ ./BuildImages.py BlockIsland
 
 2.  Prepare new images for worldbuilding.
-    jmt@belle:~/TopoMC$ cp ./Images/NewOrleans-test-lcimage.gif lcimage.gif
-    jmt@belle:~/TopoMC$ cp ./Images/NewOrleans-test-elevimage.gif elevimage.gif
+    jmt@belle:~/TopoMC$ cp ./Images/BlockIsland-test-lcimage.gif lcimage.gif
+    jmt@belle:~/TopoMC$ cp ./Images/BlockIsland-test-elevimage.gif elevimage.gif
 
 3. Build a new world!
     jmt@belle:~/TopoMC$ mono ../JCraft/JCraft.exe

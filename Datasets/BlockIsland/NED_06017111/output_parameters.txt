@@ -1,0 +1,18 @@
+Raster Download Information
+
+Number of columns:  289
+Number of rows:  342
+Resolution in x direction:  0.000277777777796473 Degree
+Resolution in y direction:  0.000277777777796473 Degree
+Coordinate system ID Native:  4269
+Top edge Native:  41.2358333328908 Degree
+Bottom edge Native:  41.1408333328844 Degree
+Left edge Native:  -71.6191666631453 Degree
+Right edge Native:  -71.5388888853621 Degree
+
+Coordinate system ID WGS84:  4326
+Top edge WGS84:  41.2358333328908 Degree
+Bottom edge WGS84:  41.1408333328844 Degree
+Left edge WGS84:  -71.6191666631453 Degree
+Right edge WGS84:  -71.5388888853621 Degree
+
