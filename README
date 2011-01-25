@@ -20,18 +20,3 @@ To build a Minecraft world based on a dataset, here's what to do:
     Select 'BuildWorld.js' as a script.
     Select an unused world.
     Click 'Generate'.
-
-To do:
-
-Add tiling functionality - 256x256 images should work well
- - this will make bigger maps and better scaling possible!
-Add grass and ice
- - not sure how to do this via JCraft, need help
-Add randomness
- - X% chance of stone or dirt, etc.
-Add trees
- - certain trees in certain types of forest, of course
-Histogram of land cover types in BuildWorld.js
- - requires populating array
-Normal stuff underground!
- - no idea!
