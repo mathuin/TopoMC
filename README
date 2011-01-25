@@ -1,0 +1,77 @@
+The RealMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS Seamless Map data, specifically the NED and NLCD datasets.
+
+This project generates input files suitable for JCraft (http://www.minecraftforum.net/viewtopic.php?f=1022&t=147476) written by BagelMann.  Always check for the latest version of JCraft from http://genericdeveloper.com/JCraft.zip -- it works on Linux via Mono.
+
+Currently only small (like 300x200) datasets work, and the only Minecraft worlds that can be generated are scaled 30:1 horizontally and 6:1 vertically.
+
+Here's how to create a dataset:
+
+1.  Create a directory for your dataset.
+    Please don't use spaces.
+    jmt@belle:~/TopoMC$ mkdir Datasets/NewOrleans
+
+2.  Open the USGS Seamless Map and select the region to download.
+    http://seamless.usgs.gov/ is the site, select Seamless Viewer.
+    Smaller is better right now.
+
+3.  Change the data request to what we need.
+    Click 'Modify Data Request'.
+    Scroll down to the Elevation section.
+    Ensure 'National Elevation Dataset (NED) 1 Arc Second' is checked.
+    Set data format to GeoTIFF.
+    Scroll down to the Land Cover section.
+    Ensure 'National Land Cover Dataset 2001 - Land Cover' is checked.
+    Set data format to GeoTIFF.
+    Set Maximum size (MB) per piece to 250 MB.
+    Click 'Save Changes & Return to Summary'.
+
+4.  Download the elevation and land cover datasets.
+    Click 'Download' for NED, wait, save the file.
+    Do the same for National Land Cover Dataset.
+
+5.  Move the ZIP files to the directory you created.
+    jmt@belle:~/TopoMC$ mv ../Downloads/*[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].zip Datasets/NewOrleans
+
+6.  Unzip the ZIP files in place.
+    jmt@belle:~/TopoMC$ (cd Datasets/NewOrleans && for file in *.zip; do unzip $file; done)
+
+7.  Warp the elevation dataset to match the land cover dataset.
+    jmt@belle:~/TopoMC$ ./warpelev.sh NewOrleans
+
+8.  Build the elevation and land cover images.
+    jmt@belle:~/TopoMC$ ./mklcelevdata.py NewOrleans
+
+9.  Prepare new images for worldbuilding.
+    jmt@belle:~/TopoMC$ cp ./Images/NewOrleans-test-lcimage.gif lcimage.gif
+    jmt@belle:~/TopoMC$ cp ./Images/NewOrleans-test-elevimage.gif elevimage.gif
+
+10. Build a new world!
+    jmt@belle:~/TopoMC$ mono ../JCraft/JCraft.exe
+    Select 'BuildWorld.js' as a script.
+    Select an unused world.
+    Click 'Generate'.
+
+I have retrieved the following datasets:
+BlockIsland (304x398, default dataset for testing)
+Boston (469, 396) (works)
+Manhattan (701, 861) (just too big right now)
+NewOrleans (3399, 2615) (too big!)
+Portland (2849, 2814) (too big!)
+SFBA (642, 659) (works!)
+Vermont (5989, 9272) (way too big!)
+WashDC (977, 984) (too big)
+
+To do:
+
+Add tiling functionality - 256x256 images should work well
+ - this will make bigger maps and better scaling possible!
+Add grass and ice
+ - not sure how to do this via JCraft, need help
+Add randomness
+ - X% chance of stone or dirt, etc.
+Add trees
+ - certain trees in certain types of forest, of course
+Histogram of land cover types in BuildWorld.js
+ - requires populating array
+Normal stuff underground!
+ - no idea!
