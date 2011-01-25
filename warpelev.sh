@@ -11,12 +11,12 @@ while [ -n "$*" ]; do
     region=$1
     shift
     # find files
-    lctiff=`find ./${region}/[0-9]*/ -name "[0-9]*.tif" -print`
+    lctiff=`find ./Datasets/${region}/[0-9]*/ -name "[0-9]*.tif" -print`
     if [ 'x${lctiff}' = 'x' ]; then
 	echo Landcover TIF not found!
 	exit
     fi
-    elevtiff=`find ./${region}/NED_[0-9]*/ -name "NED_[0-9]*.tif" -print`
+    elevtiff=`find ./Datasets/${region}/NED_[0-9]*/ -name "NED_[0-9]*.tif" -print`
     if [ 'x${elevtiff}' = 'x' ]; then
 	echo Elevation TIF not found!
 	exit

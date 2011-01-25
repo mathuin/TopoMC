@@ -39,7 +39,7 @@ Here's how to create a dataset:
     jmt@belle:~/TopoMC$ ./warpelev.sh NewOrleans
 
 8.  Build the elevation and land cover images.
-    jmt@belle:~/TopoMC$ ./mklcelevdata.py NewOrleans
+    jmt@belle:~/TopoMC$ ./BuildImages.py NewOrleans
 
 9.  Prepare new images for worldbuilding.
     jmt@belle:~/TopoMC$ cp ./Images/NewOrleans-test-lcimage.gif lcimage.gif
@@ -53,13 +53,13 @@ Here's how to create a dataset:
 
 I have retrieved the following datasets:
 BlockIsland (304x398, default dataset for testing)
-Boston (469, 396) (works)
-Manhattan (701, 861) (just too big right now)
-NewOrleans (3399, 2615) (too big!)
-Portland (2849, 2814) (too big!)
-SFBA (642, 659) (works!)
-Vermont (5989, 9272) (way too big!)
-WashDC (977, 984) (too big)
+Boston (469x396) (works)
+Manhattan (701x861) (just too big right now)
+NewOrleans (3399x2615) (too big!)
+Portland (2849x2814) (too big!)
+SFBA (642x659) (works!)
+Vermont (5989x9272) (way too big!)
+WashDC (977x984) (too big)
 
 To do:
 

@@ -155,7 +155,7 @@ for (x = 0; x < latrange; x++) {
 
 // set player position and spawn point (in this case, equal)
 print('Setting spawn values: ' + spawnx + ', ' + spawny + ', ' + spawnz);
-map.spawn = { x: spawnx, y: spawny, z: spawnz };
+map.spawn = { x: spawnx, y: spawny+2, z: spawnz };
 map.playerLocation = map.spawn;
 
 map.playerInventory.Add(new Item(itemTypes.IronSword));

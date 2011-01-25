@@ -25,7 +25,7 @@ scale = 6 # with 30m data, use 6 or 10 or maybe 30
 def locateDataset(region, prefix=""):
     "Given a region name and an optional prefix, returns the dataset for that region."
     # NB: assumed that exactly one dataset exists for each region/prefix
-    for path, dirs, files in os.walk(os.path.abspath(region)):
+    for path, dirs, files in os.walk(os.path.abspath(('Datasets/'+region))):
         for filename in fnmatch.filter(files, prefix+"[0-9]*.tif"):
             dsfilename = os.path.join(path, filename)
     return gdal.Open(dsfilename, GA_ReadOnly)
@@ -133,6 +133,6 @@ lcdata, elevdata = getArrays(lcds, elevds, 30, 6)
 
 # now that we have the data, let's turn it into happy image stuff
 lcimage = Image.fromarray(lcdata)
-lcimage.save(region+'-test-lcimage.gif')
+lcimage.save('Images/'+region+'-test-lcimage.gif')
 elevimage = Image.fromarray(elevdata)
-elevimage.save(region+'-test-elevimage.gif')
+elevimage.save('Images/'+region+'-test-elevimage.gif')
