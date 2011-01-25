@@ -25,9 +25,15 @@ scale = 6 # with 30m data, use 6 or 10 or maybe 30
 def locateDataset(region, prefix=""):
     "Given a region name and an optional prefix, returns the dataset for that region."
     # NB: assumed that exactly one dataset exists for each region/prefix
-    for path, dirs, files in os.walk(os.path.abspath(('Datasets/'+region))):
-        for filename in fnmatch.filter(files, prefix+"[0-9]*.tif"):
-            dsfilename = os.path.join(path, filename)
+    dsfilename = ''
+    dspaths = ['Datasets', '../TopoMC-Datasets']
+    for dspath in dspaths:
+        for path, dirs, files in os.walk(os.path.abspath((dspath+'/'+region))):
+            for filename in fnmatch.filter(files, prefix+"[0-9]*.tif"):
+                dsfilename = os.path.join(path, filename)
+    # no dataset found
+    if (dsfilename == ''):
+        return None
     return gdal.Open(dsfilename, GA_ReadOnly)
 
 def getArrays(lcds, elevds, hScale, vScale=0):
@@ -70,6 +76,7 @@ def getArrays(lcds, elevds, hScale, vScale=0):
     
     # get land cover data
     (lcT, lcGeoT, lcData) = getTransformsAndData(lcds)
+    # TODO: check to see if lc and elev have same shape!
     # FIXME: newshape will depend on new rectangle
     lcLatLongList = []
     lcValueList = []
@@ -125,7 +132,13 @@ if (len(sys.argv) != 2):
 else:
     region = sys.argv[1]
 lcds = locateDataset(region)
+if (lcds == None):
+    print "Error: no land cover dataset found matching %s!" % region
+    sys.exit()
 elevds = locateDataset(region, 'NED_')
+if (elevds == None):
+    print "Error: no elevation dataset found matching %s!" % region
+    sys.exit()
 # getArrays with one argument uses the same scale for horiz and vert
 #lcdata, elevdata = getArrays(lcds, elevds, scale)
 # use 30, 6 for testing
