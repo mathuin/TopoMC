@@ -36,6 +36,58 @@ def locateDataset(region, prefix=""):
         return None
     return gdal.Open(dsfilename, GA_ReadOnly)
 
+# this now has to return the IDT, not the array, sigh
+def getIDT(ds, offset, size, baseArray, hScale, vScale=0):
+    "Convert a portion of a given dataset (identified by offset and size) to an inverse distance tree."
+    # TODO: move maximum elevation test *outside* getImage/getArrays
+
+    # retrieve data from dataset
+    (Transform, GeoTransform, Data) = getTransformsAndData(ds, offset, size)
+
+    # helper variables
+    # mental note, we want Y,X here!
+    sizeRow = size[1]
+    sizeCol = size[0]
+
+    # build initial arrays
+    LatLong = getLatLongArray(Transform, GeoTransform, (offset), (size), 1)
+    # TODO: might just be able to use Data.flatten()!
+    #Value = numpy.array(([Data[row][col] for row in range(sizeRow) for col in range(sizeCol)]))
+    Value = Data.flatten()
+
+    # scale elevation vertically
+    if (vScale != 0):
+        Value = Value / vScale
+
+    # build tree
+    IDT = Invdisttree(LatLong, Value)
+
+    return IDT
+
+def getLatLongArray(transform, geotransform, offset, size, mult):
+    "Given transformations, dimensions, and multiplier, generate the interpolated array."
+    # Never forget it's Y,X
+    startRow = offset[1]
+    sizeRow = size[1]
+    startCol = offset[0]
+    sizeCol = size[0]
+
+    rows = scaleRange(startRow, sizeRow, mult)
+    cols = scaleRange(startCol, sizeCol, mult)
+    retval = numpy.array([getLatLong(transform, geotransform, row, col) for row in rows for col in cols])
+    return retval
+
+def scaleRange(offset, size, mult):
+    "Used for building interpolation arrays."
+    if ((mult % 2) == 1):
+        edge = (mult//2)/mult
+    else:
+        edge = (mult-1)/(mult*2)
+
+    retval = list(numpy.linspace(offset-edge,offset+size-1+edge,num=mult*size))
+
+    return retval
+
 def getArrays(lcds, elevds, hScale, vScale=0):
     "Given roughly coincident datasets for land cover and elevation, this function returns two arrays (land cover and elevation respectively) registered to the land cover locations and scaled if desired."
     # sigh!
@@ -106,18 +158,30 @@ def getArrays(lcds, elevds, hScale, vScale=0):
     # return the two arrays
     return lcArr, elevArr
 
-def getTransformsAndData(ds):
+def getTransformsAndData(ds, offset=(0,0), size=(0,0)):
     "Given a dataset, return the transform and geotransform."
+    if (size == (0,0)):
+        size = (ds.RasterXSize, ds.RasterYSize)
     Projection = ds.GetProjectionRef()
     Proj = osr.SpatialReference(Projection)
     LatLong = Proj.CloneGeogCS()
     Transform = osr.CoordinateTransformation(Proj, LatLong)
     GeoTransform = ds.GetGeoTransform()
     Band = ds.GetRasterBand(1)
-    Data = Band.ReadAsArray(0, 0, ds.RasterXSize, ds.RasterYSize)
+    Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
     Band = None
 
     return Transform, GeoTransform, Data
+
+def getTransforms(ds):
+    "Given a dataset, return the transform and geotransform."
+    Projection = ds.GetProjectionRef()
+    Proj = osr.SpatialReference(Projection)
+    LatLong = Proj.CloneGeogCS()
+    Transform = osr.CoordinateTransformation(Proj, LatLong)
+    GeoTransform = ds.GetGeoTransform()
+
+    return Transform, GeoTransform
 
 def getLatLong(transform, geotransform, x, y):
     "Given transform, geotransform, and coordinates, return latitude and longitude.  Based on GDALInfoReportCorner() from gdalinfo.py"
@@ -139,10 +203,33 @@ elevds = locateDataset(region, 'NED_')
 if (elevds == None):
     print "Error: no elevation dataset found matching %s!" % region
     sys.exit()
+# FIXME: should check to see if they have the same projection?!
+# FIXME: should do elevation correction out here, sigh
+
 # getArrays with one argument uses the same scale for horiz and vert
 #lcdata, elevdata = getArrays(lcds, elevds, scale)
 # use 30, 6 for testing
 lcdata, elevdata = getArrays(lcds, elevds, 30, 6)
+
+# forced horizontal scale of 30 and vertical scale of 6 for testing
+# FIXME: should apply scale factor here!
+hScale = 30
+vScale = 6
+mult = lcperpixel//hScale
+
+# build base array
+lcTransform, lcGeoTransform = getTransforms(lcds)
+baseShape = (mult*lcds.RasterYSize, mult*lcds.RasterXSize)
+baseArray = getLatLongArray(lcTransform, lcGeoTransform, (0, 0), (lcds.RasterXSize, lcds.RasterYSize), mult)
+lcIDT = getIDT(lcds, (0, 0), (lcds.RasterXSize, lcds.RasterYSize), baseArray, hScale)
+# nnear=1 for landcover
+lcImageArray = lcIDT(baseArray, nnear=1, eps=.1).reshape(baseShape)
+lcImage = Image.fromarray(lcImageArray)
+lcImage.save('Images/'+region+'-new-test-lcimage.gif')
+elevIDT = getIDT(elevds, (0, 0), (elevds.RasterXSize, elevds.RasterYSize), baseArray, hScale, vScale)
+elevImageArray = elevIDT(baseArray, nnear=11, eps=.1).reshape(baseShape)
+elevImage = Image.fromarray(elevImageArray)
+elevImage.save('Images/'+region+'-new-test-elevimage.gif')
 
 # now that we have the data, let's turn it into happy image stuff
 lcimage = Image.fromarray(lcdata)
