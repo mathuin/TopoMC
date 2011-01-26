@@ -35,13 +35,13 @@ def locateDataset(region, prefix=""):
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
     # retrieve data from dataset
-    (Transform, ArcTransforms, GeoTransform) = getTransforms(ds)
+    (Trans, ArcTranss, GeoTrans) = getTransforms(ds)
     Band = ds.GetRasterBand(1)
     Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
     Band = None
 
     # build initial arrays
-    LatLong = getLatLongArray(Transform, GeoTransform, (offset), (size), 1)
+    LatLong = getLatLongArray(Trans, GeoTrans, (offset), (size), 1)
     Value = Data.flatten()
 
     # scale elevation vertically
@@ -60,15 +60,25 @@ def getLatLongArray(transform, geotransform, offset, size, mult):
     retval = numpy.array([getLatLong(transform, geotransform, row, col) for row in rows for col in cols])
     return retval
 
-def scaleRange(offset, size, mult):
+def OLDscaleRange(offset, size, mult):
     "Used for building interpolation arrays."
     if ((mult % 2) == 1):
         edge = (mult//2)/mult
     else:
         edge = (mult-1)/(mult*2)
 
-    retval = list(numpy.linspace(offset-edge,offset+size-1+edge,num=mult*size))
+    # trimming edges
+    print "DEBUG: offset is %f, size is %f, mult is %f, edge is %f" % (offset, size, mult, edge)
+    #retval = list(numpy.linspace(offset-edge,offset+size-1+edge,num=mult*size))
+    retval = list(numpy.linspace(offset,offset+size-1,num=((mult*size)-2)))
+    print "DEBUG: retval length is %d" % len(retval)
 
+    return retval
+
+def scaleRange(offset, size, mult):
+    "Used for building interpolation arrays."
+    multSize = int(size*mult)
+    retval = [offset+x/mult for x in range(multSize)]
     return retval
 
 def getTransforms(ds):
@@ -76,11 +86,11 @@ def getTransforms(ds):
     Projection = ds.GetProjectionRef()
     Proj = osr.SpatialReference(Projection)
     LatLong = Proj.CloneGeogCS()
-    Transform = osr.CoordinateTransformation(Proj, LatLong)
-    ArcTransform = osr.CoordinateTransformation(LatLong, Proj)
-    GeoTransform = ds.GetGeoTransform()
+    Trans = osr.CoordinateTransformation(Proj, LatLong)
+    ArcTrans = osr.CoordinateTransformation(LatLong, Proj)
+    GeoTrans = ds.GetGeoTransform()
 
-    return Transform, ArcTransform, GeoTransform
+    return Trans, ArcTrans, GeoTrans
 
 def getLatLong(transform, geotransform, x, y):
     "Given transform, geotransform, and coordinates, return latitude and longitude.  Based on GDALInfoReportCorner() from gdalinfo.py"
@@ -92,15 +102,29 @@ def getLatLong(transform, geotransform, x, y):
 def getOffsetSize(ds, corners):
     "Convert corners to offset and size."
     (ul, ur, ll, lr) = corners
-    (Transform, ArcTransform, GeoTransform) = getTransforms(ds)
-    offset = getCoords(ArcTransform, GeoTransform, ul[0], ul[1])
-    farcorner = getCoords(ArcTransform, GeoTransform, lr[0], lr[1])
-    size = (farcorner[0]-offset[0], farcorner[1]-offset[1])
+    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
+    offset_x, offset_y = getCoords(ArcTrans, GeoTrans, ul[0], ul[1])
+    if (offset_x < 0):
+        print "DEBUG: offset_x was %d" % offset_x
+        offset_x = 0
+    if (offset_y < 0):
+        print "DEBUG: offset_y was %d" % offset_y
+        offset_y = 0
+    farcorner_x, farcorner_y = getCoords(ArcTrans, GeoTrans, lr[0], lr[1])
+    if (farcorner_x > ds.RasterXSize):
+        print "DEBUG: farcorner_x was %d" % farcorner_x
+        farcorner_x = ds.RasterXSize
+    if (farcorner_y > ds.RasterYSize):
+        print "DEBUG: farcorner_y was %d" % farcorner_y
+        farcorner_y = ds.RasterYSize
+    offset = (offset_x, offset_y)
+    size = (farcorner_x-offset_x, farcorner_y-offset_y)
     return offset, size
 
 def getCoords(transform, geotransform, lat, lon):
     "The backwards version of getLatLong, from geo_trans.c."
     pnt = transform.TransformPoint(lon, lat, 0)
+    print "DEBUG: pnt[0] is %d, pnt[1] is %d" % (pnt[0], pnt[1])
     x = (pnt[0] - geotransform[0]+1)//geotransform[1]
     y = (pnt[1] - geotransform[3]-1)//geotransform[5]
     print "DEBUG: x is %d, y is %d" % (x, y)
@@ -110,7 +134,7 @@ def getTiles(ds, mult, tileShape, idtPad=16):
     "Given a dataset, generates a list of tuples of the form: ((row, col), (imageUL, imageUR, imageLL, imageLR), (idtUL, idtUR, idtLL, idtLR))."
     imageRows=tileShape[0]
     imageCols=tileShape[1]
-    Transform, ArcTransform, GeoTransform = getTransforms(ds)
+    Trans, ArcTrans, GeoTrans = getTransforms(ds)
     maxRows = ds.RasterXSize*mult
     maxCols = ds.RasterYSize*mult
     print "DEBUG: maxRows is %d, maxCols is %d" % (maxRows, maxCols)
@@ -118,16 +142,38 @@ def getTiles(ds, mult, tileShape, idtPad=16):
     numRowTiles = int((maxRows+imageRows-1)/imageRows)
     numColTiles = int((maxCols+imageCols-1)/imageCols)
     print "DEBUG: numRowTiles is %d, numColTiles is %d" % (numRowTiles, numColTiles)
-    for row in scaleRange(0, numRowTiles, mult):
-        for col in scaleRange(0, numColTiles, mult):
+    rowIndex = 0
+    colIndex = 0
+    rows = scaleRange(0, numRowTiles, mult)
+    cols = scaleRange(0, numColTiles, mult)
+    for rowIndex in range(len(rows)):
+        for colIndex in range(len(cols)):
+            print "DEBUG: rowIndex is %d, colIndex is %d" % (rowIndex, colIndex)
+            row = rows[rowIndex]
+            col = cols[colIndex]
+            print "DEBUG: row is %f, cols is %f" % (row, col)
             imageLeft = row*imageRows
+            print "DEBUG: imageLeft was %f" % imageLeft
+            if (imageLeft < 0):
+                print "DEBUG: imageLeft was corrected!"
+                imageLeft = 0
+            print "DEBUG: imageLeft is %f" % imageLeft
             imageRight = (row+1)*imageRows
+            print "DEBUG: imageRight was %f" % imageRight
             if (imageRight > maxRows):
                 imageRight = maxRows
+            print "DEBUG: imageRight is %f" % imageRight
             imageUpper = col*imageCols
+            print "DEBUG: imageUpper was %f" % imageUpper
+            if (imageUpper < 0):
+                print "DEBUG: imageUpper was corrected!"
+                imageUpper = 0
+            print "DEBUG: imageUpper is %f" % imageUpper
             imageLower = (col+1)*imageCols
+            print "DEBUG: imageLower was %f" % imageLower
             if (imageLower > maxCols):
                 imageLower = maxCols
+            print "DEBUG: imageLower is %f" % imageLower
             idtLeft = row*imageRows-idtPad
             if (idtLeft < 0):
                 idtLeft = 0
@@ -140,87 +186,95 @@ def getTiles(ds, mult, tileShape, idtPad=16):
             idtLower = (col+1)*imageCols+idtPad
             if (idtLower > maxCols):
                 idtLower = maxCols
-            imageUL = getLatLong(Transform, GeoTransform, imageLeft, imageUpper)
-            imageUR = getLatLong(Transform, GeoTransform, imageRight, imageUpper)
-            imageLL = getLatLong(Transform, GeoTransform, imageLeft, imageLower)
-            imageLR = getLatLong(Transform, GeoTransform, imageRight, imageLower)
-            idtUL = getLatLong(Transform, GeoTransform, idtLeft, idtUpper)
-            idtUR = getLatLong(Transform, GeoTransform, idtRight, idtUpper)
-            idtLL = getLatLong(Transform, GeoTransform, idtLeft, idtLower)
-            idtLR = getLatLong(Transform, GeoTransform, idtRight, idtLower)
-            listTiles.append(((row, col),
-                              (imageLeft, imageRight, imageUpper, imageLower),
-                              (imageUL, imageUR, imageLL, imageLR),
-                              (idtLeft, idtRight, idtUpper, idtLower),
-                              (idtUL, idtUR, idtLL, idtLR)))
+            # convert edges to lat/long corners
+            imageUL = getLatLong(Trans, GeoTrans, imageLeft, imageUpper)
+            imageLL = getLatLong(Trans, GeoTrans, imageLeft, imageLower)
+            imageUR = getLatLong(Trans, GeoTrans, imageRight, imageUpper)
+            imageLR = getLatLong(Trans, GeoTrans, imageRight, imageLower)
+            idtUL = getLatLong(Trans, GeoTrans, idtLeft, idtUpper)
+            idtLL = getLatLong(Trans, GeoTrans, idtLeft, idtLower)
+            idtUR = getLatLong(Trans, GeoTrans, idtRight, idtUpper)
+            idtLR = getLatLong(Trans, GeoTrans, idtRight, idtLower)
+            listTiles.append(((rowIndex, colIndex),
+                              (imageUL, imageLL, imageUR, imageLR),
+                              (idtUL, idtLL, idtUR, idtLR)))
+    print "DEBUG: listTiles has length %d" % (len(listTiles))
+    #print "DEBUG: indices of listTiles:", ['(%d, %d)' % (rowIndex, colIndex) for ((rowIndex, colIndex), (imageLeft, imageRight, imageUpper, imageLower), (idtLeft, idtRight, idtUpper, idtLower)) in listTiles]
+    print "DEBUG: image corners of listTiles[0]:", ['((%f, %f), (%f, %f), (%f, %f), (%f, %f))' % (imageUL[0], imageUL[1], imageLL[0], imageLL[1], imageUR[0], imageUR[1], imageLR[0], imageLR[1]) for ((rowIndex, colIndex), (imageUL, imageLL, imageUR, imageLR), (idtUL, idtLL, idtUR, idtLR)) in listTiles]
     return listTiles
 
-# here we go!
-if (len(sys.argv) != 2):
-    region = 'BlockIsland'
-else:
-    region = sys.argv[1]
+# main
+def main(argv):
+    "The main portion of the script."
 
-# locate datasets
-lcds = locateDataset(region)
-if (lcds == None):
-    print "Error: no land cover dataset found matching %s!" % region
-    sys.exit()
-elevds = locateDataset(region, 'NED_')
-if (elevds == None):
-    print "Error: no elevation dataset found matching %s!" % region
-    sys.exit()
+    # default region is supplied with TopoMC
+    if (len(argv) != 2):
+        region = 'BlockIsland'
+    else:
+        region = argv[1]
 
-# do both datasets have the same projection?
-lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
-elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
+    # locate datasets
+    lcds = locateDataset(region)
+    if (lcds == None):
+        print "Error: no land cover dataset found matching %s!" % region
+        sys.exit()
+    elevds = locateDataset(region, 'NED_')
+    if (elevds == None):
+        print "Error: no elevation dataset found matching %s!" % region
+        sys.exit()
 
-if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
-    print "Error: land cover and elevation maps do not have the same projection."
-    sys.exit()
+    # do both datasets have the same projection?
+    lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
+    elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
 
-# set up scaling factors
-# horizontal based on land cover
-# vertical based on elevation
-# FIXME: need to traverse entire elevation map to get max
-# --- how to do this efficiently
-lcTransform, lcArcTransform, lcGeoTransform = getTransforms(lcds)
-lcperpixel = lcGeoTransform[1]
-# forced horizontal scale of 30 and vertical scale of 6 for testing
-hScale = 30
-vScale = 6
-mult = lcperpixel//hScale
+    if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
+        print "Error: land cover and elevation maps do not have the same projection."
+        sys.exit()
 
-tileShape = (256, 256)
-myTiles = getTiles(lcds, mult, tileShape)
+    # set up scaling factors
+    # horizontal based on land cover
+    # vertical based on elevation
+    # FIXME: need to traverse entire elevation map to get max
+    # --- how to do this efficiently
+    lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
+    lcperpixel = lcGeoTrans[1]
+    # forced horizontal scale of 30 and vertical scale of 6 for testing
+    hScale = 10
+    vScale = 6
+    mult = lcperpixel//hScale
 
-for tile in myTiles:
-    ((row, col), imageEdges, imageCorners, idtEdges, idtCorners) = tile
-    print "DEBUG: imageEdges are %d, %d, %d, %d" % (imageEdges)
-    print "DEBUG: idtEdges are %d, %d, %d, %d" % (idtEdges)
+    # tinker time!
+    tileShape = (256, 256)
+    myTiles = getTiles(lcds, mult, tileShape)
 
-    # build base array (based on landcover)
-    baseOffset, baseSize = getOffsetSize(lcds, imageCorners)
-    baseShape = (baseSize[1], baseSize[0])
-    # FIXME: still using tileShape instead of tileShape
-    print "DEBUG: baseOffset is %d, %d" % (baseOffset)
-    print "DEBUG: baseSize is %d, %d" % (baseSize)
-    baseArray = getLatLongArray(lcTransform, lcGeoTransform, baseOffset, tileShape, mult)
+    for tile in myTiles:
+        ((row, col), imageCorners, idtCorners) = tile
+        tileRow = row * tileShape[0]
+        tileCol = col * tileShape[1]
 
-    # nnear=1 for landcover, 11 for elevation
-    lcOffset, lcSize = getOffsetSize(lcds, idtCorners)
-    print "DEBUG: lcOffset is %d, %d" % (lcOffset)
-    print "DEBUG: lcSize is %d, %d" % (lcSize)
-    lcIDT = getIDT(lcds, lcOffset, lcSize)
-    lcImageArray = lcIDT(baseArray, nnear=1, eps=.1).reshape(tileShape)
-    lcImage = Image.fromarray(lcImageArray)
-    lcImage.save('Images/%s-lc-%d-%d.gif' % (region, row, col))
+        # build base array (based on landcover)
+        baseOffset, baseSize = getOffsetSize(lcds, imageCorners)
+        baseShape = (baseSize[1], baseSize[0])
+        print "DEBUG: baseOffset is %d, %d" % (baseOffset)
+        print "DEBUG: baseSize is %d, %d" % (baseSize)
+        baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize, mult)
 
-    elevOffset, elevSize = getOffsetSize(elevds, idtCorners)
-    print "DEBUG: elevOffset is %d, %d" % (elevOffset)
-    print "DEBUG: elevSize is %d, %d" % (elevSize)
-    elevIDT = getIDT(elevds, elevOffset, elevSize, vScale)
-    elevImageArray = elevIDT(baseArray, nnear=11, eps=.1).reshape(tileShape)
-    elevImage = Image.fromarray(elevImageArray)
-    elevImage.save('Images/%s-elev-%d-%d.gif' % (region, row, col))
+        # nnear=1 for landcover, 11 for elevation
+        lcOffset, lcSize = getOffsetSize(lcds, idtCorners)
+        print "DEBUG: lcOffset is %d, %d" % (lcOffset)
+        print "DEBUG: lcSize is %d, %d" % (lcSize)
+        lcIDT = getIDT(lcds, lcOffset, lcSize)
+        lcImageArray = lcIDT(baseArray, nnear=1, eps=.1).reshape(baseShape)
+        lcImage = Image.fromarray(lcImageArray)
+        lcImage.save('Images/%s-lc-%d-%d.gif' % (region, tileRow, tileCol))
 
+        elevOffset, elevSize = getOffsetSize(elevds, idtCorners)
+        print "DEBUG: elevOffset is %d, %d" % (elevOffset)
+        print "DEBUG: elevSize is %d, %d" % (elevSize)
+        elevIDT = getIDT(elevds, elevOffset, elevSize, vScale)
+        elevImageArray = elevIDT(baseArray, nnear=11, eps=.1).reshape(baseShape)
+        elevImage = Image.fromarray(elevImageArray)
+        elevImage.save('Images/%s-elev-%d-%d.gif' % (region, tileRow, tileCol))
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
