@@ -16,11 +16,6 @@ from osgeo.gdalconst import *
 from invdisttree import *
 gdal.UseExceptions()
 
-# constants
-#FIXME: (consider retrieving this from transform?)
-lcperpixel = 30 # meters per pixel in landcover file 
-scale = 6 # with 30m data, use 6 or 10 or maybe 30
-
 # functions
 def locateDataset(region, prefix=""):
     "Given a region name and an optional prefix, returns the dataset for that region."
@@ -37,27 +32,20 @@ def locateDataset(region, prefix=""):
     return gdal.Open(dsfilename, GA_ReadOnly)
 
 # this now has to return the IDT, not the array, sigh
-def getIDT(ds, offset, size, baseArray, hScale, vScale=0):
-    "Convert a portion of a given dataset (identified by offset and size) to an inverse distance tree."
-    # TODO: move maximum elevation test *outside* getImage/getArrays
-
+def getIDT(ds, offset, size, vScale=1):
+    "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
     # retrieve data from dataset
-    (Transform, GeoTransform, Data) = getTransformsAndData(ds, offset, size)
-
-    # helper variables
-    # mental note, we want Y,X here!
-    sizeRow = size[1]
-    sizeCol = size[0]
+    (Transform, ArcTransforms, GeoTransform) = getTransforms(ds)
+    Band = ds.GetRasterBand(1)
+    Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
+    Band = None
 
     # build initial arrays
     LatLong = getLatLongArray(Transform, GeoTransform, (offset), (size), 1)
-    # TODO: might just be able to use Data.flatten()!
-    #Value = numpy.array(([Data[row][col] for row in range(sizeRow) for col in range(sizeCol)]))
     Value = Data.flatten()
 
     # scale elevation vertically
-    if (vScale != 0):
-        Value = Value / vScale
+    Value = Value / vScale
 
     # build tree
     IDT = Invdisttree(LatLong, Value)
@@ -66,14 +54,9 @@ def getIDT(ds, offset, size, baseArray, hScale, vScale=0):
 
 def getLatLongArray(transform, geotransform, offset, size, mult):
     "Given transformations, dimensions, and multiplier, generate the interpolated array."
-    # Never forget it's Y,X
-    startRow = offset[1]
-    sizeRow = size[1]
-    startCol = offset[0]
-    sizeCol = size[0]
 
-    rows = scaleRange(startRow, sizeRow, mult)
-    cols = scaleRange(startCol, sizeCol, mult)
+    rows = scaleRange(offset[1], size[1], mult)
+    cols = scaleRange(offset[0], size[0], mult)
     retval = numpy.array([getLatLong(transform, geotransform, row, col) for row in rows for col in cols])
     return retval
 
@@ -88,100 +71,16 @@ def scaleRange(offset, size, mult):
 
     return retval
 
-def getArrays(lcds, elevds, hScale, vScale=0):
-    "Given roughly coincident datasets for land cover and elevation, this function returns two arrays (land cover and elevation respectively) registered to the land cover locations and scaled if desired."
-    # sigh!
-    if (vScale == 0):
-        vScale = hScale
-    # calculate hMult and check it
-    # FIXME: do after reading in land cover?
-    hMult = lcperpixel//hScale
-    if (hMult % 2 != 1):
-        print "Error: scaling factor must be odd!"
-        sys.exit()
-    # calculate hStep
-    hStep = hMult//2
-
-    # get elevation data
-    (elevT, elevGeoT, elevData) = getTransformsAndData(elevds)
-    elevLatLongList = []
-    elevValue = []
-
-    for rowIndex in range(elevData.shape[0]):
-        for colIndex in range(elevData.shape[1]):
-            (newLat, newLong) = getLatLong(elevT, elevGeoT, rowIndex, colIndex)
-            elevLatLongList.append([newLat, newLong])
-            elevValue.append(elevData[rowIndex][colIndex])
-
-    # check for altitude problems
-    if ((elevData.max()/vScale) > 64):
-        newvScale = elevData.max()//64
-        print "Warning: vertical scale of %d insufficient, using %d instead" % (vScale, newvScale)
-        vScale = newvScale
-
-    # build elevation arrays
-    elevLatLong = numpy.array(elevLatLongList)
-    elevValue = numpy.array(elevValue) / vScale
-
-    # build elevation IDT
-    elevIDT = Invdisttree(elevLatLong, elevValue)
-    
-    # get land cover data
-    (lcT, lcGeoT, lcData) = getTransformsAndData(lcds)
-    # TODO: check to see if lc and elev have same shape!
-    # FIXME: newshape will depend on new rectangle
-    lcLatLongList = []
-    lcValueList = []
-    lcSortMeList = []
-
-    # build land cover array
-    for rowIndex in range(lcData.shape[0]):
-        for colIndex in range(lcData.shape[1]):
-            for multRow in range(-1*hStep,hStep+1):
-                for multCol in range(-1*hStep,hStep+1):
-                    newRow = rowIndex + (multRow/hMult)
-                    newCol = colIndex + (multCol/hMult)
-                    (newLat, newLong) = getLatLong(lcT, lcGeoT, newRow, newCol)
-                    lcLatLongList.append([newLat, newLong])
-                    lcValueList.append(lcData[rowIndex][colIndex])
-                    lcSortMeList.append([newRow, newCol])
-
-    # build land cover array
-    lcSortMe = numpy.array(lcSortMeList)
-    lcLatLongInds = numpy.lexsort((lcSortMe[:,1], lcSortMe[:,0]))
-    lcLatLong = numpy.array(lcLatLongList)[lcLatLongInds]
-    lcArr = numpy.array(lcValueList)[lcLatLongInds].reshape(hMult*lcData.shape[0], hMult*lcData.shape[1])
-
-    # compute elevation array from inverse distance tree
-    elevArr = elevIDT(lcLatLong, nnear=8, eps=.1).reshape(hMult*lcData.shape[0], hMult*lcData.shape[1])
-
-    # return the two arrays
-    return lcArr, elevArr
-
-def getTransformsAndData(ds, offset=(0,0), size=(0,0)):
-    "Given a dataset, return the transform and geotransform."
-    if (size == (0,0)):
-        size = (ds.RasterXSize, ds.RasterYSize)
-    Projection = ds.GetProjectionRef()
-    Proj = osr.SpatialReference(Projection)
-    LatLong = Proj.CloneGeogCS()
-    Transform = osr.CoordinateTransformation(Proj, LatLong)
-    GeoTransform = ds.GetGeoTransform()
-    Band = ds.GetRasterBand(1)
-    Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
-    Band = None
-
-    return Transform, GeoTransform, Data
-
 def getTransforms(ds):
     "Given a dataset, return the transform and geotransform."
     Projection = ds.GetProjectionRef()
     Proj = osr.SpatialReference(Projection)
     LatLong = Proj.CloneGeogCS()
     Transform = osr.CoordinateTransformation(Proj, LatLong)
+    ArcTransform = osr.CoordinateTransformation(LatLong, Proj)
     GeoTransform = ds.GetGeoTransform()
 
-    return Transform, GeoTransform
+    return Transform, ArcTransform, GeoTransform
 
 def getLatLong(transform, geotransform, x, y):
     "Given transform, geotransform, and coordinates, return latitude and longitude.  Based on GDALInfoReportCorner() from gdalinfo.py"
@@ -190,11 +89,79 @@ def getLatLong(transform, geotransform, x, y):
     pnt = transform.TransformPoint(dfGeoX, dfGeoY, 0)
     return pnt[1], pnt[0]
 
+def getOffsetSize(ds, corners):
+    "Convert corners to offset and size."
+    (ul, ur, ll, lr) = corners
+    (Transform, ArcTransform, GeoTransform) = getTransforms(ds)
+    offset = getCoords(ArcTransform, GeoTransform, ul[0], ul[1])
+    farcorner = getCoords(ArcTransform, GeoTransform, lr[0], lr[1])
+    size = (farcorner[0]-offset[0], farcorner[1]-offset[1])
+    return offset, size
+
+def getCoords(transform, geotransform, lat, lon):
+    "The backwards version of getLatLong, from geo_trans.c."
+    pnt = transform.TransformPoint(lon, lat, 0)
+    x = (pnt[0] - geotransform[0]+1)//geotransform[1]
+    y = (pnt[1] - geotransform[3]-1)//geotransform[5]
+    print "DEBUG: x is %d, y is %d" % (x, y)
+    return int(x), int(y)
+
+def getTiles(ds, mult, tileShape, idtPad=16):
+    "Given a dataset, generates a list of tuples of the form: ((row, col), (imageUL, imageUR, imageLL, imageLR), (idtUL, idtUR, idtLL, idtLR))."
+    imageRows=tileShape[0]
+    imageCols=tileShape[1]
+    Transform, ArcTransform, GeoTransform = getTransforms(ds)
+    maxRows = ds.RasterXSize*mult
+    maxCols = ds.RasterYSize*mult
+    print "DEBUG: maxRows is %d, maxCols is %d" % (maxRows, maxCols)
+    listTiles = []
+    numRowTiles = int((maxRows+imageRows-1)/imageRows)
+    numColTiles = int((maxCols+imageCols-1)/imageCols)
+    print "DEBUG: numRowTiles is %d, numColTiles is %d" % (numRowTiles, numColTiles)
+    for row in scaleRange(0, numRowTiles, mult):
+        for col in scaleRange(0, numColTiles, mult):
+            imageLeft = row*imageRows
+            imageRight = (row+1)*imageRows
+            if (imageRight > maxRows):
+                imageRight = maxRows
+            imageUpper = col*imageCols
+            imageLower = (col+1)*imageCols
+            if (imageLower > maxCols):
+                imageLower = maxCols
+            idtLeft = row*imageRows-idtPad
+            if (idtLeft < 0):
+                idtLeft = 0
+            idtRight = (row+1)*imageRows+idtPad
+            if (idtRight > maxRows):
+                idtRight = maxRows
+            idtUpper = col*imageCols-idtPad
+            if (idtUpper < 0):
+                idtUpper = 0
+            idtLower = (col+1)*imageCols+idtPad
+            if (idtLower > maxCols):
+                idtLower = maxCols
+            imageUL = getLatLong(Transform, GeoTransform, imageLeft, imageUpper)
+            imageUR = getLatLong(Transform, GeoTransform, imageRight, imageUpper)
+            imageLL = getLatLong(Transform, GeoTransform, imageLeft, imageLower)
+            imageLR = getLatLong(Transform, GeoTransform, imageRight, imageLower)
+            idtUL = getLatLong(Transform, GeoTransform, idtLeft, idtUpper)
+            idtUR = getLatLong(Transform, GeoTransform, idtRight, idtUpper)
+            idtLL = getLatLong(Transform, GeoTransform, idtLeft, idtLower)
+            idtLR = getLatLong(Transform, GeoTransform, idtRight, idtLower)
+            listTiles.append(((row, col),
+                              (imageLeft, imageRight, imageUpper, imageLower),
+                              (imageUL, imageUR, imageLL, imageLR),
+                              (idtLeft, idtRight, idtUpper, idtLower),
+                              (idtUL, idtUR, idtLL, idtLR)))
+    return listTiles
+
 # here we go!
 if (len(sys.argv) != 2):
     region = 'BlockIsland'
 else:
     region = sys.argv[1]
+
+# locate datasets
 lcds = locateDataset(region)
 if (lcds == None):
     print "Error: no land cover dataset found matching %s!" % region
@@ -203,36 +170,57 @@ elevds = locateDataset(region, 'NED_')
 if (elevds == None):
     print "Error: no elevation dataset found matching %s!" % region
     sys.exit()
-# FIXME: should check to see if they have the same projection?!
-# FIXME: should do elevation correction out here, sigh
 
-# getArrays with one argument uses the same scale for horiz and vert
-#lcdata, elevdata = getArrays(lcds, elevds, scale)
-# use 30, 6 for testing
-lcdata, elevdata = getArrays(lcds, elevds, 30, 6)
+# do both datasets have the same projection?
+lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
+elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
 
+if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
+    print "Error: land cover and elevation maps do not have the same projection."
+    sys.exit()
+
+# set up scaling factors
+# horizontal based on land cover
+# vertical based on elevation
+# FIXME: need to traverse entire elevation map to get max
+# --- how to do this efficiently
+lcTransform, lcArcTransform, lcGeoTransform = getTransforms(lcds)
+lcperpixel = lcGeoTransform[1]
 # forced horizontal scale of 30 and vertical scale of 6 for testing
-# FIXME: should apply scale factor here!
 hScale = 30
 vScale = 6
 mult = lcperpixel//hScale
 
-# build base array
-lcTransform, lcGeoTransform = getTransforms(lcds)
-baseShape = (mult*lcds.RasterYSize, mult*lcds.RasterXSize)
-baseArray = getLatLongArray(lcTransform, lcGeoTransform, (0, 0), (lcds.RasterXSize, lcds.RasterYSize), mult)
-lcIDT = getIDT(lcds, (0, 0), (lcds.RasterXSize, lcds.RasterYSize), baseArray, hScale)
-# nnear=1 for landcover
-lcImageArray = lcIDT(baseArray, nnear=1, eps=.1).reshape(baseShape)
-lcImage = Image.fromarray(lcImageArray)
-lcImage.save('Images/'+region+'-new-test-lcimage.gif')
-elevIDT = getIDT(elevds, (0, 0), (elevds.RasterXSize, elevds.RasterYSize), baseArray, hScale, vScale)
-elevImageArray = elevIDT(baseArray, nnear=11, eps=.1).reshape(baseShape)
-elevImage = Image.fromarray(elevImageArray)
-elevImage.save('Images/'+region+'-new-test-elevimage.gif')
+tileShape = (256, 256)
+myTiles = getTiles(lcds, mult, tileShape)
 
-# now that we have the data, let's turn it into happy image stuff
-lcimage = Image.fromarray(lcdata)
-lcimage.save('Images/'+region+'-test-lcimage.gif')
-elevimage = Image.fromarray(elevdata)
-elevimage.save('Images/'+region+'-test-elevimage.gif')
+for tile in myTiles:
+    ((row, col), imageEdges, imageCorners, idtEdges, idtCorners) = tile
+    print "DEBUG: imageEdges are %d, %d, %d, %d" % (imageEdges)
+    print "DEBUG: idtEdges are %d, %d, %d, %d" % (idtEdges)
+
+    # build base array (based on landcover)
+    baseOffset, baseSize = getOffsetSize(lcds, imageCorners)
+    baseShape = (baseSize[1], baseSize[0])
+    # FIXME: still using tileShape instead of tileShape
+    print "DEBUG: baseOffset is %d, %d" % (baseOffset)
+    print "DEBUG: baseSize is %d, %d" % (baseSize)
+    baseArray = getLatLongArray(lcTransform, lcGeoTransform, baseOffset, tileShape, mult)
+
+    # nnear=1 for landcover, 11 for elevation
+    lcOffset, lcSize = getOffsetSize(lcds, idtCorners)
+    print "DEBUG: lcOffset is %d, %d" % (lcOffset)
+    print "DEBUG: lcSize is %d, %d" % (lcSize)
+    lcIDT = getIDT(lcds, lcOffset, lcSize)
+    lcImageArray = lcIDT(baseArray, nnear=1, eps=.1).reshape(tileShape)
+    lcImage = Image.fromarray(lcImageArray)
+    lcImage.save('Images/%s-lc-%d-%d.gif' % (region, row, col))
+
+    elevOffset, elevSize = getOffsetSize(elevds, idtCorners)
+    print "DEBUG: elevOffset is %d, %d" % (elevOffset)
+    print "DEBUG: elevSize is %d, %d" % (elevSize)
+    elevIDT = getIDT(elevds, elevOffset, elevSize, vScale)
+    elevImageArray = elevIDT(baseArray, nnear=11, eps=.1).reshape(tileShape)
+    elevImage = Image.fromarray(elevImageArray)
+    elevImage.save('Images/%s-elev-%d-%d.gif' % (region, row, col))
+
