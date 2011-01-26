@@ -31,11 +31,10 @@ def locateDataset(region, prefix=""):
         return None
     return gdal.Open(dsfilename, GA_ReadOnly)
 
-# this now has to return the IDT, not the array, sigh
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
     # retrieve data from dataset
-    (Trans, ArcTranss, GeoTrans) = getTransforms(ds)
+    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
     Band = ds.GetRasterBand(1)
     Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
     Band = None
@@ -52,26 +51,11 @@ def getIDT(ds, offset, size, vScale=1):
 
     return IDT
 
-def getLatLongArray(transform, geotransform, offset, size, mult):
+def getLatLongArray(transform, geotransform, offset, size, mult=1):
     "Given transformations, dimensions, and multiplier, generate the interpolated array."
-
     rows = scaleRange(offset[1], size[1], mult)
     cols = scaleRange(offset[0], size[0], mult)
     retval = numpy.array([getLatLong(transform, geotransform, row, col) for row in rows for col in cols])
-    return retval
-
-def OLDscaleRange(offset, size, mult):
-    "Used for building interpolation arrays."
-    if ((mult % 2) == 1):
-        edge = (mult//2)/mult
-    else:
-        edge = (mult-1)/(mult*2)
-
-    # trimming edges
-    print "DEBUG: offset is %f, size is %f, mult is %f, edge is %f" % (offset, size, mult, edge)
-    #retval = list(numpy.linspace(offset-edge,offset+size-1+edge,num=mult*size))
-    retval = list(numpy.linspace(offset,offset+size-1,num=((mult*size)-2)))
-    print "DEBUG: retval length is %d" % len(retval)
 
     return retval
 
@@ -79,6 +63,7 @@ def scaleRange(offset, size, mult):
     "Used for building interpolation arrays."
     multSize = int(size*mult)
     retval = [offset+x/mult for x in range(multSize)]
+
     return retval
 
 def getTransforms(ds):
@@ -99,11 +84,14 @@ def getLatLong(transform, geotransform, x, y):
     pnt = transform.TransformPoint(dfGeoX, dfGeoY, 0)
     return pnt[1], pnt[0]
 
-def getOffsetSize(ds, corners):
+def getOffsetSize(ds, corners, mult=1):
     "Convert corners to offset and size."
-    (ul, ur, ll, lr) = corners
+    (ul, lr) = corners
     (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
+    print "DEBUG: upper left corner is %f, %f" % (ul[0], ul[1])
+    print "DEBUG: lower right corner is %f, %f" % (lr[0], lr[1])
     offset_x, offset_y = getCoords(ArcTrans, GeoTrans, ul[0], ul[1])
+    print "DEBUG: offset_x, offset_y are %d, %d" % (offset_x, offset_y)
     if (offset_x < 0):
         print "DEBUG: offset_x was %d" % offset_x
         offset_x = 0
@@ -111,30 +99,34 @@ def getOffsetSize(ds, corners):
         print "DEBUG: offset_y was %d" % offset_y
         offset_y = 0
     farcorner_x, farcorner_y = getCoords(ArcTrans, GeoTrans, lr[0], lr[1])
+    print "DEBUG: farcorner_x, farcorner_y are %d, %d" % (farcorner_x, farcorner_y)
     if (farcorner_x > ds.RasterXSize):
         print "DEBUG: farcorner_x was %d" % farcorner_x
         farcorner_x = ds.RasterXSize
     if (farcorner_y > ds.RasterYSize):
         print "DEBUG: farcorner_y was %d" % farcorner_y
         farcorner_y = ds.RasterYSize
-    offset = (offset_x, offset_y)
-    size = (farcorner_x-offset_x, farcorner_y-offset_y)
+    # FIXME: something smells here
+    offset = (int(offset_x*mult), int(offset_y*mult))
+    size = (farcorner_x*mult-offset_x*mult, farcorner_y*mult-offset_y*mult)
+    if (size[0] < 0 or size[1] < 0):
+        print "DEBUG: negative size is bad!"
     return offset, size
 
 def getCoords(transform, geotransform, lat, lon):
     "The backwards version of getLatLong, from geo_trans.c."
     pnt = transform.TransformPoint(lon, lat, 0)
-    print "DEBUG: pnt[0] is %d, pnt[1] is %d" % (pnt[0], pnt[1])
-    x = (pnt[0] - geotransform[0]+1)//geotransform[1]
-    y = (pnt[1] - geotransform[3]-1)//geotransform[5]
-    print "DEBUG: x is %d, y is %d" % (x, y)
+    #print "DEBUG: pnt[0] is %d, pnt[1] is %d" % (pnt[0], pnt[1])
+    x = (pnt[0] - geotransform[0])/geotransform[1]
+    y = (pnt[1] - geotransform[3])/geotransform[5]
+    #print "DEBUG: x is %d, y is %d" % (x, y)
     return int(x), int(y)
 
 def getTiles(ds, mult, tileShape, idtPad=16):
-    "Given a dataset, generates a list of tuples of the form: ((row, col), (imageUL, imageUR, imageLL, imageLR), (idtUL, idtUR, idtLL, idtLR))."
+    "Given a dataset, generates a list of tuples of the form: ((row, col), (imageUL, imageLL, imageUR, imageLR), (idtUL, idtLL, idtUR, idtLR))."
     imageRows=tileShape[0]
     imageCols=tileShape[1]
-    Trans, ArcTrans, GeoTrans = getTransforms(ds)
+    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
     maxRows = ds.RasterXSize*mult
     maxCols = ds.RasterYSize*mult
     print "DEBUG: maxRows is %d, maxCols is %d" % (maxRows, maxCols)
@@ -142,66 +134,75 @@ def getTiles(ds, mult, tileShape, idtPad=16):
     numRowTiles = int((maxRows+imageRows-1)/imageRows)
     numColTiles = int((maxCols+imageCols-1)/imageCols)
     print "DEBUG: numRowTiles is %d, numColTiles is %d" % (numRowTiles, numColTiles)
-    rowIndex = 0
-    colIndex = 0
     rows = scaleRange(0, numRowTiles, mult)
     cols = scaleRange(0, numColTiles, mult)
-    for rowIndex in range(len(rows)):
-        for colIndex in range(len(cols)):
-            print "DEBUG: rowIndex is %d, colIndex is %d" % (rowIndex, colIndex)
-            row = rows[rowIndex]
-            col = cols[colIndex]
-            print "DEBUG: row is %f, cols is %f" % (row, col)
-            imageLeft = row*imageRows
-            print "DEBUG: imageLeft was %f" % imageLeft
+    for rowIndex in range(numRowTiles):
+        for colIndex in range(numColTiles):
+            imageLeft = rowIndex*imageRows
+            imageRight = imageLeft+imageRows
+            imageUpper = colIndex*imageCols
+            imageLower = imageUpper+imageCols
+            imageLeftOld = imageLeft
+            imageRightOld = imageRight
+            imageUpperOld = imageUpper
+            imageLowerOld = imageLower
             if (imageLeft < 0):
                 print "DEBUG: imageLeft was corrected!"
                 imageLeft = 0
-            print "DEBUG: imageLeft is %f" % imageLeft
-            imageRight = (row+1)*imageRows
-            print "DEBUG: imageRight was %f" % imageRight
             if (imageRight > maxRows):
                 imageRight = maxRows
-            print "DEBUG: imageRight is %f" % imageRight
-            imageUpper = col*imageCols
-            print "DEBUG: imageUpper was %f" % imageUpper
             if (imageUpper < 0):
                 print "DEBUG: imageUpper was corrected!"
                 imageUpper = 0
-            print "DEBUG: imageUpper is %f" % imageUpper
-            imageLower = (col+1)*imageCols
-            print "DEBUG: imageLower was %f" % imageLower
             if (imageLower > maxCols):
                 imageLower = maxCols
-            print "DEBUG: imageLower is %f" % imageLower
-            idtLeft = row*imageRows-idtPad
+            idtLeft = imageLeft-idtPad
             if (idtLeft < 0):
                 idtLeft = 0
-            idtRight = (row+1)*imageRows+idtPad
+            idtRight = imageRight+idtPad
             if (idtRight > maxRows):
                 idtRight = maxRows
-            idtUpper = col*imageCols-idtPad
+            idtUpper = imageUpper-idtPad
             if (idtUpper < 0):
                 idtUpper = 0
-            idtLower = (col+1)*imageCols+idtPad
+            idtLower = imageLower+idtPad
             if (idtLower > maxCols):
                 idtLower = maxCols
+            imageOffset = (imageLeft, imageUpper)
+            imageSize = ((imageRight-imageLeft), (imageLower-imageUpper))
+            # quick check
+            badTile = False
+            if (imageSize[0] < 0 or imageSize[1] < 0):
+                print "DEBUG: image (%d, %d) has negative size?!?" % (rowIndex, colIndex)
+                badTile = True
+            if (imageSize != tileShape and rowIndex != (numRowTiles-1) and colIndex != (numColTiles-1)):
+                print "DEBUG: image (%d, %d) has non-standard shape for no good reason!" % (rowIndex, colIndex)
+                badTile = True
+            if (badTile):
+                print "DEBUG: image for (%d, %d) was (%f, %f, %f, %f)" % (rowIndex, colIndex, imageLeftOld, imageRightOld, imageUpperOld, imageLowerOld)
+                print "DEBUG: image is (%f, %f, %f, %f)" % (imageLeft, imageRight, imageUpper, imageLower)
+                print "DEBUG: edges = (%f, %f, %f, %f)" % (imageLeft, imageRight, imageUpper, imageLower)
+                print "DEBUG: offset = (%f, %f), size = (%f, %f)" % (imageLeft, imageUpper, imageRight-imageLeft, imageLower-imageUpper)
             # convert edges to lat/long corners
-            imageUL = getLatLong(Trans, GeoTrans, imageLeft, imageUpper)
-            imageLL = getLatLong(Trans, GeoTrans, imageLeft, imageLower)
-            imageUR = getLatLong(Trans, GeoTrans, imageRight, imageUpper)
-            imageLR = getLatLong(Trans, GeoTrans, imageRight, imageLower)
-            idtUL = getLatLong(Trans, GeoTrans, idtLeft, idtUpper)
-            idtLL = getLatLong(Trans, GeoTrans, idtLeft, idtLower)
-            idtUR = getLatLong(Trans, GeoTrans, idtRight, idtUpper)
-            idtLR = getLatLong(Trans, GeoTrans, idtRight, idtLower)
+            realUL = getLatLong(Trans, GeoTrans, 0, 0)
+            realLR = getLatLong(Trans, GeoTrans, ds.RasterXSize, ds.RasterYSize)
+            imageUL = getLatLong(Trans, GeoTrans, imageLeft/mult, imageUpper/mult)
+            imageLR = getLatLong(Trans, GeoTrans, imageRight/mult, imageLower/mult)
+            idtUL = getLatLong(Trans, GeoTrans, idtLeft/mult, idtUpper/mult)
+            idtLR = getLatLong(Trans, GeoTrans, idtRight/mult, idtLower/mult)
             listTiles.append(((rowIndex, colIndex),
-                              (imageUL, imageLL, imageUR, imageLR),
-                              (idtUL, idtLL, idtUR, idtLR)))
-    print "DEBUG: listTiles has length %d" % (len(listTiles))
-    #print "DEBUG: indices of listTiles:", ['(%d, %d)' % (rowIndex, colIndex) for ((rowIndex, colIndex), (imageLeft, imageRight, imageUpper, imageLower), (idtLeft, idtRight, idtUpper, idtLower)) in listTiles]
-    print "DEBUG: image corners of listTiles[0]:", ['((%f, %f), (%f, %f), (%f, %f), (%f, %f))' % (imageUL[0], imageUL[1], imageLL[0], imageLL[1], imageUR[0], imageUR[1], imageLR[0], imageLR[1]) for ((rowIndex, colIndex), (imageUL, imageLL, imageUR, imageLR), (idtUL, idtLL, idtUR, idtLR)) in listTiles]
+                              (imageUL, imageLR),
+                              (idtUL, idtLR)))
     return listTiles
+
+def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1):
+    "Given the relevant information, builds the image array."
+
+    Offset, Size = getOffsetSize(ds, idtCorners)
+    IDT = getIDT(ds, Offset, Size, vScale)
+    ImageArray = IDT(baseArray, nnear=nnear, eps=.1)
+
+    return ImageArray
 
 # main
 def main(argv):
@@ -239,42 +240,34 @@ def main(argv):
     lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
     lcperpixel = lcGeoTrans[1]
     # forced horizontal scale of 30 and vertical scale of 6 for testing
-    hScale = 10
+    hScale = 15
     vScale = 6
     mult = lcperpixel//hScale
 
-    # tinker time!
     tileShape = (256, 256)
     myTiles = getTiles(lcds, mult, tileShape)
 
     for tile in myTiles:
         ((row, col), imageCorners, idtCorners) = tile
-        tileRow = row * tileShape[0]
-        tileCol = col * tileShape[1]
 
         # build base array (based on landcover)
-        baseOffset, baseSize = getOffsetSize(lcds, imageCorners)
+        baseOffset, baseSize = getOffsetSize(lcds, imageCorners, mult)
         baseShape = (baseSize[1], baseSize[0])
-        print "DEBUG: baseOffset is %d, %d" % (baseOffset)
-        print "DEBUG: baseSize is %d, %d" % (baseSize)
-        baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize, mult)
+        print "DEBUG: baseShape is", baseShape
+        baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize)
+        print "DEBUG: baseArray shape is", baseArray.shape
 
         # nnear=1 for landcover, 11 for elevation
-        lcOffset, lcSize = getOffsetSize(lcds, idtCorners)
-        print "DEBUG: lcOffset is %d, %d" % (lcOffset)
-        print "DEBUG: lcSize is %d, %d" % (lcSize)
-        lcIDT = getIDT(lcds, lcOffset, lcSize)
-        lcImageArray = lcIDT(baseArray, nnear=1, eps=.1).reshape(baseShape)
+        lcImageArray = getImageArray(lcds, idtCorners, baseArray, 1)
+        lcImageArray.resize(baseShape)
         lcImage = Image.fromarray(lcImageArray)
-        lcImage.save('Images/%s-lc-%d-%d.gif' % (region, tileRow, tileCol))
+        lcImage.save('Images/%s-lc-%d-%d-%d-%d.gif' % (region, baseOffset[0], baseOffset[1], baseSize[0], baseSize[1]))
 
-        elevOffset, elevSize = getOffsetSize(elevds, idtCorners)
-        print "DEBUG: elevOffset is %d, %d" % (elevOffset)
-        print "DEBUG: elevSize is %d, %d" % (elevSize)
-        elevIDT = getIDT(elevds, elevOffset, elevSize, vScale)
-        elevImageArray = elevIDT(baseArray, nnear=11, eps=.1).reshape(baseShape)
+        # nnear=1 for landcover, 11 for elevation
+        elevImageArray = getImageArray(elevds, idtCorners, baseArray, 11, vScale)
+        elevImageArray.resize(baseShape)
         elevImage = Image.fromarray(elevImageArray)
-        elevImage.save('Images/%s-elev-%d-%d.gif' % (region, tileRow, tileCol))
+        elevImage.save('Images/%s-elev-%d-%d-%d-%d.gif' % (region, baseOffset[0], baseOffset[1], baseSize[0], baseSize[1]))
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
