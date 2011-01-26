@@ -251,7 +251,7 @@ def main(argv):
     lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
     lcperpixel = lcGeoTrans[1]
     # forced horizontal scale of 30 and vertical scale of 6 for testing
-    hScale = 15
+    hScale = 10
     vScale = 6
     mult = lcperpixel//hScale
 
