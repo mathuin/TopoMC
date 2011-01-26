@@ -53,16 +53,9 @@ def getIDT(ds, offset, size, vScale=1):
 
 def getLatLongArray(transform, geotransform, offset, size, mult=1):
     "Given transformations, dimensions, and multiplier, generate the interpolated array."
-    rows = scaleRange(offset[1], size[1], mult)
-    cols = scaleRange(offset[0], size[0], mult)
+    rows = list(numpy.linspace(offset[1]/mult, (offset[1]+size[1])/mult, size[1], False))
+    cols = list(numpy.linspace(offset[0]/mult, (offset[0]+size[0])/mult, size[0], False))
     retval = numpy.array([getLatLong(transform, geotransform, row, col) for row in rows for col in cols])
-
-    return retval
-
-def scaleRange(offset, size, mult):
-    "Used for building interpolation arrays."
-    multSize = int(size*mult)
-    retval = [offset+x/mult for x in range(multSize)]
 
     return retval
 
@@ -122,7 +115,7 @@ def getCoords(transform, geotransform, lat, lon):
     #print "DEBUG: x is %d, y is %d" % (x, y)
     return int(x), int(y)
 
-def getTiles(ds, mult, tileShape, idtPad=16):
+def OLDgetTiles(ds, mult, tileShape, idtPad=16):
     "Given a dataset, generates a list of tuples of the form: ((row, col), (imageUL, imageLL, imageUR, imageLR), (idtUL, idtLL, idtUR, idtLR))."
     imageRows=tileShape[0]
     imageCols=tileShape[1]
@@ -134,8 +127,6 @@ def getTiles(ds, mult, tileShape, idtPad=16):
     numRowTiles = int((maxRows+imageRows-1)/imageRows)
     numColTiles = int((maxCols+imageCols-1)/imageCols)
     print "DEBUG: numRowTiles is %d, numColTiles is %d" % (numRowTiles, numColTiles)
-    rows = scaleRange(0, numRowTiles, mult)
-    cols = scaleRange(0, numColTiles, mult)
     for rowIndex in range(numRowTiles):
         for colIndex in range(numColTiles):
             imageLeft = rowIndex*imageRows
@@ -204,6 +195,26 @@ def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1):
 
     return ImageArray
 
+def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, mult=1, idtPad=0):
+    "run this with idtPad=0 to generate image."
+    imageRows = tileShape[0]
+    imageCols = tileShape[1]
+    imageLeft = rowIndex*imageRows-idtPad
+    imageRight = imageLeft+imageRows+2*idtPad
+    imageUpper = colIndex*imageCols-idtPad
+    imageLower = imageUpper+imageCols+2*idtPad
+    if (imageLeft < 0):
+        imageLeft = 0
+    if (imageRight > maxRows):
+        imageRight = maxRows
+    if (imageUpper < 0):
+        imageUpper = 0
+    if (imageLower > maxCols):
+        imageLower = maxCols
+    imageOffset = (imageLeft, imageUpper)
+    imageSize = (imageRight-imageLeft, imageLower-imageUpper)
+    return imageOffset, imageSize
+
 # main
 def main(argv):
     "The main portion of the script."
@@ -245,29 +256,41 @@ def main(argv):
     mult = lcperpixel//hScale
 
     tileShape = (256, 256)
-    myTiles = getTiles(lcds, mult, tileShape)
+    # NEW IDEA
+    imageRows=tileShape[0]
+    imageCols=tileShape[1]
+    maxRows = lcds.RasterXSize*mult
+    maxCols = lcds.RasterYSize*mult
+    print "DEBUG: maxRows is %d, maxCols is %d" % (maxRows, maxCols)
+    numRowTiles = int((maxRows+imageRows-1)/imageRows)
+    numColTiles = int((maxCols+imageCols-1)/imageCols)
+    print "DEBUG: numRowTiles is %d, numColTiles is %d" % (numRowTiles, numColTiles)
+    for rowIndex in range(numRowTiles):
+        for colIndex in range(numColTiles):
+            print "DEBUG: rowIndex is %d, colIndex is %d" % (rowIndex, colIndex)
+            baseOffset, baseSize = getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols)
+            idtOffset, idtSize = getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=16)
 
-    for tile in myTiles:
-        ((row, col), imageCorners, idtCorners) = tile
+            baseShape = (baseSize[1], baseSize[0])
+            print "DEBUG: baseShape is", baseShape
+            baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize, mult)
+            print "DEBUG: baseArray shape is", baseArray.shape
 
-        # build base array (based on landcover)
-        baseOffset, baseSize = getOffsetSize(lcds, imageCorners, mult)
-        baseShape = (baseSize[1], baseSize[0])
-        print "DEBUG: baseShape is", baseShape
-        baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize)
-        print "DEBUG: baseArray shape is", baseArray.shape
+            # these points are in super-big-coordinates
+            idtUL = getLatLong(lcTrans, lcGeoTrans, idtOffset[0]/mult, idtOffset[1]/mult)
+            idtLR = getLatLong(lcTrans, lcGeoTrans, (idtOffset[0]+idtSize[0])/mult, (idtOffset[1]+idtSize[1])/mult)
 
-        # nnear=1 for landcover, 11 for elevation
-        lcImageArray = getImageArray(lcds, idtCorners, baseArray, 1)
-        lcImageArray.resize(baseShape)
-        lcImage = Image.fromarray(lcImageArray)
-        lcImage.save('Images/%s-lc-%d-%d-%d-%d.gif' % (region, baseOffset[0], baseOffset[1], baseSize[0], baseSize[1]))
+            # nnear=1 for landcover, 11 for elevation
+            lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
+            lcImageArray.resize(baseShape)
+            lcImage = Image.fromarray(lcImageArray)
+            lcImage.save('Images/%s-lc-%d-%d-%d-%d.gif' % (region, baseOffset[0], baseOffset[1], baseSize[0], baseSize[1]))
 
-        # nnear=1 for landcover, 11 for elevation
-        elevImageArray = getImageArray(elevds, idtCorners, baseArray, 11, vScale)
-        elevImageArray.resize(baseShape)
-        elevImage = Image.fromarray(elevImageArray)
-        elevImage.save('Images/%s-elev-%d-%d-%d-%d.gif' % (region, baseOffset[0], baseOffset[1], baseSize[0], baseSize[1]))
+            # nnear=1 for landcover, 11 for elevation
+            elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vScale)
+            elevImageArray.resize(baseShape)
+            elevImage = Image.fromarray(elevImageArray)
+            elevImage.save('Images/%s-elev-%d-%d-%d-%d.gif' % (region, baseOffset[0], baseOffset[1], baseSize[0], baseSize[1]))
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
