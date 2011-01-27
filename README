@@ -4,7 +4,7 @@ This project generates input files suitable for JCraft (http://www.minecraftforu
 
 This project includes one small dataset for testing.  Other datasets can be found in the TopoMC-Datasets repository at git@github.com:mathuin/TopoMC-Datasets.git.
 
-Currently only small (like 300x200) datasets work, and the only Minecraft worlds that can be generated are scaled 30:1 horizontally and 6:1 vertically.
+Tiling functionality has been added.  The stock configuration will generate a world based on Block Island, RI, at 1:6 scale (both horizontal and vertical).  JCraft is currently very slow, taking two hours to process this input.
 
 To build a Minecraft world based on a dataset, here's what to do:
 

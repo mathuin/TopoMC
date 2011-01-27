@@ -1,7 +1,7 @@
 To do:
 
-Add tiling functionality - 256x256 images should work well
- - this will make bigger maps and better scaling possible!
+Add better automation to BuildWorld.js
+ - automatic file searching in JCraft?  how?
 Add grass and ice
  - not sure how to do this via JCraft, need help
 Add randomness
