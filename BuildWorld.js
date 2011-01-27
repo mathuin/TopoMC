@@ -248,7 +248,7 @@ function equip_player() {
 }
 
 function printLandCoverStatistics(lcType, lcCount) {
-    print('Land cover statistics:');
+    print('Land cover statistics ('+lcTotal+' total):');
     B = [];
     for (i in lcCount)
 	B.push({v: i, c: lcCount[i]});
@@ -256,7 +256,7 @@ function printLandCoverStatistics(lcType, lcCount) {
     for (element in B) {
 	i = B[element].v;
     	if (lcCount[i] > 0) {
-	    lcPercent = Math.round(lcCount[i]/lcTotal*100)/100.00;
+	    lcPercent = Math.round((lcCount[i]*10000)/lcTotal)/100.0;
 	    print('  '+lcCount[i]+' ('+lcPercent+'%): '+lcType[i]);
     	}
     }
