@@ -193,11 +193,12 @@ def main(argv):
         for colIndex in range(numColTiles):
             baseOffset, baseSize = getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols)
             idtOffset, idtSize = getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=16)
+            print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (rowIndex, colIndex, baseSize[0], baseSize[1])
 
             baseShape = (baseSize[1], baseSize[0])
             baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize, mult)
 
-            # these points are in super-big-coordinates
+            # these points are scaled coordinates
             idtUL = getLatLong(lcTrans, lcGeoTrans, idtOffset[0]/mult, idtOffset[1]/mult)
             idtLR = getLatLong(lcTrans, lcGeoTrans, (idtOffset[0]+idtSize[0])/mult, (idtOffset[1]+idtSize[1])/mult)
 
@@ -212,7 +213,7 @@ def main(argv):
             elevImageArray.resize(baseShape)
             elevImage = Image.fromarray(elevImageArray)
             elevImage.save('Images/%s-elev-%d-%d.gif' % (region, baseOffset[0], baseOffset[1]))
-    print "Render complete -- total array was %d x %d" % (maxRows, maxCols)
+    print "Render complete -- total array of %d tiles was %d x %d" % (numRowTiles*numColTiles, maxRows, maxCols)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

@@ -20,25 +20,22 @@ var tilecols = 256;
 
 // what region are we doing?
 var region = 'BlockIsland';
-var maxrows = 1520;
-var maxcols = 1990;
+var maxrows = 304*5;
+var maxcols = 398*5;
 
 // inside the loop
 function process_image(offset_x, offset_z) {
-    // image name will be "BlockIsland-lc-256-1792-256-198.gif"
-    // region: BlockIsland
-    // type: lc
-    // offset: 256x1792
-    
-    print('Offset: (' + offset_x + ', ' + offset_z + ')');
-    lcimg = JCraft.Components.Images.Load("Images/"+region+"-lc-"+offset_x+"-"+offset_z+".gif");
-    elevimg = JCraft.Components.Images.Load("Images/"+region+"-elev-"+offset_x+"-"+offset_z+".gif");
-    print('Image: (' + lcimg.height + ', ' + lcimg.width + ')');
-    size_x = lcimg.width;
-    size_z = lcimg.height;
-	
+    var lcimg = JCraft.Components.Images.Load("Images/"+region+"-lc-"+offset_x+"-"+offset_z+".gif");
+    var elevimg = JCraft.Components.Images.Load("Images/"+region+"-elev-"+offset_x+"-"+offset_z+".gif");
+    var size_x = lcimg.width;
+    var size_z = lcimg.height;
     var stop_x = offset_x+size_x;
     var stop_z = offset_z+size_z;
+
+    // debug output
+    print('Image: (' + size_x + ', ' + size_z + ')');
+    print('Offset: (' + offset_x + ', ' + offset_z + ')');
+    print('Stop: (' + stop_x + ', ' + stop_z + ')');
 
     // fill bottom of this particular range with bedrock
     map.fillBlocks(offset_x, stop_x, 0, 1, offset_z, stop_z, blockTypes.Bedrock);
@@ -49,8 +46,7 @@ function process_image(offset_x, offset_z) {
     // iterate over the image
     for (x = 0; x < size_x; x++) {
 	for (z = 0; z < size_z; z++) {
-	    // flipping it backwards because Z increases west not east
-	    flatindex = (x * size_z) + (size_z - z - 1);
+	    flatindex = (z * size_x) + x;
 	    lcval = lcimg[flatindex];
 	    elevval = elevimg[flatindex];
 	    real_x = offset_x + x;
