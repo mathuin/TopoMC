@@ -10,6 +10,7 @@ import sys
 import struct
 import numpy
 import Image
+import argparse
 from osgeo import gdal
 from osgeo import osr
 from osgeo.gdalconst import *
@@ -137,18 +138,27 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, mult=1, i
 def main(argv):
     "The main portion of the script."
 
-    # default region is supplied with TopoMC
-    if (len(argv) != 2):
-        region = 'BlockIsland'
-    else:
-        region = argv[1]
+    parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
+    # TODO: find them and list them
+    # for now, having just one and it being the default is keen
+    # http://docs.python.org/library/argparse.html#type
+    # do perfect_square with locateDataset?!
+    parser.add_argument('-region', nargs='?', default='BlockIsland', help='a region to be processed')
+    parser.add_argument('-scale', nargs='?', default=6, help="horizontal scale factor")
+    parser.add_argument('-vscale', nargs='?', default=6, help="vertical scale factor")
+    # This should handle (256,256) as its argument
+    parser.add_argument('-tile', nargs='?', default=256, help="tile size in pixels")
+    parser.add-argument('-startrow', nargs='?', default=0, help="tile row to begin processing")
+    parser.add-argument('-startcol', nargs='?', default=0, help="tile column to begin processing")
+    parser.add-argument('-stoprow', nargs='?', default=0, help="tile row to end processing")
+    parser.add-argument('-stopcol', nargs='?', default=0, help="tile column to end processing")
+    args = parser.parse_args()
 
-    # TODO: do something magic with argv maybe?
-    hScale = 6
-    vScale = hScale
-    # testing
-    #hScale = 30
-    #vScale = 6
+    # lazy or ugly?
+    region = args.region
+    scale = args.scale
+    vscale = args.vscale
+    tileShape = (args.tile, args.tile)
 
     # locate datasets
     lcds = locateDataset(region)
@@ -160,6 +170,13 @@ def main(argv):
         print "Error: no elevation dataset found matching %s!" % region
         sys.exit()
 
+    # make imagedir
+    # TODO: add error checking
+    imagedir = os.path.join("Images", region)
+    if not os.path.exists(imagedir):
+        os.makedirs(imagedir)
+
+    print "Processing region %s..." % region
     # do both datasets have the same projection?
     lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
     elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
@@ -172,16 +189,15 @@ def main(argv):
     # horizontal based on land cover
     lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
     lcperpixel = lcGeoTrans[1]
-    mult = lcperpixel//hScale
+    mult = lcperpixel//scale
     # vertical based on elevation
     elevBand = elevds.GetRasterBand(1)
     elevCMinMax = elevBand.ComputeRasterMinMax(False)
     elevBand = None
     elevMax = elevCMinMax[1]
-    if (elevMax/vScale > 60):
-        vScale = int(elevMax/60)-1
+    if (elevMax/vscale > 60):
+        vscale = int(elevMax/60)-1
 
-    tileShape = (256, 256)
     # NEW IDEA
     imageRows=tileShape[0]
     imageCols=tileShape[1]
@@ -206,13 +222,13 @@ def main(argv):
             lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
             lcImageArray.resize(baseShape)
             lcImage = Image.fromarray(lcImageArray)
-            lcImage.save('Images/%s-lc-%d-%d.gif' % (region, baseOffset[0], baseOffset[1]))
+            lcImage.save('%s/lc-%d-%d.gif' % (imagedir, baseOffset[0], baseOffset[1]))
 
             # nnear=1 for landcover, 11 for elevation
-            elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vScale)
+            elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vscale)
             elevImageArray.resize(baseShape)
             elevImage = Image.fromarray(elevImageArray)
-            elevImage.save('Images/%s-elev-%d-%d.gif' % (region, baseOffset[0], baseOffset[1]))
+            elevImage.save('%s/elev-%d-%d.gif' % (imagedir, baseOffset[0], baseOffset[1]))
     print "Render complete -- total array of %d tiles was %d x %d" % (numRowTiles*numColTiles, maxRows, maxCols)
 
 if __name__ == '__main__':
