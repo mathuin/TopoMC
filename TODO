@@ -8,7 +8,5 @@ Add randomness
  - X% chance of stone or dirt, etc.
 Add trees
  - certain trees in certain types of forest, of course
-Histogram of land cover types in BuildWorld.js
- - requires populating array
 Normal stuff underground!
  - no idea!
