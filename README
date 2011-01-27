@@ -20,3 +20,5 @@ To build a Minecraft world based on a dataset, here's what to do:
     Select 'BuildWorld.js' as a script.
     Select an unused world.
     Click 'Generate'.
+
+BuildImages.py now has option parsing support, try "./BuildImages -h" to see.
