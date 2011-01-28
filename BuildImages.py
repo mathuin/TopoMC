@@ -5,6 +5,7 @@
 
 from __future__ import division
 import os
+import re
 import fnmatch
 import sys
 import struct
@@ -17,8 +18,50 @@ from osgeo.gdalconst import *
 from invdisttree import *
 gdal.UseExceptions()
 
+# paths for datasets
+dsPaths = ['Datasets', '../TopoMC-Datasets']
+
 # functions
-def locateDataset(region, prefix=""):
+def getDatasetDict(dspaths):
+    "Given a list of paths, generate a dict of datasets."
+
+    lcdirre = '\d\d\d\d\d\d\d\d'
+    elevdirre = 'NED_\d\d\d\d\d\d\d\d'
+
+    retval = {}
+    for dspath in dspaths:
+        regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
+        for region in regions:
+            dsregion = os.path.join(dspath, region)
+            lcfile = ''
+            elevfile = ''
+            elevorigfile = ''
+            subdirs = [ name for name in os.listdir(os.path.join(dsregion)) if os.path.isdir(os.path.join(dsregion, name)) ]
+            for subdir in subdirs:
+                dsregionsub = os.path.join(dsregion, subdir)
+                if re.match(lcdirre, subdir):
+                    maybelcfile = os.path.join(dsregionsub, subdir+'.tif')
+                    if (os.path.isfile(maybelcfile)):
+                        lcfile = maybelcfile
+                if re.match(elevdirre, subdir):
+                    maybeelevfile = os.path.join(dsregionsub, subdir+'.tif')
+                    if (os.path.isfile(maybeelevfile)):
+                        elevfile = maybeelevfile
+                        maybeelevorigfile = os.path.join(dsregionsub, subdir+'.tif-orig')
+                        if (os.path.isfile(maybeelevorigfile)):
+                            elevorigfile = maybeelevorigfile
+            if (lcfile != '' and elevfile != '' and elevorigfile != ''):
+                retval[region] = [lcfile, elevfile]
+    return retval
+
+def locateDataset(region):
+    "Given a region name, return a tuple of datasets: (lc, elev)"
+    if (region in dsDict):
+        return (gdal.Open(dsDict[region][0], GA_ReadOnly), gdal.Open(dsDict[region][1], GA_ReadOnly))
+    else:
+        return None
+
+def OLDlocateDataset(region, prefix=""):
     "Given a region name and an optional prefix, returns the dataset for that region."
     # NB: assumed that exactly one dataset exists for each region/prefix
     dsfilename = ''
@@ -135,28 +178,26 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, mult=1, i
     return imageOffset, imageSize
 
 def xytuple(string):
-    #split string on comma
+    "Checks to see if the supplied string is a valid tuple."
     errorMsg = "not a suitable tuple: %s" % string
     (first, sep, last) = string.partition(",")
     if (not(sep == "," and first.isdigit() and last.isdigit())):
         raise argparse.ArgumentTypeError(errorMsg)
     return (int(first), int(last))
 
+def checkDataset(string):
+    "Checks to see if the supplied string is a dataset."
+    errorMsg = "not a dataset: %s" % string
+    if (not string in dsDict):
+        raise argparse.ArgumentTypeError(errorMsg)
+    return string
+    
 # main
 def main(argv):
     "The main portion of the script."
 
-    parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
-    # TODO: find them and list them
-    # for now, having just one and it being the default is keen
-    # http://docs.python.org/library/argparse.html#type
-    # do perfect_square with locateDataset?!
-    # NEW IDEA
-    # write a function that searches for datasets and builds a hash
-    # 'BlockIsland': 'lcfile.tif', 'elevfile.tif'
-    # scan *that* for regions, and use that for the perfect_square thing
-    # also rewrite locate_dataset!
-    parser.add_argument('-region', nargs='?', default='BlockIsland', help='a region to be processed')
+    parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.', epilog='Valid datasets detected:\n'+"\n".join([region for region in sorted(dsDict.keys())]))
+    parser.add_argument('-region', nargs='?', default='BlockIsland', type=checkDataset, help='a region to be processed')
     parser.add_argument('-scale', nargs='?', default=6, help="horizontal scale factor")
     parser.add_argument('-vscale', nargs='?', default=6, help="vertical scale factor")
     parser.add_argument('-tilesize', nargs='?', default='256,256', type=xytuple, help="tile size in tuple form")
@@ -174,14 +215,15 @@ def main(argv):
     (maxTileRows, maxTileCols) = args.end
 
     # locate datasets
-    lcds = locateDataset(region)
-    if (lcds == None):
-        print "Error: no land cover dataset found matching %s!" % region
-        sys.exit()
-    elevds = locateDataset(region, 'NED_')
-    if (elevds == None):
-        print "Error: no elevation dataset found matching %s!" % region
-        sys.exit()
+    # lcds = locateDataset(region)
+    # if (lcds == None):
+    #     print "Error: no land cover dataset found matching %s!" % region
+    #     return -1
+    # elevds = locateDataset(region, 'NED_')
+    # if (elevds == None):
+    #     print "Error: no elevation dataset found matching %s!" % region
+    #     return -1
+    (lcds, elevds) = locateDataset(region)
 
     # make imagedir
     # TODO: add error checking
@@ -190,13 +232,15 @@ def main(argv):
         os.makedirs(imagedir)
 
     print "Processing region %s..." % region
+    
     # do both datasets have the same projection?
+    # TODO: move this into the locateDatabases thing!
     lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
     elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
 
     if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
         print "Error: land cover and elevation maps do not have the same projection."
-        sys.exit()
+        return -1
 
     # set up scaling factors
     # horizontal based on land cover
@@ -241,14 +285,16 @@ def main(argv):
             lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
             lcImageArray.resize(baseShape)
             lcImage = Image.fromarray(lcImageArray)
-            lcImage.save('%s/lc-%d-%d.gif' % (imagedir, baseOffset[0], baseOffset[1]))
+            lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
 
             # nnear=1 for landcover, 11 for elevation
             elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vscale)
             elevImageArray.resize(baseShape)
             elevImage = Image.fromarray(elevImageArray)
-            elevImage.save('%s/elev-%d-%d.gif' % (imagedir, baseOffset[0], baseOffset[1]))
+            elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
     print "Render complete -- total array of %d tiles was %d x %d" % (numRowTiles*numColTiles, maxRows, maxCols)
 
 if __name__ == '__main__':
+    dsDict = getDatasetDict(dsPaths)
+
     sys.exit(main(sys.argv))
