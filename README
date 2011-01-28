@@ -11,14 +11,10 @@ To build a Minecraft world based on a dataset, here's what to do:
 1.  Build the elevation and land cover images.
     jmt@belle:~/TopoMC$ ./BuildImages.py BlockIsland
 
-2.  Prepare new images for worldbuilding.
-    jmt@belle:~/TopoMC$ cp ./Images/BlockIsland-test-lcimage.gif lcimage.gif
-    jmt@belle:~/TopoMC$ cp ./Images/BlockIsland-test-elevimage.gif elevimage.gif
-
-3. Build a new world!
+2. Build a new world!
     jmt@belle:~/TopoMC$ mono ../JCraft/JCraft.exe
-    Select 'BuildWorld.js' as a script.
+    Select 'BuildWorld.js' as a script, it defaults to BlockIsland.
     Select an unused world.
     Click 'Generate'.
 
-BuildImages.py now has option parsing support, try "./BuildImages -h" to see.
+BuildImages.py now has option parsing support: try "./BuildImages.py -h".
