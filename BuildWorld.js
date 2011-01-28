@@ -20,12 +20,13 @@ var tilecols = 256;
 
 // what region are we doing?
 var region = 'BlockIsland';
+// FIXME: these should have defaults to "all files" eventually
 var minrows = 0;
 var mincols = 0;
-var maxrows = 1281;
-var maxcols = 1793;
+var maxrows = 1520;
+var maxcols = 1990;
 
-// land cover associative array for printing
+// land cover statistics
 var lcType = {};
 var lcCount = {};
 var lcTotal = 0;
@@ -131,34 +132,50 @@ function processLcval(lcval, x, z, elevval) {
 	lcCount[lcval]++;
 	switch(lcval) {
 	case 11:
-	    // water 3m over sand
-	    two_layer(x, z, elevval, 3, blockTypes.Sand, blockTypes.Water);
+	    // water 2m over sand
+	    // IDEA: survey neighboring squares
+	    // if at least one is not water, use 1m, not 2m
+	    two_layer(x, z, elevval, 2, blockTypes.Sand, blockTypes.Water);
 	    break;
 	case 12:
 	    // ice
 	    // FIXME: how to put ice on?
-	    two_layer(x, z, elevval, 3, blockTypes.Sand, blockTypes.Water);
+	    two_layer(x, z, elevval, 2, blockTypes.Sand, blockTypes.Water);
 	    break;
 	case 21:
 	    // developed/open-space (20% stone 80% grass rand tree)
+	    one_layer_rand(x, z, elevval, 0.2, blockTypes.Stone, blockTypes.Dirt);
+	    break;
 	case 22:
 	    // developed/open-space (35% stone 65% grass rand tree)
+	    one_layer_rand(x, z, elevval, 0.35, blockTypes.Stone, blockTypes.Dirt);
+	    break;
 	case 23:
 	    // developed/open-space (65% stone 35% grass rand tree)
+	    one_layer_rand(x, z, elevval, 0.65, blockTypes.Stone, blockTypes.Dirt);
+	    break;
 	case 24:
 	    // developed/open-space (90% stone 10% grass rand tree)
-	    one_layer(x, z, elevval, blockTypes.Stone);
+	    one_layer_rand(x, z, elevval, 0.90, blockTypes.Stone, blockTypes.Dirt);
 	    break;
 	case 31:
 	    // barren land (baseline% sand baseline% stone)
+	    one_layer(x, z, elevval, blockTypes.Sand);
+	    break;
 	case 32:
 	    // unconsolidated shore (sand)
 	    one_layer(x, z, elevval, blockTypes.Sand);
 	    break;
 	case 41:
 	    // deciduous forest (grass with tree #1)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 42:
 	    // evergreen forest (grass with tree #2)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 43:
 	    // mixed forest (grass with either tree)
 	    // FIXME: how to put grass on dirt?
@@ -166,13 +183,19 @@ function processLcval(lcval, x, z, elevval) {
 	    break;
 	case 51:
 	    // dwarf scrub (grass with 25% stone)
+	    // FIXME: how to put grass on dirt?
+	    one_layer_rand(x, z, elevval, 0.25, blockTypes.Stone, blockTypes.Dirt);
+	    break;
 	case 52:
 	    // shrub/scrub (grass with 25% stone)
 	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    one_layer_rand(x, z, elevval, 0.25, blockTypes.Stone, blockTypes.Dirt);
 	    break;
 	case 71:
 	    // grasslands/herbaceous
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 72:
 	    // sedge/herbaceous
 	    // FIXME: how to put grass on dirt?
@@ -180,47 +203,77 @@ function processLcval(lcval, x, z, elevval) {
 	    break;
 	case 73:
 	    // lichens (90% stone 10% grass)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, 0.10, blockTypes.dirt, blockTypes.Stone);
+	    break;
 	case 74:
 	    // moss (90% stone 10% grass)
-	    one_layer(x, z, elevval, blockTypes.Stone);
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, 0.10, blockTypes.dirt, blockTypes.Stone);
 	    break;
 	case 81:
 	    // pasture/hay
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 82:
 	    // cultivated crops
 	    // FIXME: how to put grass on dirt?
 	    one_layer(x, z, elevval, blockTypes.Dirt);
 	    break;
 	case 90:
-	    // woody wetlands (grass with rand trees and -2m water)
+	    // woody wetlands (grass with rand trees and -1m water)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 91:
-	    // palustrine forested wetlands (grass with rand trees and -2m water)
+	    // palustrine forested wetlands (grass with rand trees and -1m water)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 92:
-	    // palustrine scrub/shrub wetlands (grass with baseline% -2m water)
+	    // palustrine scrub/shrub wetlands (grass with baseline% -1m water)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 93:
 	    // estuarine forested wetlands (grass with rand trees and water)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 94:
-	    // estuarine scrub/shrub wetlands (grass with baseline% -2m water)
+	    // estuarine scrub/shrub wetlands (grass with baseline% -1m water)
+	    // FIXME: how to put grass on dirt?
+	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    break;
 	case 95:
-	    // emergent herbaceous wetlands (grass with baseline% -2m water)
+	    // emergent herbaceous wetlands (grass with baseline% -1m water)
+	    // FIXME: how to put grass on dirt?
 	    one_layer(x, z, elevval, blockTypes.Dirt);
 	    break;
 	case 96:
-	    // palustrine emergent wetlands-persistent (-2m water?)
+	    // palustrine emergent wetlands-persistent (-1m water?)
+	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    break;
 	case 97:
-	    // estuarine emergent wetlands (-2m water)
+	    // estuarine emergent wetlands (-1m water)
+	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    break;
 	case 98:
-	    // palustrine aquatic bed (-2m water)
+	    // palustrine aquatic bed (-1m water)
+	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    break;
 	case 99:
-	    // estuarine aquatic bed (-2m water)
-	    two_layer(x, z, elevval, 2, blockTypes.Dirt, blockTypes.Water)
-		break;
-	default:
-	    //print('unexpected value for land cover: ' + lcval);
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    // estuarine aquatic bed (-1m water)
+	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
 	    break;
 	}
     }
+}
+
+// fills a column with a single block type 
+function one_layer(x, z, elevval, blockType) {
+    map.fillBlocks(x, 1, baseline, filler+elevval, z, 1, blockType);
 }
 
 // fills a column with a base block type then covers it with a block type
@@ -230,9 +283,15 @@ function two_layer(x, z, elevval, depth, baseblockType, topblockType) {
     map.fillBlocks(x, 1, sealevel+underlayer, depth, z, 1, topblockType);
 }
 
-// fills a column with a single block type 
-function one_layer(x, z, elevval, blockType) {
-    map.fillBlocks(x, 1, baseline, filler+elevval, z, 1, blockType);
+// fills a column with this or that depending
+function one_layer_rand(x, z, elevval, prob, lowerblock, upperblock) {
+    var thisblock;
+    if (Math.random() < prob) {
+	thisblock = lowerblock; 
+    } else {
+	thisblock = upperblock;
+    }
+    one_layer(x, z, elevval, thisblock);
 }
 
 // everything an explorer needs, for now
@@ -272,8 +331,10 @@ function main() {
 
     // for loop time!
     // first make sure that minrows and mincols start on tile boundaries
-    for (var row = (minrows - (minrows % tilerows)); row < maxrows; row += tilerows) {
-	for (var col = (mincols - (mincols % tilerows)); col < maxcols; col += tilecols) {
+    minrows -= (minrows % tilerows);
+    mincols -= (mincols % tilecols);
+    for (var row = minrows; row < maxrows; row += tilerows) {
+	for (var col = mincols; col < maxcols; col += tilecols) {
 	    processImage(row, col);
 	}
     }
