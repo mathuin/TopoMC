@@ -66,29 +66,40 @@ def getDatasetDict(dspaths):
                 if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
                     print "%s: lc and elevation maps do not have the same projection" % region
                     break
+                # calculate rows and columns
+                rows = lcds.RasterXSize
+                cols = lcds.RasterYSize
                 # clean up
                 lcds = None
                 elevds = None
-                retval[region] = [lcfile, elevfile]
+                retval[region] = [lcfile, elevfile, rows, cols]
     return retval
 
-def locateDataset(region):
+def getDataset(region):
     "Given a region name, return a tuple of datasets: (lc, elev)"
     if (region in dsDict):
-        return (gdal.Open(dsDict[region][0], GA_ReadOnly), gdal.Open(dsDict[region][1], GA_ReadOnly))
+        dsList = dsDict[region]
+        return (gdal.Open(dsList[0], GA_ReadOnly), gdal.Open(dsList[1], GA_ReadOnly))
+    else:
+        return None
+
+def getDatasetDims(region):
+    "Given a region name, return dataset dimensions."
+    if (region in dsDict):
+        dsList = dsDict[region]
+        return (dsList[2], dsList[3])
     else:
         return None
 
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
     # retrieve data from dataset
-    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
     Band = ds.GetRasterBand(1)
     Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
     Band = None
 
     # build initial arrays
-    LatLong = getLatLongArray(Trans, GeoTrans, (offset), (size), 1)
+    LatLong = getLatLongArray(ds, (offset), (size), 1)
     Value = Data.flatten()
 
     # scale elevation vertically
@@ -99,13 +110,21 @@ def getIDT(ds, offset, size, vScale=1):
 
     return IDT
 
-def getLatLongArray(transform, geotransform, offset, size, mult=1):
+def getLatLongArray(ds, offset, size, mult=1):
     "Given transformations, dimensions, and multiplier, generate the interpolated array."
     rows = list(numpy.linspace(offset[1]/mult, (offset[1]+size[1])/mult, size[1], False))
     cols = list(numpy.linspace(offset[0]/mult, (offset[0]+size[0])/mult, size[0], False))
-    retval = numpy.array([getLatLong(transform, geotransform, row, col) for row in rows for col in cols])
+    retval = numpy.array([getLatLong(ds, row, col) for row in rows for col in cols])
 
     return retval
+
+def getLatLong(ds, x, y):
+    "Given dataset and coordinates, return latitude and longitude.  Based on GDALInfoReportCorner() from gdalinfo.py"
+    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
+    dfGeoX = GeoTrans[0] + GeoTrans[1] * x + GeoTrans[2] * y
+    dfGeoY = GeoTrans[3] + GeoTrans[4] * x + GeoTrans[5] * y
+    pnt = Trans.TransformPoint(dfGeoX, dfGeoY, 0)
+    return pnt[1], pnt[0]
 
 def getTransforms(ds):
     "Given a dataset, return the transform and geotransform."
@@ -118,23 +137,15 @@ def getTransforms(ds):
 
     return Trans, ArcTrans, GeoTrans
 
-def getLatLong(transform, geotransform, x, y):
-    "Given transform, geotransform, and coordinates, return latitude and longitude.  Based on GDALInfoReportCorner() from gdalinfo.py"
-    dfGeoX = geotransform[0] + geotransform[1] * x + geotransform[2] * y
-    dfGeoY = geotransform[3] + geotransform[4] * x + geotransform[5] * y
-    pnt = transform.TransformPoint(dfGeoX, dfGeoY, 0)
-    return pnt[1], pnt[0]
-
 def getOffsetSize(ds, corners, mult=1):
     "Convert corners to offset and size."
     (ul, lr) = corners
-    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
-    offset_x, offset_y = getCoords(ArcTrans, GeoTrans, ul[0], ul[1])
+    offset_x, offset_y = getCoords(ds, ul[0], ul[1])
     if (offset_x < 0):
         offset_x = 0
     if (offset_y < 0):
         offset_y = 0
-    farcorner_x, farcorner_y = getCoords(ArcTrans, GeoTrans, lr[0], lr[1])
+    farcorner_x, farcorner_y = getCoords(ds, lr[0], lr[1])
     if (farcorner_x > ds.RasterXSize):
         farcorner_x = ds.RasterXSize
     if (farcorner_y > ds.RasterYSize):
@@ -145,11 +156,12 @@ def getOffsetSize(ds, corners, mult=1):
         print "DEBUG: negative size is bad!"
     return offset, size
 
-def getCoords(transform, geotransform, lat, lon):
+def getCoords(ds, lat, lon):
+    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
     "The backwards version of getLatLong, from geo_trans.c."
-    pnt = transform.TransformPoint(lon, lat, 0)
-    x = (pnt[0] - geotransform[0])/geotransform[1]
-    y = (pnt[1] - geotransform[3])/geotransform[5]
+    pnt = ArcTrans.TransformPoint(lon, lat, 0)
+    x = (pnt[0] - GeoTrans[0])/GeoTrans[1]
+    y = (pnt[1] - GeoTrans[3])/GeoTrans[5]
     return int(x), int(y)
 
 def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1):
@@ -181,103 +193,165 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, mult=1, i
     imageSize = (imageRight-imageLeft, imageLower-imageUpper)
     return imageOffset, imageSize
 
-def xytuple(string):
-    "Checks to see if the supplied string is a valid tuple."
-    errorMsg = "not a suitable tuple: %s" % string
-    (first, sep, last) = string.partition(",")
-    if (not(sep == "," and first.isdigit() and last.isdigit())):
-        raise argparse.ArgumentTypeError(errorMsg)
-    return (int(first), int(last))
+def listDatasets(dsdict):
+    "Given a dataset dict, list the datasets and their dimensions."
+    print 'Valid datasets detected:'
+    dsDimsDict = dict((region, getDatasetDims(region)) for region in dsDict.keys())
+    print "\n".join(["\t%s (%d, %d)" % (region, dsDimsDict[region][0], dsDimsDict[region][1]) for region in sorted(dsDict.keys())])
 
 def checkDataset(string):
     "Checks to see if the supplied string is a dataset."
-    errorMsg = "not a dataset: %s" % string
-    if (not string in dsDict):
-        raise argparse.ArgumentTypeError(errorMsg)
+    if (string != None and not string in dsDict):
+        print "%s is not a valid dataset" % string
+        listDatasets(dsDict)
+        raise argparse.ArgumentTypeError()
     return string
-    
+
+def checkScale(args):
+    "Checks to see if the given scale is valid for the given region.  Returns scale and multiplier."
+    scale = int(args.scale)
+    lcds, elevds = getDataset(args.region)
+    elevds = None
+    lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
+    lcds = None
+    lcperpixel = int(lcGeoTrans[1])
+    if (scale > lcperpixel):
+        print "Warning: scale of %d exceeds maximum for region %s -- changed to %d" % (scale, args.region, lcperpixel)
+        scale = lcperpixel
+    # FIXME: ensure that wierd values are okay
+    # right now, restrict it to factors of lcperpixel
+    if (lcperpixel/scale != lcperpixel//scale):
+        for x in range(scale, lcperpixel+1):
+            if (lcperpixel/x == lcperpixel//x):
+                print "Warning: scale for region %s must be factor of %d -- changed to %d" % (args.region, lcperpixel, x)
+                scale = x
+                break
+    mult = lcperpixel//scale
+    return (scale, mult)
+
+def checkVScale(args):
+    "Checks to see if the given vScale is valid for the given region."
+    vscale = int(args.vscale)
+    (lcds, elevds) = getDataset(args.region)
+    lcds = None
+    elevBand = elevds.GetRasterBand(1)
+    elevCMinMax = elevBand.ComputeRasterMinMax(False)
+    elevBand = None
+    elevds = None
+    elevMax = elevCMinMax[1]
+    if (elevMax/vscale > 60):
+        newvscale = int(elevMax/60)-1 
+        print "Warning: vscale value for region %s is %d too low -- changed to %d" % (args.region, vscale, newvscale)
+        vscale = newvscale
+    if (elevMax/vscale < 1):
+        newvscale = elevMax
+        print "Warning: vscale value for region %s is %d too low -- changed to %d" % (args.region, vscale, newvscale)
+        vscale = newvscale
+    return vscale
+
+def checkTile(args, mult):
+    "Checks to see if a tile dimension is too big for a region."
+    tilex, tiley = args.tilesize
+    rows, cols = getDatasetDims(args.region)
+    if (tilex > (rows * mult) or tiley > (cols * mult)):
+        print "Warning: tile size for region %s too large -- changed to %d, %d" % (args.region, rows, cols)
+        tilex = rows
+        tiley = cols
+    return (tilex, tiley)
+
+def checkStartEnd(args, mult, tile):
+    "Checks to see if start and end values are valid for a region."
+    (rows, cols) = getDatasetDims(args.region)
+    (minTileRows, minTileCols) = args.start
+    (maxTileRows, maxTileCols) = args.end
+    (tileRows, tileCols) = tile
+
+    numRowTiles = int((rows*mult+tileRows-1)/tileRows)
+    numColTiles = int((cols*mult+tileCols-1)/tileCols)
+    if (maxTileRows == 0 or maxTileRows > numRowTiles):
+        if (maxTileRows > numRowTiles):
+            print "Warning: maxTileRows greater than numTileRows, setting to %d" % numTileRows
+        maxTileRows = numRowTiles
+    if (minTileRows > maxTileRows):
+        print "Warning: minTileRows less than maxTileRows, setting to %d" % maxTileRows
+        minTileRows = maxTileRows
+    if (maxTileCols == 0 or maxTileCols > numColTiles):
+        if (maxTileCols > numColTiles):
+            print "Warning: maxTileCols greater than numTileCols, setting to %d" % numTileCols
+        maxTileCols = numColTiles
+    if (minTileCols > maxTileCols):
+        print "Warning: minTileCols less than maxTileCols, setting to %d" % maxTileCols
+        minTileCols = maxTileCols
+    return (minTileRows, minTileCols, maxTileRows, maxTileCols)
+
+def processTile(lcds, elevds, tileShape, mult, vscale, rows, cols, imagedir, tileRowIndex, tileColIndex):
+    "Actually process a tile."
+    maxRows = rows*mult
+    maxCols = cols*mult
+    baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
+    idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
+    print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
+
+    baseShape = (baseSize[1], baseSize[0])
+    baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
+
+    # these points are scaled coordinates
+    idtUL = getLatLong(lcds, idtOffset[0]/mult, idtOffset[1]/mult)
+    idtLR = getLatLong(lcds, (idtOffset[0]+idtSize[0])/mult, (idtOffset[1]+idtSize[1])/mult)
+
+    # nnear=1 for landcover, 11 for elevation
+    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
+    lcImageArray.resize(baseShape)
+    lcImage = Image.fromarray(lcImageArray)
+    lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
+
+    # nnear=1 for landcover, 11 for elevation
+    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vscale)
+    elevImageArray.resize(baseShape)
+    elevImage = Image.fromarray(elevImageArray)
+    elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
+
+
 # main
 def main(argv):
     "The main portion of the script."
 
-    parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.', epilog='Valid datasets detected:\n'+"\n".join([region for region in sorted(dsDict.keys())]))
-    parser.add_argument('-region', nargs='?', default='BlockIsland', type=checkDataset, help='a region to be processed')
-    parser.add_argument('-scale', nargs='?', default=6, help="horizontal scale factor")
-    parser.add_argument('-vscale', nargs='?', default=6, help="vertical scale factor")
-    parser.add_argument('-tilesize', nargs='?', default='256,256', type=xytuple, help="tile size in tuple form")
-    parser.add_argument('-start', nargs='?', default='0,0', type=xytuple, help="starting tile in tuple form")
-    parser.add_argument('-end', nargs='?', default='0,0', type=xytuple, help="ending tile in tuple form")
+    parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
+    parser.add_argument('region', nargs='?', type=checkDataset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--scale', default=6, type=int, help="horizontal scale factor")
+    parser.add_argument('--vscale', nargs=1, default=6, type=int, help="vertical scale factor")
+    parser.add_argument('--tilesize', nargs=2, default=[256, 256], type=int, help="tile size in tuple form")
+    parser.add_argument('--start', nargs=2, default=[0, 0], type=int, help="starting tile in tuple form")
+    parser.add_argument('--end', nargs=2, default=[0, 0], type=int, help="ending tile in tuple form")
     args = parser.parse_args()
 
-    # lazy or ugly?
-    region = args.region
-    scale = args.scale
-    vscale = args.vscale
-    tileShape = args.tilesize
+    # list regions if requested
+    if (args.region == None):
+        listDatasets(dsDict)
+        return 0
+
+    # set up all the values
+    lcds, elevds = getDataset(args.region)
+    rows, cols = getDatasetDims(args.region)
+    (scale, mult) = checkScale(args)
+    vscale = checkVScale(args)
+    tileShape = checkTile(args, mult)
     (tileRows, tileCols) = tileShape
-    (minTileRows, minTileCols) = args.start
-    (maxTileRows, maxTileCols) = args.end
+    (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
 
     # make imagedir
     # TODO: add error checking
-    imagedir = os.path.join("Images", region)
+    imagedir = os.path.join("Images", args.region)
     if not os.path.exists(imagedir):
         os.makedirs(imagedir)
 
-    print "Processing region %s..." % region
+    print "Processing region %s of size (%d, %d)..." % (args.region, rows, cols)
     
-    # set up scaling factors
-    # horizontal based on land cover
-    lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
-    lcperpixel = lcGeoTrans[1]
-    mult = lcperpixel//scale
-    # vertical based on elevation
-    elevBand = elevds.GetRasterBand(1)
-    elevCMinMax = elevBand.ComputeRasterMinMax(False)
-    elevBand = None
-    elevMax = elevCMinMax[1]
-    if (elevMax/vscale > 60):
-        newvscale = int(elevMax/60)-1 
-        print "Warning: vscale value %d too low, changing to %d" % (vscale, newvscale)
-        vscale = newvscale
-
-    maxRows = lcds.RasterXSize*mult
-    maxCols = lcds.RasterYSize*mult
-    numRowTiles = int((maxRows+tileRows-1)/tileRows)
-    numColTiles = int((maxCols+tileCols-1)/tileCols)
-    if (maxTileRows == 0 or maxTileRows > numRowTiles):
-        maxTileRows = numRowTiles
-    if (minTileRows > maxTileRows):
-        minTileRows = maxTileRows
-    if (maxTileCols == 0 or maxTileCols > numColTiles):
-        maxTileCols = numColTiles
-    if (minTileCols > maxTileCols):
-        minTileCols = maxTileCols
     for tileRowIndex in range(minTileRows, maxTileRows):
-        for tileColIndex in range(minTileRows, maxTileRows):
-            baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
-            idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
-            print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
-
-            baseShape = (baseSize[1], baseSize[0])
-            baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize, mult)
-
-            # these points are scaled coordinates
-            idtUL = getLatLong(lcTrans, lcGeoTrans, idtOffset[0]/mult, idtOffset[1]/mult)
-            idtLR = getLatLong(lcTrans, lcGeoTrans, (idtOffset[0]+idtSize[0])/mult, (idtOffset[1]+idtSize[1])/mult)
-
-            # nnear=1 for landcover, 11 for elevation
-            lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
-            lcImageArray.resize(baseShape)
-            lcImage = Image.fromarray(lcImageArray)
-            lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-
-            # nnear=1 for landcover, 11 for elevation
-            elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vscale)
-            elevImageArray.resize(baseShape)
-            elevImage = Image.fromarray(elevImageArray)
-            elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    print "Render complete -- total array of %d tiles was %d x %d" % (numRowTiles*numColTiles, maxRows, maxCols)
+        for tileColIndex in range(minTileCols, maxTileCols):
+            # this facilitates parallel processing!
+            processTile(lcds, elevds, tileShape, mult, vscale, rows, cols, imagedir, tileRowIndex, tileColIndex)
+    print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), rows*mult, cols*mult)
 
 if __name__ == '__main__':
     dsDict = getDatasetDict(dsPaths)
