@@ -51,6 +51,24 @@ def getDatasetDict(dspaths):
                         if (os.path.isfile(maybeelevorigfile)):
                             elevorigfile = maybeelevorigfile
             if (lcfile != '' and elevfile != '' and elevorigfile != ''):
+                # check that both datasets open read-only without errors
+                lcds = gdal.Open(lcfile)
+                if (lcds == None):
+                    print "%s: lc dataset didn't open" % region
+                    break
+                elevds = gdal.Open(elevfile)
+                if (elevds == None):
+                    print "%s: elev dataset didn't open" % region
+                    break
+                # check that both datasets have the same projection
+                lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
+                elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
+                if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
+                    print "%s: lc and elevation maps do not have the same projection" % region
+                    break
+                # clean up
+                lcds = None
+                elevds = None
                 retval[region] = [lcfile, elevfile]
     return retval
 
@@ -60,20 +78,6 @@ def locateDataset(region):
         return (gdal.Open(dsDict[region][0], GA_ReadOnly), gdal.Open(dsDict[region][1], GA_ReadOnly))
     else:
         return None
-
-def OLDlocateDataset(region, prefix=""):
-    "Given a region name and an optional prefix, returns the dataset for that region."
-    # NB: assumed that exactly one dataset exists for each region/prefix
-    dsfilename = ''
-    dspaths = ['Datasets', '../TopoMC-Datasets']
-    for dspath in dspaths:
-        for path, dirs, files in os.walk(os.path.abspath((dspath+'/'+region))):
-            for filename in fnmatch.filter(files, prefix+"[0-9]*.tif"):
-                dsfilename = os.path.join(path, filename)
-    # no dataset found
-    if (dsfilename == ''):
-        return None
-    return gdal.Open(dsfilename, GA_ReadOnly)
 
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
@@ -214,17 +218,6 @@ def main(argv):
     (minTileRows, minTileCols) = args.start
     (maxTileRows, maxTileCols) = args.end
 
-    # locate datasets
-    # lcds = locateDataset(region)
-    # if (lcds == None):
-    #     print "Error: no land cover dataset found matching %s!" % region
-    #     return -1
-    # elevds = locateDataset(region, 'NED_')
-    # if (elevds == None):
-    #     print "Error: no elevation dataset found matching %s!" % region
-    #     return -1
-    (lcds, elevds) = locateDataset(region)
-
     # make imagedir
     # TODO: add error checking
     imagedir = os.path.join("Images", region)
@@ -233,15 +226,6 @@ def main(argv):
 
     print "Processing region %s..." % region
     
-    # do both datasets have the same projection?
-    # TODO: move this into the locateDatabases thing!
-    lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
-    elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
-
-    if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
-        print "Error: land cover and elevation maps do not have the same projection."
-        return -1
-
     # set up scaling factors
     # horizontal based on land cover
     lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
@@ -253,9 +237,10 @@ def main(argv):
     elevBand = None
     elevMax = elevCMinMax[1]
     if (elevMax/vscale > 60):
-        vscale = int(elevMax/60)-1
+        newvscale = int(elevMax/60)-1 
+        print "Warning: vscale value %d too low, changing to %d" % (vscale, newvscale)
+        vscale = newvscale
 
-    # NEW IDEA
     maxRows = lcds.RasterXSize*mult
     maxCols = lcds.RasterYSize*mult
     numRowTiles = int((maxRows+tileRows-1)/tileRows)
