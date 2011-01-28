@@ -151,6 +151,11 @@ def main(argv):
     # for now, having just one and it being the default is keen
     # http://docs.python.org/library/argparse.html#type
     # do perfect_square with locateDataset?!
+    # NEW IDEA
+    # write a function that searches for datasets and builds a hash
+    # 'BlockIsland': 'lcfile.tif', 'elevfile.tif'
+    # scan *that* for regions, and use that for the perfect_square thing
+    # also rewrite locate_dataset!
     parser.add_argument('-region', nargs='?', default='BlockIsland', help='a region to be processed')
     parser.add_argument('-scale', nargs='?', default=6, help="horizontal scale factor")
     parser.add_argument('-vscale', nargs='?', default=6, help="vertical scale factor")
