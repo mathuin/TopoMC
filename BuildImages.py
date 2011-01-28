@@ -134,6 +134,14 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, mult=1, i
     imageSize = (imageRight-imageLeft, imageLower-imageUpper)
     return imageOffset, imageSize
 
+def xytuple(string):
+    #split string on comma
+    errorMsg = "not a suitable tuple: %s" % string
+    (first, sep, last) = string.partition(",")
+    if (not(sep == "," and first.isdigit() and last.isdigit())):
+        raise argparse.ArgumentTypeError(errorMsg)
+    return (int(first), int(last))
+
 # main
 def main(argv):
     "The main portion of the script."
@@ -146,19 +154,19 @@ def main(argv):
     parser.add_argument('-region', nargs='?', default='BlockIsland', help='a region to be processed')
     parser.add_argument('-scale', nargs='?', default=6, help="horizontal scale factor")
     parser.add_argument('-vscale', nargs='?', default=6, help="vertical scale factor")
-    # This should handle (256,256) as its argument
-    parser.add_argument('-tile', nargs='?', default=256, help="tile size in pixels")
-    parser.add-argument('-startrow', nargs='?', default=0, help="tile row to begin processing")
-    parser.add-argument('-startcol', nargs='?', default=0, help="tile column to begin processing")
-    parser.add-argument('-stoprow', nargs='?', default=0, help="tile row to end processing")
-    parser.add-argument('-stopcol', nargs='?', default=0, help="tile column to end processing")
+    parser.add_argument('-tilesize', nargs='?', default='256,256', type=xytuple, help="tile size in tuple form")
+    parser.add_argument('-start', nargs='?', default='0,0', type=xytuple, help="starting tile in tuple form")
+    parser.add_argument('-end', nargs='?', default='0,0', type=xytuple, help="ending tile in tuple form")
     args = parser.parse_args()
 
     # lazy or ugly?
     region = args.region
     scale = args.scale
     vscale = args.vscale
-    tileShape = (args.tile, args.tile)
+    tileShape = args.tilesize
+    (tileRows, tileCols) = tileShape
+    (minTileRows, minTileCols) = args.start
+    (maxTileRows, maxTileCols) = args.end
 
     # locate datasets
     lcds = locateDataset(region)
@@ -199,17 +207,23 @@ def main(argv):
         vscale = int(elevMax/60)-1
 
     # NEW IDEA
-    imageRows=tileShape[0]
-    imageCols=tileShape[1]
     maxRows = lcds.RasterXSize*mult
     maxCols = lcds.RasterYSize*mult
-    numRowTiles = int((maxRows+imageRows-1)/imageRows)
-    numColTiles = int((maxCols+imageCols-1)/imageCols)
-    for rowIndex in range(numRowTiles):
-        for colIndex in range(numColTiles):
-            baseOffset, baseSize = getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols)
-            idtOffset, idtSize = getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=16)
-            print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (rowIndex, colIndex, baseSize[0], baseSize[1])
+    numRowTiles = int((maxRows+tileRows-1)/tileRows)
+    numColTiles = int((maxCols+tileCols-1)/tileCols)
+    if (maxTileRows == 0 or maxTileRows > numRowTiles):
+        maxTileRows = numRowTiles
+    if (minTileRows > maxTileRows):
+        minTileRows = maxTileRows
+    if (maxTileCols == 0 or maxTileCols > numColTiles):
+        maxTileCols = numColTiles
+    if (minTileCols > maxTileCols):
+        minTileCols = maxTileCols
+    for tileRowIndex in range(minTileRows, maxTileRows):
+        for tileColIndex in range(minTileRows, maxTileRows):
+            baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
+            idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
+            print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
 
             baseShape = (baseSize[1], baseSize[0])
             baseArray = getLatLongArray(lcTrans, lcGeoTrans, baseOffset, baseSize, mult)
