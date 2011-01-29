@@ -20,8 +20,10 @@ var imagedir = "Images/"+region;
 // FIXME: these should have defaults to "all files" eventually
 var minrows = 0;
 var mincols = 0;
-var maxrows = 1520;
-var maxcols = 1990;
+var maxrows = 456;
+var maxcols = 597;
+//var maxrows = 1520;
+//var maxcols = 1990;
 //var minrows = 512;
 //var mincols = 512;
 //var maxrows = 1535;
