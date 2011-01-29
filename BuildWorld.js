@@ -162,7 +162,7 @@ function processLcval(lcval, x, z, elevval) {
 	    } else {
 		thisblock = blockTypes.Grass;
 		// FIXME: regular trees for now
-		place_tree(x, z, elevval, treeProb, 0);
+		placeTree(x, z, elevval, treeProb, 0);
 	    }
 	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
@@ -173,7 +173,7 @@ function processLcval(lcval, x, z, elevval) {
 	    } else {
 		thisblock = blockTypes.Grass;
 		// FIXME: regular trees for now
-		place_tree(x, z, elevval, treeProb, 0);
+		placeTree(x, z, elevval, treeProb, 0);
 	    }
 	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
@@ -184,7 +184,7 @@ function processLcval(lcval, x, z, elevval) {
 	    } else {
 		thisblock = blockTypes.Grass;
 		// FIXME: regular trees for now
-		place_tree(x, z, elevval, treeProb, 0);
+		placeTree(x, z, elevval, treeProb, 0);
 	    }
 	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
@@ -195,7 +195,7 @@ function processLcval(lcval, x, z, elevval) {
 	    } else {
 		thisblock = blockTypes.Grass;
 		// FIXME: regular trees for now
-		place_tree(x, z, elevval, treeProb, 0);
+		placeTree(x, z, elevval, treeProb, 0);
 	    }
 	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
@@ -204,7 +204,7 @@ function processLcval(lcval, x, z, elevval) {
 	    if (Math.random() < 0.20) {
 		thisblock = blockTypes.Stone;
 	    } else {
-		place_tree(x, z, elevval, treeProb, -1);
+		placeTree(x, z, elevval, treeProb, -1);
 		thisblock = blockTypes.Sand;
 	    }
 	    layers(x, z, elevval, blockTypes.Sand, 2, thisblock);
@@ -217,13 +217,13 @@ function processLcval(lcval, x, z, elevval) {
 	    // deciduous forest (grass with tree #1)
 	    // it's a forest, more trees
 	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
-	    place_tree(x, z, elevval, treeProb*5, 2);
+	    placeTree(x, z, elevval, treeProb*5, 2);
 	    break;
 	case 42:
 	    // evergreen forest (grass with tree #2)
 	    // it's a forest, more trees
 	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
-	    place_tree(x, z, elevval, treeProb*5, 1);
+	    placeTree(x, z, elevval, treeProb*5, 1);
 	    break;
 	case 43:
 	    // mixed forest (grass with either tree)
@@ -234,7 +234,7 @@ function processLcval(lcval, x, z, elevval) {
 	    }
 	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
 	    // it's a forest, more trees
-	    place_tree(x, z, elevval, treeProb*5, thisblock);
+	    placeTree(x, z, elevval, treeProb*5, thisblock);
 	    break;
 	case 51:
 	    // dwarf scrub (grass with 25% stone)
@@ -294,7 +294,7 @@ function processLcval(lcval, x, z, elevval) {
 	    if (Math.random() < 0.50) {
 		thisblock = blockTypes.Grass;
 		// woody wetlands, like a forest
-		place_tree(x, z, elevval, treeProb*5, 1);
+		placeTree(x, z, elevval, treeProb*5, 1);
 	    } else {
 		thisblock = blockTypes.Water;
 	    }
@@ -305,7 +305,7 @@ function processLcval(lcval, x, z, elevval) {
 	    if (Math.random() < 0.50) {
 		thisblock = blockTypes.Grass;
 		// "forested"
-		place_tree(x, z, elevval, treeProb*5, 0);
+		placeTree(x, z, elevval, treeProb*5, 0);
 	    } else {
 		thisblock = blockTypes.Water;
 	    }
@@ -325,7 +325,7 @@ function processLcval(lcval, x, z, elevval) {
 	    if (Math.random() < 0.50) {
 		thisblock = blockTypes.Grass;
 		// "forested""
-		place_tree(x, z, elevval, treeProb*5, 2);
+		placeTree(x, z, elevval, treeProb*5, 2);
 	    } else {
 		thisblock = blockTypes.Water;
 	    }
@@ -411,7 +411,7 @@ function random(min, max) {
 }
 
 // places leaves and tree
-function make_tree(x, z, elevval, height, type) {
+function makeTree(x, z, elevval, height, type) {
     // print('Placing a '+treeType[type]+' tree of height '+height+' at '+x+', '+z+', '+elevval+'...');
     // -1 = cactus, 0 = regular, 1 = redwood, 2 = birch
     var maxleafheight = height+1;
@@ -450,9 +450,10 @@ function make_tree(x, z, elevval, height, type) {
     }
     // increment tree count
     treeCount[type]++;
+    treeTotal++;
 }
 
-function place_tree(x, z, elevval, prob, treeType) {
+function placeTree(x, z, elevval, prob, treeType) {
     var height;
     var chance = Math.random();
     if (chance < prob) {
@@ -474,12 +475,12 @@ function place_tree(x, z, elevval, prob, treeType) {
 	    height = random(7, 9);
 	    break;
 	}
-	make_tree(x, z, elevval, height, treeType);
+	makeTree(x, z, elevval, height, treeType);
     }
 }
 
 // everything an explorer needs, for now
-function equip_player() {
+function equipPlayer() {
     map.playerInventory.Add(new Item(itemTypes.IronSword));
     map.playerInventory.Add(new Item(itemTypes.IronPickaxe));
     map.playerInventory.Add(new Item(itemTypes.IronShovel));
@@ -491,10 +492,11 @@ function equip_player() {
 }
 
 function printLandCoverStatistics(lcType, lcCount) {
-    print('Land cover statistics ('+lcTotal+' total):');
     var lcB = [];
-    for (var lci in lcCount)
-	lcB.push({v: lci, c: lcCount[i]});
+    var treeB = [];
+    print('Land cover statistics ('+lcTotal+' total):');
+    for (var lcIndex in lcCount)
+	lcB.push({v: lcIndex, c: lcCount[lcIndex]});
     lcB.sort(function (a, b) { return b.c - a.c; });
     for (var lcElement in lcB) {
 	var lcBev = lcB[lcElement].v;
@@ -504,8 +506,8 @@ function printLandCoverStatistics(lcType, lcCount) {
     	}
     }
     print('Tree statistics ('+treeTotal+' total):');
-    for (var treei in treeCount)
-	treeB.push({v: i, c: treeCount[i]});
+    for (var treeIndex in treeCount)
+	treeB.push({v: treeIndex, c: treeCount[treeIndex]});
     treeB.sort(function (a, b) { return b.c - a.c; });
     for (var treeElement in treeB) {
 	var treeBev = treeB[treeElement].v;
@@ -546,7 +548,7 @@ function main() {
 
     printLandCoverStatistics(lcType, lcCount, treeType, treeCount);
 
-    equip_player();
+    equipPlayer();
 
     mainDate = new Date();
     var endTime = mainDate.getTime();
