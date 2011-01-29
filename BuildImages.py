@@ -6,9 +6,7 @@
 from __future__ import division
 import os
 import re
-import fnmatch
 import sys
-import struct
 import numpy
 import Image
 import argparse
@@ -16,6 +14,7 @@ from osgeo import gdal
 from osgeo import osr
 from osgeo.gdalconst import *
 from invdisttree import *
+from multiprocessing import Pool, cpu_count
 gdal.UseExceptions()
 
 # paths for datasets
@@ -251,7 +250,7 @@ def checkVScale(args):
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
-    tilex, tiley = args.tilesize
+    tilex, tiley = args.tile
     rows, cols = getDatasetDims(args.region)
     if (tilex > (rows * mult) or tiley > (cols * mult)):
         print "Warning: tile size for region %s too large -- changed to %d, %d" % (args.region, rows, cols)
@@ -322,13 +321,21 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
 def main(argv):
     "The main portion of the script."
 
+    default_scale = 6
+    default_vscale = 6
+    default_tile = [256, 256]
+    default_start = [0, 0]
+    default_end = [0, 0]
+    default_processes = cpu_count()
+
     parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
     parser.add_argument('region', nargs='?', type=checkDataset, help='a region to be processed (leave blank for list of regions)')
-    parser.add_argument('--scale', default=6, type=int, help="horizontal scale factor")
-    parser.add_argument('--vscale', nargs=1, default=6, type=int, help="vertical scale factor")
-    parser.add_argument('--tilesize', nargs=2, default=[256, 256], type=int, help="tile size in tuple form")
-    parser.add_argument('--start', nargs=2, default=[0, 0], type=int, help="starting tile in tuple form")
-    parser.add_argument('--end', nargs=2, default=[0, 0], type=int, help="ending tile in tuple form")
+    parser.add_argument('--scale', nargs=1, default=default_scale, type=int, help="horizontal scale factor (default %d)" % default_scale)
+    parser.add_argument('--vscale', nargs=1, default=default_vscale, type=int, help="vertical scale factor (default %d)" % default_vscale)
+    parser.add_argument('--tile', nargs=2, default=default_tile, type=int, help="tile size in tuple form (default %s)" % (default_tile,))
+    parser.add_argument('--start', nargs=2, default=default_start, type=int, help="start tile in tuple form (default %s)" % (default_start,))
+    parser.add_argument('--end', nargs=2, default=default_end, type=int, help="end tile in tuple form (default %s)" % (default_end,))
+    parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     args = parser.parse_args()
 
     # list regions if requested
@@ -350,12 +357,13 @@ def main(argv):
     if not os.path.exists(imagedir):
         os.makedirs(imagedir)
 
-    print "Processing region %s of size (%d, %d)..." % (args.region, rows, cols)
-    
-    for tileRowIndex in range(minTileRows, maxTileRows):
-        for tileColIndex in range(minTileCols, maxTileCols):
-            # this facilitates parallel processing!
-            processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex)
+    pool = Pool(args.processes)
+    print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, args.processes)
+
+    tasks = [(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+
+    results = [pool.apply_async(processTile, a) for a in tasks]
+            
     print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), rows*mult, cols*mult)
 
 if __name__ == '__main__':
