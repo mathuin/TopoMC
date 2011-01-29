@@ -284,8 +284,10 @@ def checkStartEnd(args, mult, tile):
         minTileCols = maxTileCols
     return (minTileRows, minTileCols, maxTileRows, maxTileCols)
 
-def processTile(lcds, elevds, tileShape, mult, vscale, rows, cols, imagedir, tileRowIndex, tileColIndex):
+def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex):
     "Actually process a tile."
+    (lcds, elevds) = getDataset(args.region)
+    (rows, cols) = getDatasetDims(args.region)
     maxRows = rows*mult
     maxCols = cols*mult
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
@@ -302,12 +304,16 @@ def processTile(lcds, elevds, tileShape, mult, vscale, rows, cols, imagedir, til
     # nnear=1 for landcover, 11 for elevation
     lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
     lcImageArray.resize(baseShape)
-    lcImage = Image.fromarray(lcImageArray)
-    lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
 
     # nnear=1 for landcover, 11 for elevation
     elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vscale)
     elevImageArray.resize(baseShape)
+
+    # TODO: go through the arrays for some special transmogrification
+    
+    # save images
+    lcImage = Image.fromarray(lcImageArray)
+    lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
     elevImage = Image.fromarray(elevImageArray)
     elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
 
@@ -331,7 +337,6 @@ def main(argv):
         return 0
 
     # set up all the values
-    lcds, elevds = getDataset(args.region)
     rows, cols = getDatasetDims(args.region)
     (scale, mult) = checkScale(args)
     vscale = checkVScale(args)
@@ -350,7 +355,7 @@ def main(argv):
     for tileRowIndex in range(minTileRows, maxTileRows):
         for tileColIndex in range(minTileCols, maxTileCols):
             # this facilitates parallel processing!
-            processTile(lcds, elevds, tileShape, mult, vscale, rows, cols, imagedir, tileRowIndex, tileColIndex)
+            processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex)
     print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), rows*mult, cols*mult)
 
 if __name__ == '__main__':
