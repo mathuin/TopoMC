@@ -111,8 +111,8 @@ def getIDT(ds, offset, size, vScale=1):
 
 def getLatLongArray(ds, offset, size, mult=1):
     "Given transformations, dimensions, and multiplier, generate the interpolated array."
-    rows = list(numpy.linspace(offset[1]/mult, (offset[1]+size[1])/mult, size[1], False))
-    cols = list(numpy.linspace(offset[0]/mult, (offset[0]+size[0])/mult, size[0], False))
+    rows = numpy.linspace(offset[1]/mult, (offset[1]+size[1])/mult, size[1], False)
+    cols = numpy.linspace(offset[0]/mult, (offset[0]+size[0])/mult, size[0], False)
     retval = numpy.array([getLatLong(ds, row, col) for row in rows for col in cols])
 
     return retval
@@ -201,14 +201,24 @@ def listDatasets(dsdict):
 def checkDataset(string):
     "Checks to see if the supplied string is a dataset."
     if (string != None and not string in dsDict):
-        print "%s is not a valid dataset" % string
         listDatasets(dsDict)
-        raise argparse.ArgumentTypeError()
+        raise argparse.error("%s is not a valid dataset" % string)
     return string
+
+def checkProcesses(args):
+    "Checks to see if the given process count is valid."
+    if (isinstance(args.processes, list)):
+        processes = args.processes[0]
+    else:
+        processes = int(args.processes)
+    return processes
 
 def checkScale(args):
     "Checks to see if the given scale is valid for the given region.  Returns scale and multiplier."
-    scale = int(args.scale)
+    if (isinstance(args.scale, list)):
+        scale = args.scale[0]
+    else:
+        scale = int(args.scale)
     lcds, elevds = getDataset(args.region)
     elevds = None
     lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
@@ -230,7 +240,10 @@ def checkScale(args):
 
 def checkVScale(args):
     "Checks to see if the given vScale is valid for the given region."
-    vscale = int(args.vscale)
+    if (isinstance(args.vscale, list)):
+        vscale = args.vscale[0]
+    else:
+        vscale = int(args.vscale)
     (lcds, elevds) = getDataset(args.region)
     lcds = None
     elevBand = elevds.GetRasterBand(1)
@@ -252,10 +265,17 @@ def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
     tilex, tiley = args.tile
     rows, cols = getDatasetDims(args.region)
-    if (tilex > (rows * mult) or tiley > (cols * mult)):
-        print "Warning: tile size for region %s too large -- changed to %d, %d" % (args.region, rows, cols)
-        tilex = rows
-        tiley = cols
+    maxRows = rows * mult
+    maxCols = cols * mult
+    tooLarge = False
+    if (tilex > maxRows):
+        tooLarge = True
+        tilex = maxRows
+    if (tiley > maxCols):
+        tooLarge = True
+        tiley = maxCols
+    if (tooLarge):
+        print "Warning: tile size for region %s is too large -- changed to %d, %d" % (args.region, tilex, tiley)
     return (tilex, tiley)
 
 def checkStartEnd(args, mult, tile):
@@ -316,6 +336,8 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
     elevImage = Image.fromarray(elevImageArray)
     elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
 
+def processTilestar(args):
+    return processTile(*args)
 
 # main
 def main(argv):
@@ -330,12 +352,12 @@ def main(argv):
 
     parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
     parser.add_argument('region', nargs='?', type=checkDataset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--scale', nargs=1, default=default_scale, type=int, help="horizontal scale factor (default %d)" % default_scale)
     parser.add_argument('--vscale', nargs=1, default=default_vscale, type=int, help="vertical scale factor (default %d)" % default_vscale)
     parser.add_argument('--tile', nargs=2, default=default_tile, type=int, help="tile size in tuple form (default %s)" % (default_tile,))
     parser.add_argument('--start', nargs=2, default=default_start, type=int, help="start tile in tuple form (default %s)" % (default_start,))
     parser.add_argument('--end', nargs=2, default=default_end, type=int, help="end tile in tuple form (default %s)" % (default_end,))
-    parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     args = parser.parse_args()
 
     # list regions if requested
@@ -345,6 +367,7 @@ def main(argv):
 
     # set up all the values
     rows, cols = getDatasetDims(args.region)
+    processes = checkProcesses(args)
     (scale, mult) = checkScale(args)
     vscale = checkVScale(args)
     tileShape = checkTile(args, mult)
@@ -357,12 +380,14 @@ def main(argv):
     if not os.path.exists(imagedir):
         os.makedirs(imagedir)
 
-    pool = Pool(args.processes)
-    print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, args.processes)
+    pool = Pool(processes)
+    print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
     tasks = [(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
 
-    results = [pool.apply_async(processTile, a) for a in tasks]
+    results = pool.imap_unordered(processTilestar, tasks)
+
+    bleah = [x for x in results]
             
     print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), rows*mult, cols*mult)
 

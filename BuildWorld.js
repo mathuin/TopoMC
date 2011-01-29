@@ -1,39 +1,45 @@
 ﻿// constants
 var sealevel = 64;
-var baseline = 50; // below here is just stone
+var baseline = 32; // below here is just stone
 var filler = sealevel - baseline;
 
 // set maxMapHeight to a conservative value
 var maxMapHeight = 125 - sealevel;
 
 // these are outside the loop
-// variables set throughout the run
-var elevval = 0;
+// processImage modifies these as it runs
 var maxelev = 0;
 var spawnx = 0;
 var spawny = 0;
 var spawnz = 0;
 
-// tiling constants
-var tilerows = 256;
-var tilecols = 256;
-
 // what region are we doing?
 var region = 'BlockIsland';
+//var region = 'Hamilton';
+var imagedir = "Images/"+region;
 // FIXME: these should have defaults to "all files" eventually
 var minrows = 0;
 var mincols = 0;
 var maxrows = 1520;
 var maxcols = 1990;
+//var minrows = 512;
+//var mincols = 512;
+//var maxrows = 1535;
+//var maxcols = 1535;
+// tiling constants - also hopefully eventually optional
+var tilerows = 256;
+var tilecols = 256;
 
 // land cover statistics
 var lcType = {};
 var lcCount = {};
 var lcTotal = 0;
 
+// land cover constants
+var treeProb = 0.00001;
+
 // inside the loop
 function processImage(offset_x, offset_z) {
-    var imagedir = "Images/"+region;
     var lcimg = JCraft.Components.Images.Load(imagedir+"/lc-"+offset_x+"-"+offset_z+".gif");
     var elevimg = JCraft.Components.Images.Load(imagedir+"/elev-"+offset_x+"-"+offset_z+".gif");
     var size_x = lcimg.width;
@@ -53,32 +59,30 @@ function processImage(offset_x, offset_z) {
     map.fillBlocks(offset_x, stop_x, 1, baseline, offset_z, stop_z, blockTypes.Stone);
 
     // iterate over the image
-    for (var x = 0; x < size_x; x++) {
-	for (var z = 0; z < size_z; z++) {
-	    var flatindex = (z * size_x) + x;
-	    var lcval = lcimg[flatindex];
-	    var elevval = elevimg[flatindex];
-	    var real_x = offset_x + x;
-	    var real_z = offset_z + z;
-	    if (elevval > maxMapHeight) {
-		print('oh no elevation ' + elevval + ' is too high');
-		elevval = maxMapHeight;
-	    }
-	    if (elevval > maxelev) {
-		maxelev = elevval;
-		spawnx = real_x;
-		spawnz = real_z;
-		spawny = sealevel+elevval;
-	    }
-	    processLcval(lcval, real_x, real_z, elevval)
+    for (var x = 0; x < size_x; x++) for (var z = 0; z < size_z; z++) {
+	var flatindex = (z * size_x) + x;
+	var lcval = lcimg[flatindex];
+	var elevval = elevimg[flatindex];
+	var real_x = offset_x + x;
+	var real_z = offset_z + z;
+	if (elevval > maxMapHeight) {
+	    print('oh no elevation ' + elevval + ' is too high');
+	    elevval = maxMapHeight;
 	}
+	if (elevval > maxelev) {
+	    maxelev = elevval;
+	    spawnx = real_x;
+	    spawnz = real_z;
+	    spawny = sealevel+elevval;
+	}
+	processLcval(lcval, real_x, real_z, elevval);
     }
 
     // print out status
-    var imageDate = new Date();
+    imageDate = new Date();
     var endTime = imageDate.getTime();
     var imageDelta = Math.round(endTime - startTime)/1000;
-    print('... finished in ' + imageDelta + ' seconds.')
+    print('... finished in ' + imageDelta + ' seconds.');
 }
 
 function populateLandCoverVariables(lcType, lcCount) {
@@ -113,7 +117,7 @@ function populateLandCoverVariables(lcType, lcCount) {
 	96 : "Palustrine Emergent Wetlands",
 	97 : "Estuarine Emergent Wetlands",
 	98 : "Palustrine Aquatic Bed",
-	99 : "Estuarine Aquatic Bed",
+	99 : "Estuarine Aquatic Bed"
     };
     for (var i in lcMetaType) {
 	lcType[i] = lcMetaType[i];
@@ -123,11 +127,12 @@ function populateLandCoverVariables(lcType, lcCount) {
 
 // process a given land cover value
 function processLcval(lcval, x, z, elevval) {
+    var thisblock; // scratch space
     lcTotal++;
     if (!(lcval in lcType)) {
 	print('unexpected value for land cover: ' + lcval);
 	lcCount[0]++;
-	one_layer(x, z, elevval, blockTypes.Dirt);
+	layers(x, z, elevval, blockTypes.Dirt);
     } else {
 	lcCount[lcval]++;
 	switch(lcval) {
@@ -135,163 +140,326 @@ function processLcval(lcval, x, z, elevval) {
 	    // water 2m over sand
 	    // IDEA: survey neighboring squares
 	    // if at least one is not water, use 1m, not 2m
-	    two_layer(x, z, elevval, 2, blockTypes.Sand, blockTypes.Water);
+	    layers(x, z, elevval, blockTypes.Sand, 2, blockTypes.Water);
 	    break;
 	case 12:
 	    // ice
 	    // FIXME: how to put ice on?
-	    two_layer(x, z, elevval, 2, blockTypes.Sand, blockTypes.Water);
+	    layers(x, z, elevval, blockTypes.Sand, 2, blockTypes.Ice);
 	    break;
 	case 21:
 	    // developed/open-space (20% stone 80% grass rand tree)
-	    one_layer_rand(x, z, elevval, 0.2, blockTypes.Stone, blockTypes.Dirt);
+	    if (Math.random() < 0.20) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+		// FIXME: regular trees for now
+		place_tree(x, z, elevval, treeProb, 0);
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 22:
 	    // developed/open-space (35% stone 65% grass rand tree)
-	    one_layer_rand(x, z, elevval, 0.35, blockTypes.Stone, blockTypes.Dirt);
+	    if (Math.random() < 0.35) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+		// FIXME: regular trees for now
+		place_tree(x, z, elevval, treeProb, 0);
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 23:
 	    // developed/open-space (65% stone 35% grass rand tree)
-	    one_layer_rand(x, z, elevval, 0.65, blockTypes.Stone, blockTypes.Dirt);
+	    if (Math.random() < 0.65) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+		// FIXME: regular trees for now
+		place_tree(x, z, elevval, treeProb, 0);
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 24:
 	    // developed/open-space (90% stone 10% grass rand tree)
-	    one_layer_rand(x, z, elevval, 0.90, blockTypes.Stone, blockTypes.Dirt);
+	    if (Math.random() < 0.90) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+		// FIXME: regular trees for now
+		place_tree(x, z, elevval, treeProb, 0);
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 31:
 	    // barren land (baseline% sand baseline% stone)
-	    one_layer(x, z, elevval, blockTypes.Sand);
+	    if (Math.random() < 0.20) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		place_tree(x, z, elevval, treeProb, -1);
+		thisblock = blockTypes.Sand;
+	    }
+	    layers(x, z, elevval, blockTypes.Sand, 2, thisblock);
 	    break;
 	case 32:
-	    // unconsolidated shore (sand)
-	    one_layer(x, z, elevval, blockTypes.Sand);
+	    // unconsolidated shore (sand)	 
+	    layers(x, z, elevval, blockTypes.Sand);
 	    break;
 	case 41:
 	    // deciduous forest (grass with tree #1)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
+	    place_tree(x, z, elevval, treeProb, 2);
 	    break;
 	case 42:
 	    // evergreen forest (grass with tree #2)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
+	    place_tree(x, z, elevval, treeProb, 1);
 	    break;
 	case 43:
 	    // mixed forest (grass with either tree)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    if (Math.random() < 0.50) {
+		thisblock = 0;
+	    } else {
+		thisblock = 1;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
+	    place_tree(x, z, elevval, treeProb, thisblock);
 	    break;
 	case 51:
 	    // dwarf scrub (grass with 25% stone)
-	    // FIXME: how to put grass on dirt?
-	    one_layer_rand(x, z, elevval, 0.25, blockTypes.Stone, blockTypes.Dirt);
+	    if (Math.random() < 0.25) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 52:
 	    // shrub/scrub (grass with 25% stone)
-	    // FIXME: how to put grass on dirt?
-	    one_layer_rand(x, z, elevval, 0.25, blockTypes.Stone, blockTypes.Dirt);
+	    if (Math.random() < 0.25) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 71:
 	    // grasslands/herbaceous
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
 	    break;
 	case 72:
 	    // sedge/herbaceous
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
 	    break;
 	case 73:
 	    // lichens (90% stone 10% grass)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, 0.10, blockTypes.dirt, blockTypes.Stone);
+	    if (Math.random() < 0.90) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 74:
 	    // moss (90% stone 10% grass)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, 0.10, blockTypes.dirt, blockTypes.Stone);
+	    if (Math.random() < 0.90) {
+		thisblock = blockTypes.Stone;
+	    } else {
+		thisblock = blockTypes.Grass;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 81:
 	    // pasture/hay
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
 	    break;
 	case 82:
 	    // cultivated crops
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Grass);
 	    break;
 	case 90:
 	    // woody wetlands (grass with rand trees and -1m water)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    if (Math.random() < 0.50) {
+		thisblock = blockTypes.Grass;
+		place_tree(x, z, elevval, treeProb, 1);
+	    } else {
+		thisblock = blockTypes.Water;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 91:
-	    // palustrine forested wetlands (grass with rand trees and -1m water)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    // palustrine forested wetlands
+	    if (Math.random() < 0.50) {
+		thisblock = blockTypes.Grass;
+		place_tree(x, z, elevval, treeProb, 0);
+	    } else {
+		thisblock = blockTypes.Water;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 92:
 	    // palustrine scrub/shrub wetlands (grass with baseline% -1m water)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    if (Math.random() < 0.50) {
+		thisblock = blockTypes.Grass;
+	    } else {
+		thisblock = blockTypes.Water;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 93:
 	    // estuarine forested wetlands (grass with rand trees and water)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    if (Math.random() < 0.50) {
+		thisblock = blockTypes.Grass;
+		place_tree(x, z, elevval, treeProb, 2);
+	    } else {
+		thisblock = blockTypes.Water;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 94:
 	    // estuarine scrub/shrub wetlands (grass with baseline% -1m water)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    if (Math.random() < 0.50) {
+		thisblock = blockTypes.Grass;
+	    } else {
+		thisblock = blockTypes.Water;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 95:
 	    // emergent herbaceous wetlands (grass with baseline% -1m water)
-	    // FIXME: how to put grass on dirt?
-	    one_layer(x, z, elevval, blockTypes.Dirt);
+	    if (Math.random() < 0.50) {
+		thisblock = blockTypes.Grass;
+	    } else {
+		thisblock = blockTypes.Water;
+	    }
+	    layers(x, z, elevval, blockTypes.Dirt, 1, thisblock);
 	    break;
 	case 96:
 	    // palustrine emergent wetlands-persistent (-1m water?)
-	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Water);
 	    break;
 	case 97:
 	    // estuarine emergent wetlands (-1m water)
-	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Water);
 	    break;
 	case 98:
 	    // palustrine aquatic bed (-1m water)
-	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Water);
 	    break;
 	case 99:
 	    // estuarine aquatic bed (-1m water)
-	    two_layer(x, z, elevval, 1, blockTypes.Dirt, blockTypes.Water);
+	    layers(x, z, elevval, blockTypes.Dirt, 1, blockTypes.Water);
 	    break;
 	}
     }
 }
 
-// fills a column with a single block type 
-function one_layer(x, z, elevval, blockType) {
-    map.fillBlocks(x, 1, baseline, filler+elevval, z, 1, blockType);
-}
+// fills a column with layers of stuff
+function layers() {
+    // mandatory arguments
+    var x = arguments[0];
+    var z = arguments[1];
+    var elevval = arguments[2];
+    var bottom = baseline;
+    var top = filler+elevval;
 
-// fills a column with a base block type then covers it with a block type
-function two_layer(x, z, elevval, depth, baseblockType, topblockType) {
-    var underlayer = elevval-depth;
-    map.fillBlocks(x, 1, baseline, filler+underlayer, z, 1, baseblockType);
-    map.fillBlocks(x, 1, sealevel+underlayer, depth, z, 1, topblockType);
-}
-
-// fills a column with this or that depending
-function one_layer_rand(x, z, elevval, prob, lowerblock, upperblock) {
-    var thisblock;
-    if (Math.random() < prob) {
-	thisblock = lowerblock; 
-    } else {
-	thisblock = upperblock;
+    // examples:
+    // layers(x, y, elevval, blockType.Stone);
+    //  - fill everything from baseline to elevval with stone
+    // layers(x, y, elevval, blockType.Dirt, 2, blockType.Water);
+    //  - fill everything from baseline to elevval-2 with dirt, rest with water
+    // layers(x, y, elevval, blockType.Stone, 2, blockType.Dirt, 1, blockType.Grass);
+    //  - fill everything from baseline to elevval-2 with dirt, one layer with dirt, and top layer with grass
+    for (var index = 3; index < arguments.length; index++) {
+	// arguments[index] better be a block type
+	// FIXME: good people would check this value
+	block = arguments[index];
+	// if this is the last argument, fill it up to elevval
+	if (index == (arguments.length-1)) {
+	    map.fillBlocks(x, 1, bottom, top, z, 1, block);
+	} else {
+	    // next argument better be a number
+	    // FIXME: good people would check this value
+	    index++;
+	    depth = arguments[index];
+	    map.fillBlocks(x, 1, bottom, top-depth, z, 1, block);
+	    bottom = top - depth;
+	}
     }
-    one_layer(x, z, elevval, thisblock);
+}
+
+// generates random numbers from min to max (inclusive?)
+function random(min, max) {
+    return Math.floor(Math.random()*(max-min))+min;
+}
+
+// places leaves and tree
+function make_tree(x, z, elevval, height, treeType) {
+    var treeDate = new Date();
+    var startTime = treeDate.getTime();
+
+    print('Placing a tree of type '+treeType+' and height '+height+' at '+x+', '+z+', '+elevval+'...');
+    // -1 = cactus, 0 = regular, 1 = redwood, 2 = birch
+    var maxleafheight = height+1;
+    for (var index = 1; index < maxleafheight; index++) {
+	var y = elevval+index;
+	if (treeType == -1) {
+	    map.setBlock(x, y, z, blockTypes.Cactus);
+	    map.setBlock(x, y+1, z, blockTypes.Cactus);
+	    map.setBlock(x, y+2, z, blockTypes.Cactus);
+	    break;
+	}
+	if (index > 2) {
+	    var curleafwidth;
+	    var curleafheight = index-2;
+	    var tobottom = curleafheight-2;
+	    var totop = maxleafheight-curleafheight;
+	    if (tobottom < totop) {
+		curleafwidth = tobottom+1;
+	    } else {
+		curleafwidth = totop+1;
+	    }
+	    map.fillBlocks(x-curleafwidth, x+curleafwidth, y, 1, z-curleafwidth, z+curleafwidth, blockTypes.Leaves);
+	    for (var xindex = x-curleafwidth; xindex < x+curleafwidth+1; xindex++) for (var zindex = z-curleafwidth; zindex < z+curleafwidth+1; zindex++) {
+	     	map.setBlockData(xindex, y, zindex, treeType);
+	    }
+	}
+	if (index < height) {
+	    map.setBlock(x, y, z, blockTypes.Log);
+	    map.setBlockData(x, y, z, treeType);
+	}
+    }
+    treeDate = new Date();
+    var endTime = treeDate.getTime();
+    var treeDelta = Math.round(endTime - startTime)/1000;
+    print('... done! in '+treeDelta+' seconds');
+}
+
+function place_tree(x, z, elevval, prob, treeType) {
+    var height;
+    var chance = Math.random();
+    if (chance < prob) {
+	print('chance was '+chance);
+	switch(treeType) {
+	case -1:
+	    // cactus
+	    height = 3;
+	    break;
+	case 0:
+	    // regular
+	    height = random(4, 6);
+	    break;
+	case 1:
+	    // redwood
+	    height = random(10, 12);
+	    break;
+	case 2:
+	    // birch
+	    height = random(7, 9);
+	    break;
+	}
+	make_tree(x, z, elevval, height, treeType);
+    }
 }
 
 // everything an explorer needs, for now
@@ -308,23 +476,25 @@ function equip_player() {
 
 function printLandCoverStatistics(lcType, lcCount) {
     print('Land cover statistics ('+lcTotal+' total):');
-    B = [];
-    for (i in lcCount)
+    var B = [];
+    for (var i in lcCount)
 	B.push({v: i, c: lcCount[i]});
-    B.sort(function (a, b) { return b.c - a.c });
-    for (element in B) {
-	i = B[element].v;
-    	if (lcCount[i] > 0) {
-	    lcPercent = Math.round((lcCount[i]*10000)/lcTotal)/100.0;
-	    print('  '+lcCount[i]+' ('+lcPercent+'%): '+lcType[i]);
+    B.sort(function (a, b) { return b.c - a.c; });
+    for (var element in B) {
+	var Bev = B[element].v;
+    	if (lcCount[Bev] > 0) {
+	    var lcPercent = Math.round((lcCount[Bev]*10000)/lcTotal)/100.0;
+	    print('  '+lcCount[Bev]+' ('+lcPercent+'%): '+lcType[Bev]);
     	}
     }
 }
 
 function main() {
-    print('Begin TopoMC demo');
     var mainDate = new Date();
     var startTime = mainDate.getTime();
+
+    // what are we doing?
+    print('Creating world from region '+region);
 
     // initialize the land cover variables
     populateLandCoverVariables(lcType, lcCount);
@@ -351,12 +521,11 @@ function main() {
 
     equip_player();
 
-    var mainDate = new Date();
+    mainDate = new Date();
     var endTime = mainDate.getTime();
     var mainDelta = Math.round(endTime - startTime)/1000;
     print('Processing done -- took ' + mainDelta + ' seconds.');
-    print('End TopoMC Demo');
 }
 
 // hey ho let's go
-main()
+main();
