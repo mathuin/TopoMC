@@ -4,6 +4,8 @@ This project generates input files suitable for JCraft (http://www.minecraftforu
 
 This project includes one small dataset for testing.  Other datasets can be found in the TopoMC-Datasets repository at git@github.com:mathuin/TopoMC-Datasets.git.
 
+The old blockiness is gone!  Land cover should be much smoother now.
+
 Tiling functionality has been added.  The stock configuration will generate a world based on Block Island, RI, at 1:6 scale (both horizontal and vertical).
 
 Simulated bathymetric data is now enabled by default.  Changing the slope and maximum depth may be interesting -- try it!

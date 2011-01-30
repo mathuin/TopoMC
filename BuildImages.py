@@ -263,6 +263,33 @@ def checkVScale(args):
         print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
     return vscale
 
+def checkMaxDepth(args):
+    "Checks to see if the given max depth is valid for the given region."
+    if (isinstance(args.maxdepth, list)):
+        oldmaxdepth = args.maxdepth[0]
+    else:
+        oldmaxdepth = int(args.maxdepth)
+    (rows, cols) = getDatasetDims(args.region)
+    maxdepth = min(oldmaxdepth, 1)
+    maxdepth = max(maxdepth, min(rows, cols))
+    if (maxdepth != oldmaxdepth):
+        print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth)
+    return maxdepth
+
+def checkSlope(args):
+    "Checks to see if the given slope is valid for the given region."
+    if (isinstance(args.slope, list)):
+        oldslope = args.slope[0]
+    else:
+        oldslope = int(args.slope)
+    # FIXME: need better answers here, right now guessing
+    extreme = 4
+    slope = min(oldslope, extreme)
+    slope = max(slope, 1/extreme)
+    if (slope != oldslope):
+        print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope)
+    return maxdepth
+
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
     oldtilex, oldtiley = args.tile
@@ -301,7 +328,7 @@ def checkStartEnd(args, mult, tile):
         minTileCols = maxTileCols
     return (minTileRows, minTileCols, maxTileRows, maxTileCols)
 
-def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex):
+def processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex):
     "Actually process a tile."
     curtime = time()
     (lcds, elevds) = getDataset(args.region)
@@ -330,7 +357,7 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
     # TODO: fix this so it reads idtpadded data
-    bathyImageArray = getBathymetry(lcImageArray, maxDepth=10, slope=1.0)
+    bathyImageArray = getBathymetry(lcImageArray, maxdepth, slope)
     
     # save images
     lcImage = Image.fromarray(lcImageArray)
@@ -351,6 +378,8 @@ def main(argv):
 
     default_scale = 6
     default_vscale = 6
+    default_maxdepth = 10
+    default_slope = 1
     default_tile = [256, 256]
     default_start = [0, 0]
     default_end = [0, 0]
@@ -361,6 +390,8 @@ def main(argv):
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--scale', nargs=1, default=default_scale, type=int, help="horizontal scale factor (default %d)" % default_scale)
     parser.add_argument('--vscale', nargs=1, default=default_vscale, type=int, help="vertical scale factor (default %d)" % default_vscale)
+    parser.add_argument('--maxdepth', nargs=1, default=default_maxdepth, type=int, help="maximum depth (default %d)" % default_maxdepth)
+    parser.add_argument('--slope', nargs=1, default=default_slope, type=int, help="underwater slope factor (default %d)" % default_slope)
     parser.add_argument('--tile', nargs=2, default=default_tile, type=int, help="tile size in tuple form (default %s)" % (default_tile,))
     parser.add_argument('--start', nargs=2, default=default_start, type=int, help="start tile in tuple form (default %s)" % (default_start,))
     parser.add_argument('--end', nargs=2, default=default_end, type=int, help="end tile in tuple form (default %s)" % (default_end,))
@@ -372,10 +403,13 @@ def main(argv):
         return 0
 
     # set up all the values
+    # TODO: crazy people write the answers back to args!
     rows, cols = getDatasetDims(args.region)
     processes = checkProcesses(args)
     (scale, mult) = checkScale(args)
     vscale = checkVScale(args)
+    maxdepth = checkMaxDepth(args)
+    slope = checkSlope(args)
     tileShape = checkTile(args, mult)
     (tileRows, tileCols) = tileShape
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
@@ -391,10 +425,10 @@ def main(argv):
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
     if (processes == 1):
-        [processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        [processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
     else:
         pool = Pool(processes)
-        tasks = [(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        tasks = [(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
         results = pool.imap_unordered(processTilestar, tasks)
         bleah = [x for x in results]
             
