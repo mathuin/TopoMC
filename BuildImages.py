@@ -288,7 +288,7 @@ def checkSlope(args):
     slope = max(slope, 1/extreme)
     if (slope != oldslope):
         print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope)
-    return maxdepth
+    return slope
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
