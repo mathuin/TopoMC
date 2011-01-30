@@ -69,7 +69,7 @@ is exceedingly sensitive to distance and to h.
         self.wn = 0
         self.wsum = None;
 
-    def __call__( self, q, nnear=6, eps=0, p=1, weights=None ):
+    def __call__( self, q, nnear=6, eps=0, p=1, weights=None, majority=False ):
             # nnear nearest neighbours of each query point --
         q = np.asarray(q)
         qdim = q.ndim
@@ -91,7 +91,13 @@ is exceedingly sensitive to distance and to h.
                 if weights is not None:
                     w *= weights[ix]  # >= 0
                 w /= np.sum(w)
-                wz = np.dot( w, self.z[ix] )
+                if majority:
+                    majordict = dict([(x, 0) for x in self.z[ix]])
+                    for zval, wval in zip(self.z[ix], w):
+                        majordict[zval] += wval
+                    wz = max(majordict, key=majordict.get)
+                else:
+                    wz = np.dot( w, self.z[ix] )
                 if self.stat:
                     self.wn += 1
                     self.wsum += w
