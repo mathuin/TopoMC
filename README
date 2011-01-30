@@ -6,6 +6,10 @@ This project includes one small dataset for testing.  Other datasets can be foun
 
 Tiling functionality has been added.  The stock configuration will generate a world based on Block Island, RI, at 1:6 scale (both horizontal and vertical).
 
+Simulated bathymetric data is now enabled by default.  Changing the slope and maximum depth may be interesting -- try it!
+
+The default spawn point is at the highest point in the dataset, and currently has a two-story glass-and-stone building lit up with torches as a safe haven.
+
 To build a Minecraft world based on a dataset, here's what to do:
 
 1.  Build the elevation and land cover images.
