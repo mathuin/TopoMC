@@ -159,12 +159,12 @@ def getCoords(ds, lat, lon):
     y = (pnt[1] - GeoTrans[3])/GeoTrans[5]
     return int(x), int(y)
 
-def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1):
+def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1, majority=False):
     "Given the relevant information, builds the image array."
 
     Offset, Size = getOffsetSize(ds, idtCorners)
     IDT = getIDT(ds, Offset, Size, vScale)
-    ImageArray = IDT(baseArray, nnear=nnear, eps=.1)
+    ImageArray = IDT(baseArray, nnear=nnear, eps=0.1, majority=majority)
 
     return ImageArray
 
@@ -320,7 +320,7 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
     idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
 
     # nnear=1 for landcover, 11 for elevation
-    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
+    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 11, majority=True)
     lcImageArray.resize(baseShape)
 
     # nnear=1 for landcover, 11 for elevation
@@ -330,7 +330,7 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
     # TODO: fix this so it reads idtpadded data
-    bathyImageArray = getBathymetry(lcImageArray, maxDepth=10, slope=1)
+    bathyImageArray = getBathymetry(lcImageArray, maxDepth=10, slope=1.0)
     
     # save images
     lcImage = Image.fromarray(lcImageArray)
