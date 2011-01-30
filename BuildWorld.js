@@ -73,7 +73,7 @@ function processImage(offset_x, offset_z) {
 	    maxbathy = elevval;
 	    spawnx = real_x;
 	    spawnz = real_z;
-	    spawny = sealevel+elevval;
+	    spawny = elevval;
 	}
 	if (bathyval > maxbathy) {
 	    maxelev = bathyval;
@@ -417,10 +417,8 @@ function random(min, max) {
 
 // places leaves and tree
 function makeTree(x, z, elevval, height, type) {
-    // print('Placing a '+treeType[type]+' tree of height '+height+' at '+x+', '+z+', '+elevval+'...');
-    // -1 = cactus, 0 = regular, 1 = redwood, 2 = birch
     var maxleafheight = height+1;
-    var trunkheight = 2;
+    var trunkheight = 1;
     for (var index = 0; index < maxleafheight; index++) {
 	var y = sealevel+elevval+index;
 	if (type == -1) {
@@ -444,15 +442,13 @@ function makeTree(x, z, elevval, height, type) {
 	    var zmaxleaf = z + curleafwidth;
 	    for (var xindex = xminleaf; xindex <= xmaxleaf; xindex++) 
 		for (var zindex = zminleaf; zindex <= zmaxleaf; zindex++) {
-		    map.setBlock(xindex, y, zindex, blockTypes.Leaves);
-	     	    map.setBlockData(xindex, y, zindex, type);
-	    }
-	    // trim the corners to make it rounder and less pyramidish
-	    if (curleafwidth > 1) {
-		map.setBlock(xminleaf, y, zminleaf, blockTypes.Air);
-		map.setBlock(xminleaf, y, zmaxleaf, blockTypes.Air);
-		map.setBlock(xmaxleaf, y, zminleaf, blockTypes.Air);
-		map.setBlock(xmaxleaf, y, zmaxleaf, blockTypes.Air);
+		    var deltax = Math.abs(xindex-x);
+		    var deltaz = Math.abs(zindex-z);
+		    var sumsquares = Math.pow(deltax,2)+Math.pow(deltaz,2);
+		    if (Math.sqrt(sumsquares) < curleafwidth*.75) {
+			map.setBlock(xindex, y, zindex, blockTypes.Leaves);
+	     		map.setBlockData(xindex, y, zindex, type);
+		    }
 	    }
 	}
 	if (index < height) {
@@ -532,6 +528,212 @@ function printLandCoverStatistics(lcType, lcCount) {
     }
 }
 
+// This building is made of stone and glass, and has an wooden door.
+// It also has some torches on the corners and over the door.
+// The center of the building is the (x, elevval, z) point.
+// The dimensions of the walls are length (x), width (y), and height (z)
+function building(x, z, elevval, length, width, height, side) {
+    var x_offset = Math.floor(length/2);
+    var right = x-x_offset;
+    var left = x+x_offset;
+    var z_offset = Math.floor(width/2);
+    var back = z-z_offset;
+    var front = z+z_offset;
+    var bottom = sealevel+elevval-1;
+    var top = bottom+height;
+    var doorx;
+    var doorz;
+    var doorleftx;
+    var doorleftz;
+    var doorrightx;
+    var doorrightz;
+    var doorhinge;
+    var doortorchx;
+    var doortorchz;
+    var doortorchdata;
+    var stairholex1;
+    var stairholez1;
+    var stairholex2;
+    var stairholez2;
+    var stairholex3;
+    var stairholez3;
+    var stairholex4;
+    var stairholez4;
+    var stairdata;
+    switch(side) {
+    case 0:
+    default:
+	// facing forward
+	doorx = x;
+	doorz = front;
+	doorleftx = x-1;
+	doorleftz = front;
+	doorrightx = x+1;
+	doorrightz = front;
+	doorhinge = 0x2;
+	doortorchx = x;
+	doortorchz = front+1;
+	doortorchdata = 0x3;
+	stairholex1 = right+1;
+	stairholez1 = back+4;
+	stairholex2 = right+1;
+	stairholez2 = back+3;
+	stairholex3 = right+1;
+	stairholez3 = back+2;
+	stairholex4 = right+1;
+	stairholez4 = back+1;
+	stairdata = 0x3;
+	break;
+    case 1:
+	// facing left
+	doorx = left;
+	doorz = z;
+	doorleftx = left;
+	doorleftz = z-1;
+	doorrightx = left;
+	doorrightz = z+1;
+	doorhinge = 0x3;
+	doortorchx = left+1;
+	doortorchz = z;
+	doortorchdata = 0x1;
+	stairholex1 = right+4;
+	stairholez1 = front-1;
+	stairholex2 = right+3;
+	stairholez2 = front-1;
+	stairholex3 = right+2;
+	stairholez3 = front-1;
+	stairholex4 = right+1;
+	stairholez4 = front-1;
+	stairdata = 0x1;
+	break;
+    case 2:
+	// facing backward
+	doorx = x;
+	doorz = back;
+	doorleftx = x+1;
+	doorleftz = back;
+	doorrightx = x-1;
+	doorrightz = back;
+	doorhinge = 0x0;
+	doortorchx = x;
+	doortorchz = back-1;
+	doortorchdata = 0x4;
+	stairholex1 = left-1;
+	stairholez1 = front-4;
+	stairholex2 = left-1;
+	stairholez2 = front-3;
+	stairholex3 = left-1;
+	stairholez3 = front-2;
+	stairholex4 = left-1;
+	stairholez4 = front-1;
+	stairdata = 0x2;
+	break;
+    case 3:
+	// right
+	doorx = right;
+	doorz = z;
+	doorleftx = right;
+	doorleftz = z+1;
+	doorrightx = right;
+	doorrightz = z-1;
+	doorhinge = 0x1;
+	doortorchx = right-1;
+	doortorchz = z;
+	doortorchdata = 0x2;
+	stairholex1 = left-4;
+	stairholez1 = back+1;
+	stairholex2 = left-3;
+	stairholez2 = back+1;
+	stairholex3 = left-2;
+	stairholez3 = back+1;
+	stairholex4 = left-1;
+	stairholez4 = back+1;
+	stairdata = 0x0;
+	break;
+    }
+
+    // clear out all the existing space
+    map.fillBlocks(right, length, bottom, height, back, width, blockTypes.Air);
+    // floor
+    map.fillBlocks(right, length, bottom, 1, back, width, blockTypes.Stone);
+    // back wall
+    map.fillBlocks(right, length, bottom, height, back, 1, blockTypes.Stone);
+    map.fillBlocks(right+1, length-2, bottom+2, height-2, back, 1, blockTypes.Glass);
+    // right wall
+    map.fillBlocks(right, 1, bottom, height, back, width, blockTypes.Stone);
+    map.fillBlocks(right, 1, bottom+2, height-2, back+1, width-2, blockTypes.Glass);
+    // left wall
+    map.fillBlocks(left, 1, bottom, height, back, width, blockTypes.Stone);
+    map.fillBlocks(left, 1, bottom+2, height-2, back+1, width-2, blockTypes.Glass);
+    // front wall
+    map.fillBlocks(right, length, bottom, height, front, 1, blockTypes.Stone);
+    map.fillBlocks(right+1, length-2, bottom+2, height-2, front, 1, blockTypes.Glass);
+    // roof
+    map.fillBlocks(right, length, top, 1, back, width, blockTypes.Stone);
+    map.fillBlocks(right+1, length-2, top, 1, back+1, width-2, blockTypes.Glass);
+    // now about that door
+    map.setBlock(doorleftx, bottom+3, doorleftz, blockTypes.Stone);
+    map.setBlock(doorleftx, bottom+2, doorleftz, blockTypes.Stone);
+    map.setBlock(doorleftx, bottom+1, doorleftz, blockTypes.Stone);
+    map.setBlock(doorx, bottom+3, doorz, blockTypes.Stone);
+    map.setBlock(doorx, bottom+2, doorz, blockTypes.WoodenDoor);
+    map.setBlock(doorx, bottom+1, doorz, blockTypes.WoodenDoor);
+    map.setBlockData(doorx, bottom+2, doorz, doorhinge | 0x8);
+    map.setBlockData(doorx, bottom+1, doorz, doorhinge);
+    map.setBlock(doorrightx, bottom+3, doorrightz, blockTypes.Stone);
+    map.setBlock(doorrightx, bottom+2, doorrightz, blockTypes.Stone);
+    map.setBlock(doorrightx, bottom+1, doorrightz, blockTypes.Stone);
+
+    // stories!
+    for (var level = bottom+4; level<(top-3); level+=4) {
+	map.fillBlocks(right, length, level, 1, back, width, blockTypes.Stone);
+     	map.setBlock(stairholex1, level, stairholez1, blockTypes.Air);
+     	map.setBlock(stairholex2, level, stairholez2, blockTypes.Air);
+     	map.setBlock(stairholex3, level, stairholez3, blockTypes.Air);
+     	map.setBlock(stairholex4, level, stairholez4, blockTypes.StoneStairs);
+      	map.setBlock(stairholex3, level-1, stairholez3, blockTypes.StoneStairs);
+     	map.setBlock(stairholex2, level-2, stairholez2, blockTypes.StoneStairs);
+     	map.setBlock(stairholex1, level-3, stairholez1, blockTypes.StoneStairs);
+ 	map.setBlockData(stairholex4, level, stairholez4, stairdata);
+	map.setBlockData(stairholex3, level-1, stairholez3, stairdata);
+ 	map.setBlockData(stairholex2, level-2, stairholez2, stairdata);
+ 	map.setBlockData(stairholex1, level-3, stairholez1, stairdata);
+    }
+
+    // torches
+    // on the back wall
+    map.setBlock(right, top, back-1, blockTypes.Torch);
+    map.setBlockData(right, top, back-1, 0x4);
+    map.setBlock(left, top, back-1, blockTypes.Torch);
+    map.setBlockData(left, top, back-1, 0x4);
+    // on the side walls
+    map.setBlock(right-1, top, back, blockTypes.Torch);
+    map.setBlockData(right-1, top, back, 0x2);
+    map.setBlock(left+1, top, back, blockTypes.Torch);
+    map.setBlockData(left+1, top, back, 0x1);
+    map.setBlock(right-1, top, front, blockTypes.Torch);
+    map.setBlockData(right-1, top, front, 0x2);
+    map.setBlock(left+1, top, front, blockTypes.Torch);
+    map.setBlockData(left+1, top, front, 0x1);
+    // on the front wall
+    map.setBlock(right, top, front+1, blockTypes.Torch);
+    map.setBlockData(right, top, front+1, 0x3);
+    map.setBlock(left, top, front+1, blockTypes.Torch);
+    map.setBlockData(left, top, front+1, 0x3);
+    // over the door
+    map.setBlock(doortorchx, bottom+3, doortorchz, blockTypes.Torch);
+    map.setBlockData(doortorchx, bottom+3, doortorchz, doortorchdata);
+    // on the roof
+    map.setBlock(right, top+1, back, blockTypes.Torch);
+    map.setBlockData(right, top+1, back, 0x5);
+    map.setBlock(left, top+1, back, blockTypes.Torch);
+    map.setBlockData(left-1, top+1, back, 0x5);
+    map.setBlock(right, top+1, front, blockTypes.Torch);
+    map.setBlockData(right, top+1, front, 0x5);
+    map.setBlock(left, top+1, front, blockTypes.Torch);
+    map.setBlockData(left, top+1, front, 0x5);
+}
+
 function main() {
     var mainDate = new Date();
     var startTime = mainDate.getTime();
@@ -556,9 +758,12 @@ function main() {
     print('Maximum elevation: ' + maxelev);
     print('Maximum depth: ' + maxbathy);
 
+    // have a building!
+    building(spawnx, spawnz, spawny, 9, 7, 8, 0);
+
     // set player position and spawn point (in this case, equal)
-    print('Setting spawn values: ' + spawnx + ', ' + spawny + ', ' + spawnz);
-    map.spawn = { x: spawnx, y: spawny+2, z: spawnz };
+    print('Setting spawn values: ' + spawnx + ', ' + (sealevel+spawny+2) + ', ' + spawnz);
+    map.spawn = { x: spawnx, y: sealevel+spawny+2, z: spawnz };
     map.playerLocation = map.spawn;
 
     printLandCoverStatistics(lcType, lcCount, treeType, treeCount);
