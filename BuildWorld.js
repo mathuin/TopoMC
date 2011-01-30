@@ -387,11 +387,11 @@ function layers() {
     var slice = 0;
 
     // examples:
-    // layers(x, y, elevval, blockType.Stone);
+    // layers(x, y, elevval, blockTypes.Stone);
     //  - fill everything from baseline to elevval with stone
-    // layers(x, y, elevval, blockType.Dirt, 2, blockType.Water);
+    // layers(x, y, elevval, blockTypes.Dirt, 2, blockTypes.Water);
     //  - elevval down two levels of water, rest dirt
-    // layers(x, y, elevval, blockType.Stone, 1, blockType.Dirt, 1, blockType.Grass);
+    // layers(x, y, elevval, blockTypes.Stone, 1, blockTypes.Dirt, 1, blockTypes.Grass);
     //  - elevval down one level of water, then one level of dirt, then stone
     var data = myargs.reverse();
     do {
@@ -405,7 +405,7 @@ function layers() {
 	// now do something
 	map.fillBlocks(x, 1, top-slice, slice, z, 1, block);
 	top -= slice;
-    } while (data.length > 0);
+    } while (data.length > 0 || bottom < top);
 }
 
 // generates random numbers from min to max (inclusive?)
