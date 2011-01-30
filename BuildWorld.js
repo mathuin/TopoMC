@@ -9,6 +9,7 @@ var maxMapHeight = 125 - sealevel;
 // these are outside the loop
 // processImage modifies these as it runs
 var maxelev = 0;
+var maxbathy = 0;
 var spawnx = 0;
 var spawny = sealevel;
 var spawnz = 0;
@@ -45,6 +46,7 @@ var treeProb = 0.001;
 function processImage(offset_x, offset_z) {
     var lcimg = JCraft.Components.Images.Load(imagedir+"/lc-"+offset_x+"-"+offset_z+".gif");
     var elevimg = JCraft.Components.Images.Load(imagedir+"/elev-"+offset_x+"-"+offset_z+".gif");
+    var bathyimg = JCraft.Components.Images.Load(imagedir+"/bathy-"+offset_x+"-"+offset_z+".gif");
     var size_x = lcimg.width;
     var size_z = lcimg.height;
     var stop_x = offset_x+size_x;
@@ -60,6 +62,7 @@ function processImage(offset_x, offset_z) {
 	var flatindex = (z * size_x) + x;
 	var lcval = lcimg[flatindex];
 	var elevval = elevimg[flatindex];
+	var bathyval = bathyimg[flatindex];
 	var real_x = offset_x + x;
 	var real_z = offset_z + z;
 	if (elevval > maxMapHeight) {
@@ -67,12 +70,15 @@ function processImage(offset_x, offset_z) {
 	    elevval = maxMapHeight;
 	}
 	if (elevval > maxelev) {
-	    maxelev = elevval;
+	    maxbathy = elevval;
 	    spawnx = real_x;
 	    spawnz = real_z;
 	    spawny = sealevel+elevval;
 	}
-	processLcval(lcval, real_x, real_z, elevval);
+	if (bathyval > maxbathy) {
+	    maxelev = bathyval;
+	}
+	processLcval(lcval, real_x, real_z, elevval, bathyval);
     }
 	
     // print out status
@@ -134,7 +140,7 @@ function populateLandCoverVariables(lcType, lcCount, treeType, treeCount) {
 }
 
 // process a given land cover value
-function processLcval(lcval, x, z, elevval) {
+function processLcval(lcval, x, z, elevval, bathyval) {
     var thisblock; // scratch space
     lcTotal++;
     if (!(lcval in lcType)) {
@@ -145,15 +151,12 @@ function processLcval(lcval, x, z, elevval) {
 	lcCount[lcval]++;
 	switch(lcval) {
 	case 11:
-	    // water 2m over sand
-	    // IDEA: survey neighboring squares
-	    // if at least one is not water, use 1m, not 2m
-	    layers(x, z, elevval, blockTypes.Sand, 2, blockTypes.Water);
+	    // water
+	    layers(x, z, elevval, blockTypes.Sand, bathyval, blockTypes.Water);
 	    break;
 	case 12:
 	    // ice
-	    // FIXME: how to put ice on?
-	    layers(x, z, elevval, blockTypes.Sand, 2, blockTypes.Ice);
+	    layers(x, z, elevval, blockTypes.Sand, bathyval, blockTypes.Ice);
 	    break;
 	case 21:
 	    // developed/open-space (20% stone 80% grass rand tree)
@@ -485,10 +488,12 @@ function equipPlayer() {
     map.playerInventory.Add(new Item(itemTypes.IronPickaxe));
     map.playerInventory.Add(new Item(itemTypes.IronShovel));
     map.playerInventory.Add(new Item(itemTypes.IronAxe));
-    map.playerInventory.AddAt(new Item(blockTypes.Torch), 8);
-    var sandstack = new Item(blockTypes.Sand);
-    sandstack.Count = 64;
-    map.playerInventory.AddAt(sandstack, 7);
+    var dirtstack = new Item(blockTypes.Dirt);
+    dirtstack.Count = 64;
+    map.playerInventory.AddAt(dirtstack, 7);
+    var torchstack = new Item(blockTypes.Torch);
+    torchstack.count = 64;
+    map.playerInventory.AddAt(torchstack, 8);
 }
 
 function printLandCoverStatistics(lcType, lcCount) {
@@ -540,6 +545,7 @@ function main() {
 
     // maximum elevation
     print('Maximum elevation: ' + maxelev);
+    print('Maximum depth: ' + maxbathy);
 
     // set player position and spawn point (in this case, equal)
     print('Setting spawn values: ' + spawnx + ', ' + spawny + ', ' + spawnz);

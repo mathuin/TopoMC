@@ -15,6 +15,7 @@ from osgeo import osr
 from osgeo.gdalconst import *
 from invdisttree import *
 from multiprocessing import Pool, cpu_count
+from time import time
 gdal.UseExceptions()
 
 # paths for datasets
@@ -139,20 +140,14 @@ def getTransforms(ds):
 def getOffsetSize(ds, corners, mult=1):
     "Convert corners to offset and size."
     (ul, lr) = corners
-    offset_x, offset_y = getCoords(ds, ul[0], ul[1])
-    if (offset_x < 0):
-        offset_x = 0
-    if (offset_y < 0):
-        offset_y = 0
-    farcorner_x, farcorner_y = getCoords(ds, lr[0], lr[1])
-    if (farcorner_x > ds.RasterXSize):
-        farcorner_x = ds.RasterXSize
-    if (farcorner_y > ds.RasterYSize):
-        farcorner_y = ds.RasterYSize
+    ox, oy = getCoords(ds, ul[0], ul[1])
+    offset_x = max(ox, 0)
+    offset_y = max(oy, 0)
+    fcx, fcy = getCoords(ds, lr[0], lr[1])
+    farcorner_x = min(fcx, ds.RasterXSize)
+    farcorner_y = min(fcy, ds.RasterYSize)
     offset = (int(offset_x*mult), int(offset_y*mult))
-    size = (farcorner_x*mult-offset_x*mult, farcorner_y*mult-offset_y*mult)
-    if (size[0] < 0 or size[1] < 0):
-        print "DEBUG: negative size is bad!"
+    size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
     return offset, size
 
 def getCoords(ds, lat, lon):
@@ -172,22 +167,14 @@ def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1):
 
     return ImageArray
 
-def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, mult=1, idtPad=0):
+def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0):
     "run this with idtPad=0 to generate image."
     imageRows = tileShape[0]
     imageCols = tileShape[1]
-    imageLeft = rowIndex*imageRows-idtPad
-    imageRight = imageLeft+imageRows+2*idtPad
-    imageUpper = colIndex*imageCols-idtPad
-    imageLower = imageUpper+imageCols+2*idtPad
-    if (imageLeft < 0):
-        imageLeft = 0
-    if (imageRight > maxRows):
-        imageRight = maxRows
-    if (imageUpper < 0):
-        imageUpper = 0
-    if (imageLower > maxCols):
-        imageLower = maxCols
+    imageLeft = max(rowIndex*imageRows-idtPad, 0)
+    imageRight = min(imageLeft+imageRows+2*idtPad, maxRows)
+    imageUpper = max(colIndex*imageCols-idtPad, 0)
+    imageLower = min(imageUpper+imageCols+2*idtPad, maxCols)
     imageOffset = (imageLeft, imageUpper)
     imageSize = (imageRight-imageLeft, imageLower-imageUpper)
     return imageOffset, imageSize
@@ -215,35 +202,30 @@ def checkProcesses(args):
 
 def checkScale(args):
     "Checks to see if the given scale is valid for the given region.  Returns scale and multiplier."
+    fullScale = 1 # don't want higher resolution than reality!
     if (isinstance(args.scale, list)):
-        scale = args.scale[0]
+        oldscale = args.scale[0]
     else:
-        scale = int(args.scale)
+        oldscale = int(args.scale)
     lcds, elevds = getDataset(args.region)
     elevds = None
     lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
     lcds = None
-    lcperpixel = int(lcGeoTrans[1])
-    if (scale > lcperpixel):
-        print "Warning: scale of %d exceeds maximum for region %s -- changed to %d" % (scale, args.region, lcperpixel)
-        scale = lcperpixel
-    # FIXME: ensure that wierd values are okay
-    # right now, restrict it to factors of lcperpixel
-    if (lcperpixel/scale != lcperpixel//scale):
-        for x in range(scale, lcperpixel+1):
-            if (lcperpixel/x == lcperpixel//x):
-                print "Warning: scale for region %s must be factor of %d -- changed to %d" % (args.region, lcperpixel, x)
-                scale = x
-                break
-    mult = lcperpixel//scale
+    lcperpixel = lcGeoTrans[1]
+    scale = min(oldscale, lcperpixel)
+    scale = max(scale, fullScale)
+    if (scale != oldscale):
+        print "Warning: scale of %d for region %s is invalid -- changed to %d" % (oldscale, args.region, scale)
+    mult = lcperpixel/scale
     return (scale, mult)
 
 def checkVScale(args):
     "Checks to see if the given vScale is valid for the given region."
+    maxMapHeight = 40 # total guess
     if (isinstance(args.vscale, list)):
-        vscale = args.vscale[0]
+        oldvscale = args.vscale[0]
     else:
-        vscale = int(args.vscale)
+        oldvscale = int(args.vscale)
     (lcds, elevds) = getDataset(args.region)
     lcds = None
     elevBand = elevds.GetRasterBand(1)
@@ -251,31 +233,22 @@ def checkVScale(args):
     elevBand = None
     elevds = None
     elevMax = elevCMinMax[1]
-    if (elevMax/vscale > 60):
-        newvscale = int(elevMax/60)-1 
-        print "Warning: vscale value for region %s is %d too low -- changed to %d" % (args.region, vscale, newvscale)
-        vscale = newvscale
-    if (elevMax/vscale < 1):
-        newvscale = elevMax
-        print "Warning: vscale value for region %s is %d too low -- changed to %d" % (args.region, vscale, newvscale)
-        vscale = newvscale
+    vscale = min(oldvscale, elevMax)
+    vscale = max(vscale, (elevMax/maxMapHeight)-1)
+    if (vscale != oldvscale):
+        print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
     return vscale
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
-    tilex, tiley = args.tile
+    oldtilex, oldtiley = args.tile
     rows, cols = getDatasetDims(args.region)
-    maxRows = rows * mult
-    maxCols = cols * mult
-    tooLarge = False
-    if (tilex > maxRows):
-        tooLarge = True
-        tilex = maxRows
-    if (tiley > maxCols):
-        tooLarge = True
-        tiley = maxCols
-    if (tooLarge):
-        print "Warning: tile size for region %s is too large -- changed to %d, %d" % (args.region, tilex, tiley)
+    maxRows = int(rows * mult)
+    maxCols = int(cols * mult)
+    tilex = min(oldtilex, maxRows)
+    tiley = min(oldtiley, maxCols)
+    if (tilex != oldtilex or tiley != oldtiley):
+        print "Warning: tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley)
     return (tilex, tiley)
 
 def checkStartEnd(args, mult, tile):
@@ -287,16 +260,17 @@ def checkStartEnd(args, mult, tile):
 
     numRowTiles = int((rows*mult+tileRows-1)/tileRows)
     numColTiles = int((cols*mult+tileCols-1)/tileCols)
+    # maxTileRows and maxTileCols default to 0 meaning do everything
     if (maxTileRows == 0 or maxTileRows > numRowTiles):
         if (maxTileRows > numRowTiles):
-            print "Warning: maxTileRows greater than numTileRows, setting to %d" % numTileRows
+            print "Warning: maxTileRows greater than numRowTiles, setting to %d" % numRowTiles
         maxTileRows = numRowTiles
     if (minTileRows > maxTileRows):
         print "Warning: minTileRows less than maxTileRows, setting to %d" % maxTileRows
         minTileRows = maxTileRows
     if (maxTileCols == 0 or maxTileCols > numColTiles):
         if (maxTileCols > numColTiles):
-            print "Warning: maxTileCols greater than numTileCols, setting to %d" % numTileCols
+            print "Warning: maxTileCols greater than numColTiles, setting to %d" % numColTiles
         maxTileCols = numColTiles
     if (minTileCols > maxTileCols):
         print "Warning: minTileCols less than maxTileCols, setting to %d" % maxTileCols
@@ -305,10 +279,11 @@ def checkStartEnd(args, mult, tile):
 
 def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex):
     "Actually process a tile."
+    curtime = time()
     (lcds, elevds) = getDataset(args.region)
     (rows, cols) = getDatasetDims(args.region)
-    maxRows = rows*mult
-    maxCols = cols*mult
+    maxRows = int(rows*mult)
+    maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
     idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
     print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
@@ -317,8 +292,8 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
     baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
 
     # these points are scaled coordinates
-    idtUL = getLatLong(lcds, idtOffset[0]/mult, idtOffset[1]/mult)
-    idtLR = getLatLong(lcds, (idtOffset[0]+idtSize[0])/mult, (idtOffset[1]+idtSize[1])/mult)
+    idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
+    idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
 
     # nnear=1 for landcover, 11 for elevation
     lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 1)
@@ -329,12 +304,38 @@ def processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIn
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification
+    # first idea: bathymetry
+    maxRing = 10
+    maxRingSeen = 0
+    minRingSeen = 10
+    bathyMaxRows = baseShape[0]
+    bathyMaxCols = baseShape[1]
+    bathyImageArray = numpy.zeros(baseShape)
+    for brow in xrange(bathyMaxRows):
+        for bcol in xrange(bathyMaxCols):
+            if (lcImageArray[brow][bcol] == 11):
+                bathyList = [int(bathyImageArray[x][y]) for x in xrange(max(0,brow-1), min(bathyMaxRows,brow+2)) for y in xrange(max(0,bcol-1), min(bathyMaxCols,bcol+2))]
+                if (all(element == 0 for element in bathyList)):
+                    ringrange = xrange(1,maxRing)
+                else:
+                    ringrange = xrange(min([elem for elem in bathyList if elem > 0])-1,min(max(bathyList)+2, maxRing))
+                try:
+                    for ring in ringrange:
+                        if any(lcImageArray[ringrow][ringcol] != 11 for ringrow in xrange(max(0, brow-ring), min(bathyMaxRows, brow+ring+1)) for ringcol in xrange(max(0, bcol-ring+1), min(bathyMaxCols, bcol+ring+1))):
+                            raise Exception
+                except Exception:
+                    pass
+                bathyImageArray[brow][bcol] = ring
     
     # save images
     lcImage = Image.fromarray(lcImageArray)
     lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
     elevImage = Image.fromarray(elevImageArray)
     elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
+    bathyImage = Image.fromarray(bathyImageArray)
+    bathyImage.save(os.path.join(imagedir, 'bathy-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
+
+    print '... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime))
 
 def processTilestar(args):
     return processTile(*args)
@@ -375,21 +376,24 @@ def main(argv):
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
 
     # make imagedir
-    # TODO: add error checking
     imagedir = os.path.join("Images", args.region)
-    if not os.path.exists(imagedir):
+    # TODO: error checking here
+    if os.path.exists(imagedir):
+        [ os.remove(os.path.join(imagedir,name)) for name in os.listdir(imagedir) ]
+    else:
         os.makedirs(imagedir)
 
     pool = Pool(processes)
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
     tasks = [(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+    #[processTile(args, tileShape, mult, vscale, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
 
     results = pool.imap_unordered(processTilestar, tasks)
 
     bleah = [x for x in results]
             
-    print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), rows*mult, cols*mult)
+    print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), int(rows*mult), int(cols*mult))
 
 if __name__ == '__main__':
     dsDict = getDatasetDict(dsPaths)
