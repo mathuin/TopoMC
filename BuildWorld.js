@@ -403,8 +403,10 @@ function layers() {
 	    slice = top - bottom;
 	}
 	// now do something
-	map.fillBlocks(x, 1, top-slice, slice, z, 1, block);
-	top -= slice;
+	if (slice > 0) {
+	    map.fillBlocks(x, 1, top-slice, slice, z, 1, block);
+	    top -= slice;
+	}
     } while (data.length > 0 || bottom < top);
 }
 
@@ -444,6 +446,13 @@ function makeTree(x, z, elevval, height, type) {
 		for (var zindex = zminleaf; zindex <= zmaxleaf; zindex++) {
 		    map.setBlock(xindex, y, zindex, blockTypes.Leaves);
 	     	    map.setBlockData(xindex, y, zindex, type);
+	    }
+	    // trim the corners to make it rounder and less pyramidish
+	    if (curleafwidth > 1) {
+		map.setBlock(xminleaf, y, zminleaf, blockTypes.Air);
+		map.setBlock(xminleaf, y, zmaxleaf, blockTypes.Air);
+		map.setBlock(xmaxleaf, y, zminleaf, blockTypes.Air);
+		map.setBlock(xmaxleaf, y, zmaxleaf, blockTypes.Air);
 	    }
 	}
 	if (index < height) {
