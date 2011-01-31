@@ -22,3 +22,4 @@ To build a Minecraft world based on a dataset, here's what to do:
     Click 'Generate'.
 
 BuildImages.py now has option parsing support: try "./BuildImages.py -h".
+
