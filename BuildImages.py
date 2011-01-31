@@ -222,6 +222,8 @@ def checkProcesses(args):
         processes = args.processes[0]
     else:
         processes = int(args.processes)
+    # CRAZY
+    args.processes = processes
     return processes
 
 def checkScale(args):
@@ -241,6 +243,9 @@ def checkScale(args):
     if (scale != oldscale):
         print "Warning: scale of %d for region %s is invalid -- changed to %d" % (oldscale, args.region, scale)
     mult = lcperpixel/scale
+    # CRAZY
+    args.scale = scale
+    args.mult = mult
     return (scale, mult)
 
 def checkVScale(args):
@@ -261,6 +266,8 @@ def checkVScale(args):
     vscale = max(vscale, (elevMax/maxMapHeight)-1)
     if (vscale != oldvscale):
         print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
+    # CRAZY
+    args.vscale = vscale
     return vscale
 
 def checkMaxDepth(args):
@@ -276,6 +283,8 @@ def checkMaxDepth(args):
     maxdepth = min(maxdepth, min(rows, cols))
     if (maxdepth != oldmaxdepth):
         print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth)
+    # CRAZY
+    args.maxdepth = maxdepth
     return maxdepth
 
 def checkSlope(args):
@@ -290,6 +299,8 @@ def checkSlope(args):
     slope = max(slope, 1/extreme)
     if (slope != oldslope):
         print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope)
+    # CRAZY
+    args.slope = slope
     return slope
 
 def checkTile(args, mult):
@@ -302,6 +313,8 @@ def checkTile(args, mult):
     tiley = min(oldtiley, maxCols)
     if (tilex != oldtilex or tiley != oldtiley):
         print "Warning: tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley)
+    # CRAZY
+    args.tile = (tilex, tiley)
     return (tilex, tiley)
 
 def checkStartEnd(args, mult, tile):
@@ -330,8 +343,17 @@ def checkStartEnd(args, mult, tile):
         minTileCols = maxTileCols
     return (minTileRows, minTileCols, maxTileRows, maxTileCols)
 
-def processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex):
+# CRAZY
+#def processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex):
+def processTile(args, imagedir, tileRowIndex, tileColIndex):
     "Actually process a tile."
+    # CRAZY
+    tileShape = args.tile
+    mult = args.mult
+    vscale = args.vscale
+    maxdepth = args.maxdepth
+    slope = args.slope
+    # END CRAZY
     curtime = time()
     (lcds, elevds) = getDataset(args.region)
     (rows, cols) = getDatasetDims(args.region)
@@ -427,10 +449,12 @@ def main(argv):
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
     if (processes == 1):
-        [processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        #[processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
     else:
         pool = Pool(processes)
-        tasks = [(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        #tasks = [(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
         results = pool.imap_unordered(processTilestar, tasks)
         bleah = [x for x in results]
             
