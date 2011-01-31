@@ -270,8 +270,10 @@ def checkMaxDepth(args):
     else:
         oldmaxdepth = int(args.maxdepth)
     (rows, cols) = getDatasetDims(args.region)
-    maxdepth = min(oldmaxdepth, 1)
-    maxdepth = max(maxdepth, min(rows, cols))
+    # okay, 1 is a minimum
+    # rows/cols is a max
+    maxdepth = max(1, oldmaxdepth)
+    maxdepth = min(maxdepth, min(rows, cols))
     if (maxdepth != oldmaxdepth):
         print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth)
     return maxdepth
