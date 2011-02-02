@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# mklcelevdata.py - 2010Jan21 - mathuin@gmail.com
+# BuildImages.py - 2010Jan21 - mathuin@gmail.com
+# part of TopoMC (https://github.com/mathuin/TopoMC)
 
 # this script builds arrays for land cover and elevation
 
@@ -152,8 +153,8 @@ def getOffsetSize(ds, corners, mult=1):
     return offset, size
 
 def getCoords(ds, lat, lon):
-    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
     "The backwards version of getLatLong, from geo_trans.c."
+    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
     pnt = ArcTrans.TransformPoint(lon, lat, 0)
     x = (pnt[0] - GeoTrans[0])/GeoTrans[1]
     y = (pnt[1] - GeoTrans[3])/GeoTrans[5]
@@ -427,7 +428,6 @@ def main(argv):
         return 0
 
     # set up all the values
-    # TODO: crazy people write the answers back to args!
     rows, cols = getDatasetDims(args.region)
     processes = checkProcesses(args)
     (scale, mult) = checkScale(args)
@@ -449,11 +449,9 @@ def main(argv):
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
     if (processes == 1):
-        #[processTile(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
         [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
     else:
         pool = Pool(processes)
-        #tasks = [(args, tileShape, mult, vscale, maxdepth, slope, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
         tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
         results = pool.imap_unordered(processTilestar, tasks)
         bleah = [x for x in results]
