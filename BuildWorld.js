@@ -16,13 +16,14 @@ var spawnz = 0;
 
 // what region are we doing?
 var region = 'BlockIsland';
-//var region = 'Hamilton';
 var imagedir = "Images/"+region;
 // FIXME: these should have defaults to "all files" eventually
 var minrows = 0;
 var mincols = 0;
 var maxrows = 1520;
 var maxcols = 1990;
+//var maxrows = 2167;
+//var maxcols = 2140;
 //var minrows = 512;
 //var mincols = 512;
 //var maxrows = 1535;
@@ -90,6 +91,7 @@ function processImage(offset_x, offset_z) {
 
 function populateLandCoverVariables(lcType, lcCount, treeType, treeCount) {
     // first add all the text values for land covers
+    // http://www.mrlc.gov/nlcd_definitions.php
     var lcMetaType = {
 	 0 : "Unknown",
 	11 : "Water",
@@ -149,6 +151,7 @@ function processLcval(lcval, x, z, elevval, bathyval) {
 	layers(x, z, elevval, blockTypes.Dirt);
     } else {
 	lcCount[lcval]++;
+	// http://www.mrlc.gov/nlcd_definitions.php
 	switch(lcval) {
 	case 11:
 	    // water
