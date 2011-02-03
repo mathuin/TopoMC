@@ -21,7 +21,9 @@ maxMapHeight = 125 - sealevel
 
 # these are outside the loop
 # everyone wants the level
-level = None
+#level = None
+#massarray = None
+#massarraydata = None
 starttime = clock()
 
 # processImage modifies these as it runs
@@ -30,6 +32,29 @@ maxbathy = 0
 spawnx = 0
 spawny = 0
 spawnz = 0
+
+# what region are we doing?
+region = 'BlockIsland'
+# what world are we doing?
+level = mclevel.MCInfdevOldLevel('/home/jmt/.minecraft/saves/World5', create=True)
+# FIXME: these should have defaults to "all files" eventually
+minrows = 0
+mincols = 0
+#maxrows = 1520
+#maxcols = 1990
+#maxrows = 304
+#maxcols = 398
+maxrows = 152
+maxcols = 199
+# maxrows = 2167
+# maxcols = 2140
+# maxrows = 1535
+# maxcols = 1535
+# tiling constants - also hopefully eventually optional
+# tilerows = 256
+# tilecols = 256
+tilerows = 152
+tilecols = 199
 
 # land cover statistics
 lcType = {}
@@ -55,12 +80,12 @@ def processImage(offset_x, offset_z):
     elevarray = numpy.asarray(elevimg)
     bathyarray = numpy.asarray(bathyimg)
 
-    (size_x, size_z) = lcarray.shape
+    # doh!
+    (size_z, size_x) = lcarray.shape
     stop_x = offset_x+size_x
     stop_z = offset_z+size_z
 
-    global maxelev
-    global maxbathy
+    localmax = maxelev
 
     # inform the user
     print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
@@ -68,25 +93,26 @@ def processImage(offset_x, offset_z):
     # iterate over the image
     for x in xrange(size_x):
         for z in xrange(size_z):
-            lcval = lcarray[x][z]
-            elevval = elevarray[x][z]
-            bathyval = bathyarray[x][z]
+            lcval = lcarray[z][x]
+            elevval = elevarray[z][x]
+            bathyval = bathyarray[z][x]
             real_x = offset_x + x
             real_z = offset_z + z
             if (elevval > maxMapHeight):
                 print('oh no elevation ' + elevval + ' is too high')
                 elevval = maxMapHeight
-            if (elevval > maxelev):
+            if (elevval > localmax):
+                localmax = elevval
                 spawnx = real_x
                 spawnz = real_z
-                spawny = elevval
-            if (bathyval > maxbathy):
-                maxelev = bathyval
+                spawny = localmax
 
             processLcval(lcval, real_x, real_z, elevval, bathyval)
 	
     # print out status
     print '... finished in %f seconds.' % (clock()-imagetime)
+
+    return (spawnx, spawny, spawnz)
 
 def processImagestar(args):
     return processImage(*args)
@@ -344,8 +370,8 @@ def layers(x, z, elevval, *args):
         # now do something
         #print 'layer is %d' % layer
         if (layer > 0):
-           [setBlockAt(x, y, z, block) for y in xrange(top-layer,top)]
-           top -= layer
+            [setBlockAt(x, y, z, block) for y in xrange(top-layer,top)]
+            top -= layer
         
 # places leaves and tree
 def makeTree(x, z, elevval, height, treeType):
@@ -387,6 +413,10 @@ def makeTree(x, z, elevval, height, treeType):
     treeTotal += 1
 
 def placeTree(x, z, elevval, prob, treeType):
+    # trees can't be too close to the edge
+    treeDim = 10
+    if (x < treeDim or x > maxrows-treeDim or z < treeDim or z > maxrows-treeDim):
+        return
     chance = random()
     if (chance < prob):
         if (treeType == -1):
@@ -406,21 +436,28 @@ def placeTree(x, z, elevval, prob, treeType):
 # my own setblockat
 def setBlockAt(x, y, z, string):
     global level
+    global massarray
     blockType = level.materials.materialNamed(string)
     try:
-        level.setBlockAt(x, y, z, blockType)
+        #level.setBlockAt(x, y, z, blockType)
+        # [x:y:z] is [start:stop:step]
+        massarray[x,y,z] = blockType
     except mclevel.ChunkNotPresent as inst:
-        level.createChunk(inst[0], inst[1])
-        level.setBlockAt(x, y, z, blockType)
+        #level.createChunk(inst[0], inst[1])
+        #level.setBlockAt(x, y, z, blockType)
+        pass
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
     global level
+    global massarraydata
     try:
-        level.setBlockDataAt(x, y, z, data)
+        #level.setBlockDataAt(x, y, z, data)
+        massarraydata[x,y,z] = data
     except mclevel.ChunkNotPresent as inst:
-        level.createChunk(inst[0], inst[1])
-        level.setBlockDataAt(x, y, z, data)
+        #level.createChunk(inst[0], inst[1])
+        #level.setBlockDataAt(x, y, z, data)
+        pass
 
 # everything an explorer needs, for now
 def equipPlayer():
@@ -445,26 +482,44 @@ def printLandCoverStatistics():
         treePercent = round((value*10000)/treeTotal)/100.0
         print '  %d (%f): %s' % (value, treePercent, key)
 
+def buildChunk(cx, cz):
+    # consider using the old version of fillBlocks as an example.
+    chunkstart = clock()
+    print '  creating (%d, %d)' % (cx, cz)
+    level.createChunk(cx, cz)
+    myChunk = level.getChunk(cx, cz)
+    for x in xrange(16):
+        for z in xrange(16):
+            for y in xrange(128):
+                myChunk.Blocks[x,z,y] = massarray[cx*16+x,y,cz*16+z]
+                if massarraydata[cx*16+x,y,cz*16+z]:
+                    myChunk.Data[x,z,y] = massarray[cx*16+x,y,cz*16+z]
+    myChunk.chunkChanged()
+    return (clock()-chunkstart)
+
+def buildChunkstar(args):
+    return buildChunk(*args)
+
+def runThem(functionstar, function, tasks, processes):
+    if (processes == 1):
+        retval = [function(args) for args in tasks]
+    else:
+        pool = Pool(processes)
+        results = pool.imap_unordered(functionstar, tasks)
+        retval = [x for x in results]
+    return retval
 
 def main(argv):
     global level
+    global massarray
+    global massarraydata
+    global minrows, mincols
 
-    # what region are we doing?
-    region = 'BlockIsland'
-    # what world are we doing?
-    level = mclevel.MCInfdevOldLevel('/home/jmt/.minecraft/saves/World5', create=True)
-    # FIXME: these should have defaults to "all files" eventually
-    minrows = 0
-    mincols = 0
-    maxrows = 1520
-    maxcols = 1990
-    # maxrows = 2167
-    # maxcols = 2140
-    #maxrows = 1535
-    #maxcols = 1535
-    # tiling constants - also hopefully eventually optional
-    tilerows = 256
-    tilecols = 256
+    # let us create massarray
+    # WTH
+    massarray = numpy.empty([maxrows+10, 128, maxcols+10])
+    massarray[0,0,0] = 1
+    massarraydata = numpy.empty_like(massarray)
 
     # what are we doing?
     print 'Creating world from region %s' % region
@@ -479,22 +534,33 @@ def main(argv):
     # for row in xrange(minrows, maxrows, tilerows):
     #     for col in xrange(mincols, maxcols, tilecols):
     #         processImage(row, col)
-    pool = Pool(4)
-    tasks = [(row, col) for row in xrange(minrows, maxrows, tilerows) for col in xrange(mincols, maxcols, tilecols)]
-    results = pool.imap_unordered(processImagestar, tasks)
-    bleah = [x for x in results]
-                                    
+    processes = cpu_count()
+    #peaks = runThem(processImagestar, processImage, [(row, col) for row in xrange(minrows, maxrows, tilerows) for col in xrange(mincols, maxcols, tilecols)], processes)
+    # per-tile peaks here
+    # ... consider doing something nice on all the peaks?
+    #peak = sorted(peaks, key=lambda point: point[1], reverse=True)[0]
+    peak = (100, 66, 100)
+    print 'Setting spawn values: %d, %d, %d' % (peak)
+
+    # write array to level
+    for ch in list(level.allChunks): 
+        level.deleteChunk(*ch)
+    times = runThem(buildChunkstar, buildChunk, [(cx, cz) for cx in xrange(maxrows>>4) for cz in xrange(maxcols>>4)], processes)
+    countChunks = len(times)
+    averageChunkTime = math.fsum(times)/countChunks
+    print 'created %d new chunks (average %f seconds)' % (countChunks, averageChunkTime)
+
     # maximum elevation
-    print('Maximum elevation: %d' % maxelev)
-    print('Maximum depth: %d' % maxbathy)
+    print 'Maximum elevation: %d (at %d, %d)' % (peak[1], peak[0], peak[2])
 
     # set player position and spawn point (in this case, equal)
-    print 'Setting spawn values: %d, %d, %d' % (spawnx, (sealevel+spawny+2), spawnz)
     #equipPlayer()
-    level.setPlayerPosition((spawnx, sealevel+spawny+2, spawnz))
-    level.setPlayerSpawnPosition((spawnx, sealevel+spawny+2, spawnz))
+    level.setPlayerPosition(peak)
+    level.setPlayerSpawnPosition(peak)
+    print 'starting lights...'
+    level.generateLights()
     level.saveInPlace()
-    print level.playerSpawnPosition()
+    print level.getPlayerPosition()
 
     print 'Processing done -- took %f seconds.' % (clock()-starttime)
     printLandCoverStatistics()
