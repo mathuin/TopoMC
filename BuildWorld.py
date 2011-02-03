@@ -88,9 +88,8 @@ treeTotal = 0
 treeProb = 0.001
 
 # inside the loop
-def processImage(offset):
+def processImage(offset_x, offset_z):
     imagetime = clock()
-    offset_x, offset_z = offset
     # prolly a better way to do this
     lcimg = Image.open('%s/lc-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
     elevimg = Image.open('%s/elev-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
@@ -135,6 +134,9 @@ def processImage(offset):
     print '... finished in %f seconds.' % (clock()-imagetime)
 
     return (spawnx, spawnz, localmax)
+
+def processImagestar(args):
+    return processImage(*args)
 
 def populateLandCoverVariables(lcType, lcCount, treeType, treeCount):
     # first add all the text values for land covers
@@ -513,8 +515,8 @@ def buildChunk(chunkxz):
     myChunk.chunkChanged()
     return (clock()-chunkstart)
 
-def runThem(function, tasks):
-    if (mainargs.processes == 1):
+def runThem(function, tasks, flag=False):
+    if (mainargs.processes == 1 or flag == True):
         retval = [function(args) for args in tasks]
     else:
         pool = Pool(mainargs.processes)
@@ -582,8 +584,9 @@ def main(argv):
     populateLandCoverVariables(lcType, lcCount, treeType, treeCount)
 
     # iterate over images
-    # this will bitch about imagedir
-    peaks = runThem(processImage, [offset for (offset, size) in imageSets[mainargs.region]])
+    # FIXME: this does not run in multiprocessor mode
+    peaks = [processImage(*offset) for (offset, size) in imageSets[mainargs.region]]
+
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
