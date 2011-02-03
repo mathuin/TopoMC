@@ -214,7 +214,7 @@ def checkDataset(string):
     "Checks to see if the supplied string is a dataset."
     if (string != None and not string in dsDict):
         listDatasets(dsDict)
-        raise argparse.error("%s is not a valid dataset" % string)
+        argparse.error("%s is not a valid dataset" % string)
     return string
 
 def checkProcesses(args):
