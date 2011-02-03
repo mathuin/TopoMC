@@ -16,6 +16,7 @@ from pymclevel.materials import materials
 from random import random, randint
 from multiprocessing import Pool, cpu_count
 
+usemassarray = True
 # paths for images
 imagesPaths = ['Images']
 
@@ -89,10 +90,12 @@ treeProb = 0.001
 # inside the loop
 def processImage(offset_x, offset_z):
     imagetime = clock()
+
     # prolly a better way to do this
-    lcimg = Image.open('%s/lc-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
-    elevimg = Image.open('%s/elev-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
-    bathyimg = Image.open('%s/bathy-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
+    imgtemp = '%s/%%s-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z)
+    lcimg = Image.open(imgtemp, 'lc')
+    elevimg = Image.open(imgtemp, 'elev')
+    bathyimg = Image.open(imgtemp, 'bathy')
 
     lcarray = numpy.asarray(lcimg)
     elevarray = numpy.asarray(elevimg)
@@ -102,6 +105,9 @@ def processImage(offset_x, offset_z):
     (size_z, size_x) = lcarray.shape
     stop_x = offset_x+size_x
     stop_z = offset_z+size_z
+
+    # sigh
+    world.createChunksInBox(BoundingBox((offset_x, 0, offset_z), (stop_x, 128, stop_z)))
 
     # gotta start somewhere!
     localmax = 0
@@ -456,10 +462,13 @@ def setBlockAt(x, y, z, string):
     global massarray
     blockType = materials.materialNamed(string)
     try:
-        massarray[x,z,y] = blockType
-    except IndexError:
+        if (usemassarray):
+            massarray[x,z,y] = blockType
+        else:
+            world.setBlockAt(x, y, z, blockType)
+    except:
         # trying to make a tree most likely
-        print 'tried to setBlockAt %d, %d, %d, %s' % (x, y, z, string)
+        #print 'tried to setBlockAt %d, %d, %d, %s' % (x, y, z, string)
         pass
 
 # my own setblockdataat
@@ -467,7 +476,10 @@ def setBlockDataAt(x, y, z, data):
     global mainargs
     global massarraydata
     try:
-        massarraydata[x,z,y] = data
+        if (usemassarray):
+            massarraydata[x,z,y] = data
+        else:
+            world.setBlockDataAt(x, y, z, data)
     except IndexError:
         # trying to make a tree most likely
         print 'tried to setBlockAt %d, %d, %d, %d' % (x, y, z, data)
@@ -500,8 +512,19 @@ def buildChunk(chunkxz):
     chunkstart = clock()
     (cx, cz) = chunkxz
     myChunk = world.getChunk(cx, cz)
-    myChunk.Blocks[:,:,:] = massarray[cx*16:16,cz*16:16,:]
-    myChunk.Data[:,:,:] = massarraydata[cx*16:16,cz*16:16,:]
+    if (usemassarray):
+        # this one the one under test when I use massarray
+        if (False):
+            for x in xrange(16):
+                for z in xrange(16):
+                    for y in xrange(128):
+                        myChunk.Blocks[x,z,y] = massarray[cx*16+x,cz*16+z,y]
+                        if massarraydata[cx*16+x,cz*16+z,y]:
+                            myChunk.Data[x,z,y] = massarraydata[cx*16+x,cz*16+z,y]
+        else:
+            world.getChunk(cx,cz).Blocks[:,:,:] = massarray[cx*16:16,cz*16:16,:]
+            world.getChunk(cx,cz).Data[:,:,:] = massarraydata[cx*16:16,cz*16:16,:]
+    # either way I need to run this
     myChunk.chunkChanged()
     return (clock()-chunkstart)
 
@@ -555,28 +578,35 @@ def main(argv):
         listImagesets(imageDirs)
         return 0
 
-    # set up all the values
-    processes = checkProcesses(mainargs)
-    
-    worlddir = "/home/jmt/.minecraft/saves/World5"
-    rmtree(worlddir)
-    os.mkdir(worlddir)
-    world = mclevel.MCInfdevOldLevel(worlddir)
-
-    # let us create massarray
-    (maxrows, maxcols) = imageDims[mainargs.region]
-    # yes, x z y
-    massarray = numpy.empty([maxrows, maxcols, 128])
-    massarraydata = numpy.empty_like(massarray)
-
     # what are we doing?
     print 'Creating world from region %s' % mainargs.region
 
     # initialize the land cover variables
     populateLandCoverVariables(lcType, lcCount, treeType, treeCount)
 
+    # set up all the values
+    processes = checkProcesses(mainargs)
+    
+    # let us create massarray
+    (maxrows, maxcols) = imageDims[mainargs.region]
+    # yes, x z y
+    massarray = numpy.empty([maxrows, maxcols, 128])
+    massarraydata = numpy.empty_like(massarray)
+
+    # opening the world
+    worlddir = "/home/jmt/.minecraft/saves/World5"
+    rmtree(worlddir)
+    os.mkdir(worlddir)
+    world = mclevel.MCInfdevOldLevel(worlddir)
+
+    # resetting the world
+    for ch in list(world.allChunks):
+        world.deleteChunk(*ch)
+    world.createChunksInBox(BoundingBox((0,0,0), massarray.shape))
+
     # iterate over images
     # FIXME: this does not run in multiprocessor mode
+    #peaks = runThem(processImagestar, ((offset[0], offset[1]) for (offset, size) in imageSets[mainargs.region]))
     peaks = [processImage(*offset) for (offset, size) in imageSets[mainargs.region]]
 
     # per-tile peaks here
@@ -585,10 +615,6 @@ def main(argv):
     print 'Setting spawn values: %d, %d, %d' % (peak)
 
     # write array to level
-    # resetting the world
-    for ch in list(world.allChunks):
-        world.deleteChunk(*ch)
-    world.createChunksInBox(BoundingBox((0,0,0), massarray.shape))
     #times = runThem(buildChunk, [args for args in world.allChunks])
     times = [buildChunk(args) for args in world.allChunks]
     countChunks = len(times)
