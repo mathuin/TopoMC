@@ -2,14 +2,71 @@
 
 import sys
 sys.path.append('..')
+import re
+import os
+import argparse
 from pymclevel import mclevel
 from time import clock
+from shutil import rmtree
 import Image
 import numpy
 import math
 from pymclevel.box import BoundingBox
+from pymclevel.materials import materials
 from random import random, randint
 from multiprocessing import Pool, cpu_count
+
+# paths for images
+imagesPaths = ['Images']
+
+# functions
+def getImagesDict(imagepaths):
+    "Given a list of paths, generate a dict of imagesets."
+    # FIXME: check to see that images are 'complete' and report back sizes.
+    # i.e., check names and dimensions
+
+    imagere = re.compile(r'^(\w+)-(\d+)-(\d+).gif')
+
+    imagedirs = {}
+    imagesets = {}
+    imagedims = {}
+    for imagepath in imagepaths:
+        regions = [ name for name in os.listdir(imagepath) if os.path.isdir(os.path.join(imagepath, name)) ]
+        for region in regions:
+            tmpis = {'lc': [], 'elev': [], 'bathy': []}
+            imageregion = os.path.join(imagepath, region)
+            for imagefile in os.listdir(imageregion):
+                (filetype, offset_x, offset_z) = imagere.search(imagefile).groups()
+                if (filetype in tmpis.keys()):
+                    img = Image.open(os.path.join(imageregion, imagefile))
+                    ary = numpy.asarray(img)
+                    (size_z, size_x) = ary.shape
+                    img = None
+                    ary = None
+                    tmpis[filetype].append(((int(offset_x), int(offset_z)), (int(size_x), int(size_z))))
+            # lazy man will look for largest file and add the coordinates
+            tmpid = {'lc': [], 'elev': [], 'bathy': []}
+            for key in tmpid.keys():
+                bigcorner = [0, 0]
+                bigplus = [0, 0]
+                for elem in tmpis[key]:
+                    if (bigcorner[0] <= elem[0][0] and 
+                        bigcorner[1] <= elem[0][1]):
+                        bigcorner[0] = elem[0][0]
+                        bigcorner[1] = elem[0][1]
+                        bigplus[0] = elem[1][0]
+                        bigplus[1] = elem[1][1]
+                tmpid[key] = (bigcorner[0]+bigplus[0], bigcorner[1]+bigplus[1])
+            # FIXME: make sure they all match, then just return the right ones
+            if (set(tmpis['lc']) == set(tmpis['elev']) and 
+                set(tmpis['lc']) == set(tmpis['bathy']) and 
+                set(tmpid['lc']) == set(tmpid['elev']) and 
+                set(tmpid['lc']) == set(tmpid['bathy'])):
+                imagedirs[region] = os.path.join(imagepath, region)
+                imagesets[region] = tmpis['lc']
+                imagedims[region] = tmpid['lc']
+
+    return imagedirs, imagesets, imagedims
 
 # constants
 sealevel = 64
@@ -18,43 +75,6 @@ filler = sealevel - baseline
 
 # set maxMapHeight to a conservative value
 maxMapHeight = 125 - sealevel
-
-# these are outside the loop
-# everyone wants the level
-#level = None
-#massarray = None
-#massarraydata = None
-starttime = clock()
-
-# processImage modifies these as it runs
-maxelev = 0
-maxbathy = 0
-spawnx = 0
-spawny = 0
-spawnz = 0
-
-# what region are we doing?
-region = 'BlockIsland'
-# what world are we doing?
-level = mclevel.MCInfdevOldLevel('/home/jmt/.minecraft/saves/World5', create=True)
-# FIXME: these should have defaults to "all files" eventually
-minrows = 0
-mincols = 0
-#maxrows = 1520
-#maxcols = 1990
-#maxrows = 304
-#maxcols = 398
-maxrows = 152
-maxcols = 199
-# maxrows = 2167
-# maxcols = 2140
-# maxrows = 1535
-# maxcols = 1535
-# tiling constants - also hopefully eventually optional
-# tilerows = 256
-# tilecols = 256
-tilerows = 152
-tilecols = 199
 
 # land cover statistics
 lcType = {}
@@ -68,13 +88,13 @@ treeTotal = 0
 treeProb = 0.001
 
 # inside the loop
-def processImage(offset_x, offset_z):
+def processImage(offset):
     imagetime = clock()
-    region = 'BlockIsland'
-    imagedir = "Images/"+region
-    lcimg = Image.open('%s/lc-%d-%d.gif' % (imagedir, offset_x, offset_z))
-    elevimg = Image.open('%s/elev-%d-%d.gif' % (imagedir, offset_x, offset_z))
-    bathyimg = Image.open('%s/bathy-%d-%d.gif' % (imagedir, offset_x, offset_z))
+    offset_x, offset_z = offset
+    # prolly a better way to do this
+    lcimg = Image.open('%s/lc-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
+    elevimg = Image.open('%s/elev-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
+    bathyimg = Image.open('%s/bathy-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z))
 
     lcarray = numpy.asarray(lcimg)
     elevarray = numpy.asarray(elevimg)
@@ -85,7 +105,10 @@ def processImage(offset_x, offset_z):
     stop_x = offset_x+size_x
     stop_z = offset_z+size_z
 
-    localmax = maxelev
+    # gotta start somewhere!
+    localmax = 0
+    spawnx = 10
+    spawnz = 10
 
     # inform the user
     print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
@@ -99,23 +122,19 @@ def processImage(offset_x, offset_z):
             real_x = offset_x + x
             real_z = offset_z + z
             if (elevval > maxMapHeight):
-                print('oh no elevation ' + elevval + ' is too high')
+                print('oh no elevation %d is too high' % elevval)
                 elevval = maxMapHeight
             if (elevval > localmax):
                 localmax = elevval
                 spawnx = real_x
                 spawnz = real_z
-                spawny = localmax
 
             processLcval(lcval, real_x, real_z, elevval, bathyval)
 	
     # print out status
     print '... finished in %f seconds.' % (clock()-imagetime)
 
-    return (spawnx, spawny, spawnz)
-
-def processImagestar(args):
-    return processImage(*args)
+    return (spawnx, spawnz, localmax)
 
 def populateLandCoverVariables(lcType, lcCount, treeType, treeCount):
     # first add all the text values for land covers
@@ -353,7 +372,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
 # layers(x, y, elevval, 'Stone', 1, 'Dirt', 1, 'Water')
 #  - elevval down one level of water, then one level of dirt, then stone
 def layers(x, z, elevval, *args):
-    global level
+    global mainargs
     bottom = sealevel
     top = sealevel+elevval
 
@@ -375,9 +394,8 @@ def layers(x, z, elevval, *args):
         
 # places leaves and tree
 def makeTree(x, z, elevval, height, treeType):
-    global level
+    global mainargs
     global treeTotal
-    #print 'makeTree @ (%d, %d, %d) - %d' % (x, z, elevval, clock()-starttime)
     maxleafheight = height+1
     trunkheight = 1
     if (treeType == -1):
@@ -415,8 +433,6 @@ def makeTree(x, z, elevval, height, treeType):
 def placeTree(x, z, elevval, prob, treeType):
     # trees can't be too close to the edge
     treeDim = 10
-    if (x < treeDim or x > maxrows-treeDim or z < treeDim or z > maxrows-treeDim):
-        return
     chance = random()
     if (chance < prob):
         if (treeType == -1):
@@ -435,35 +451,35 @@ def placeTree(x, z, elevval, prob, treeType):
 
 # my own setblockat
 def setBlockAt(x, y, z, string):
-    global level
+    global mainargs
     global massarray
-    blockType = level.materials.materialNamed(string)
+    blockType = materials.materialNamed(string)
     try:
-        #level.setBlockAt(x, y, z, blockType)
+        #world.setBlockAt(x, y, z, blockType)
         # [x:y:z] is [start:stop:step]
-        massarray[x,y,z] = blockType
+        massarray[x,z,y] = blockType
     except mclevel.ChunkNotPresent as inst:
-        #level.createChunk(inst[0], inst[1])
-        #level.setBlockAt(x, y, z, blockType)
+        #world.createChunk(inst[0], inst[1])
+        #world.setBlockAt(x, y, z, blockType)
         pass
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
-    global level
+    global mainargs
     global massarraydata
     try:
-        #level.setBlockDataAt(x, y, z, data)
-        massarraydata[x,y,z] = data
+        #world.setBlockDataAt(x, y, z, data)
+        massarraydata[x,z,y] = data
     except mclevel.ChunkNotPresent as inst:
-        #level.createChunk(inst[0], inst[1])
-        #level.setBlockDataAt(x, y, z, data)
+        #world.createChunk(inst[0], inst[1])
+        #world.setBlockDataAt(x, y, z, data)
         pass
 
 # everything an explorer needs, for now
 def equipPlayer():
-    global level
+    global mainargs
     # eventually give out full iron toolset and a handful of torches
-    inventory = level.root_tag['Data']['Player']['Inventory']
+    inventory = world.root_tag['Data']['Player']['Inventory']
     inventory.append(Itemstack(278, slot=8))
     inventory.append(Itemstack(50, slot=0, count=-1)) # Torches
     inventory.append(Itemstack(1, slot=1, count=-1))  # Stone
@@ -482,70 +498,107 @@ def printLandCoverStatistics():
         treePercent = round((value*10000)/treeTotal)/100.0
         print '  %d (%f): %s' % (value, treePercent, key)
 
-def buildChunk(cx, cz):
+def buildChunk(chunkxz):
+    global mainargs
     # consider using the old version of fillBlocks as an example.
     chunkstart = clock()
-    print '  creating (%d, %d)' % (cx, cz)
-    level.createChunk(cx, cz)
-    myChunk = level.getChunk(cx, cz)
+    (cx, cz) = chunkxz
+    myChunk = world.getChunk(cx, cz)
     for x in xrange(16):
         for z in xrange(16):
             for y in xrange(128):
-                myChunk.Blocks[x,z,y] = massarray[cx*16+x,y,cz*16+z]
-                if massarraydata[cx*16+x,y,cz*16+z]:
-                    myChunk.Data[x,z,y] = massarray[cx*16+x,y,cz*16+z]
+                myChunk.Blocks[x,z,y] = massarray[cx*16+x,cz*16+z,y]
+                if massarraydata[cx*16+x,cz*16+z,y]:
+                    myChunk.Data[x,z,y] = massarray[cx*16+x,cz*16+z,y]
     myChunk.chunkChanged()
     return (clock()-chunkstart)
 
-def buildChunkstar(args):
-    return buildChunk(*args)
-
-def runThem(functionstar, function, tasks, processes):
-    if (processes == 1):
+def runThem(function, tasks):
+    if (mainargs.processes == 1):
         retval = [function(args) for args in tasks]
     else:
-        pool = Pool(processes)
-        results = pool.imap_unordered(functionstar, tasks)
+        pool = Pool(mainargs.processes)
+        results = pool.imap_unordered(function, tasks)
         retval = [x for x in results]
     return retval
 
+def listImagesets(imageDirs):
+    "Given an images dict, list the imagesets and their dimensions."
+    print 'Valid imagesets detected:'
+    print "\n".join(["\t%s" % region for region in imageDirs])
+
+def checkImageset(string):
+    "Checks to see if there are images for this imageset."
+    if (string != None and not string in imageDirs):
+        listImagesets(imageDirs)
+        raise argparse.error("%s is not a valid imageset" % string)
+    return string
+
+def checkProcesses(mainargs):
+    "Checks to see if the given process count is valid."
+    if (isinstance(mainargs.processes, list)):
+        processes = mainargs.processes[0]
+    else:
+        processes = int(mainargs.processes)
+    mainargs.processes = processes
+    return processes
+
 def main(argv):
-    global level
+    global mainargs
+    global world
     global massarray
     global massarraydata
-    global minrows, mincols
+    maintime = clock()
+    default_processes = cpu_count()
+    default_world = 5
+    parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
+    parser.add_argument('region', nargs='?', type=checkImageset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
+
+    # this is global
+    mainargs = parser.parse_args()
+
+    # list regions if requested
+    if (mainargs.region == None):
+        listImagesets(imageDirs)
+        return 0
+
+    # set up all the values
+    processes = checkProcesses(mainargs)
+    
+    worlddir = "/home/jmt/.minecraft/saves/World5"
+    world = mclevel.MCInfdevOldLevel(worlddir, create=True)
 
     # let us create massarray
-    # WTH
-    massarray = numpy.empty([maxrows+10, 128, maxcols+10])
-    massarray[0,0,0] = 1
+    (maxrows, maxcols) = imageDims[mainargs.region]
+    # yes, x z y
+    massarray = numpy.empty([maxrows, maxcols, 128])
     massarraydata = numpy.empty_like(massarray)
 
     # what are we doing?
-    print 'Creating world from region %s' % region
+    print 'Creating world from region %s' % mainargs.region
 
     # initialize the land cover variables
     populateLandCoverVariables(lcType, lcCount, treeType, treeCount)
 
-    # for loop time!
-    # first make sure that minrows and mincols start on tile boundaries
-    minrows -= (minrows % tilerows)
-    mincols -= (mincols % tilecols)
-    # for row in xrange(minrows, maxrows, tilerows):
-    #     for col in xrange(mincols, maxcols, tilecols):
-    #         processImage(row, col)
-    processes = cpu_count()
-    #peaks = runThem(processImagestar, processImage, [(row, col) for row in xrange(minrows, maxrows, tilerows) for col in xrange(mincols, maxcols, tilecols)], processes)
+    # iterate over images
+    # this will bitch about imagedir
+    peaks = runThem(processImage, [offset for (offset, size) in imageSets[mainargs.region]])
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
-    #peak = sorted(peaks, key=lambda point: point[1], reverse=True)[0]
-    peak = (100, 66, 100)
+    peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
     print 'Setting spawn values: %d, %d, %d' % (peak)
 
     # write array to level
-    for ch in list(level.allChunks): 
-        level.deleteChunk(*ch)
-    times = runThem(buildChunkstar, buildChunk, [(cx, cz) for cx in xrange(maxrows>>4) for cz in xrange(maxcols>>4)], processes)
+    # resetting the world
+    for ch in list(world.allChunks):
+        world.deleteChunk(*ch)
+    # a) the top of the bounding box is the shape of the other array
+    # b) runThem can iterate over chunkPositions
+    world.createChunksInBox(BoundingBox((0,0,0), massarray.shape))
+    
+    # (cx, cz) for cx in xrange(maxrows>>4) for cz in xrange(maxcols>>4)])
+    times = runThem(buildChunk, [args for args in world.allChunks])
     countChunks = len(times)
     averageChunkTime = math.fsum(times)/countChunks
     print 'created %d new chunks (average %f seconds)' % (countChunks, averageChunkTime)
@@ -555,15 +608,16 @@ def main(argv):
 
     # set player position and spawn point (in this case, equal)
     #equipPlayer()
-    level.setPlayerPosition(peak)
-    level.setPlayerSpawnPosition(peak)
+    world.setPlayerPosition(peak)
+    world.setPlayerSpawnPosition(peak)
     print 'starting lights...'
-    level.generateLights()
-    level.saveInPlace()
-    print level.getPlayerPosition()
+    world.generateLights()
+    world.saveInPlace()
+    print world.getPlayerPosition()
 
-    print 'Processing done -- took %f seconds.' % (clock()-starttime)
+    print 'Processing done -- took %f seconds.' % (clock()-maintime)
     printLandCoverStatistics()
 
 if __name__ == '__main__':
+    imageDirs, imageSets, imageDims = getImagesDict(imagesPaths)
     sys.exit(main(sys.argv))
