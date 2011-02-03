@@ -57,7 +57,6 @@ def getImagesDict(imagepaths):
                         bigplus[0] = elem[1][0]
                         bigplus[1] = elem[1][1]
                 tmpid[key] = (bigcorner[0]+bigplus[0], bigcorner[1]+bigplus[1])
-            # FIXME: make sure they all match, then just return the right ones
             if (set(tmpis['lc']) == set(tmpis['elev']) and 
                 set(tmpis['lc']) == set(tmpis['bathy']) and 
                 set(tmpid['lc']) == set(tmpid['elev']) and 
@@ -457,12 +456,10 @@ def setBlockAt(x, y, z, string):
     global massarray
     blockType = materials.materialNamed(string)
     try:
-        #world.setBlockAt(x, y, z, blockType)
-        # [x:y:z] is [start:stop:step]
         massarray[x,z,y] = blockType
-    except mclevel.ChunkNotPresent as inst:
-        #world.createChunk(inst[0], inst[1])
-        #world.setBlockAt(x, y, z, blockType)
+    except IndexError:
+        # trying to make a tree most likely
+        print 'tried to setBlockAt %d, %d, %d, %s' % (x, y, z, string)
         pass
 
 # my own setblockdataat
@@ -470,11 +467,10 @@ def setBlockDataAt(x, y, z, data):
     global mainargs
     global massarraydata
     try:
-        #world.setBlockDataAt(x, y, z, data)
         massarraydata[x,z,y] = data
-    except mclevel.ChunkNotPresent as inst:
-        #world.createChunk(inst[0], inst[1])
-        #world.setBlockDataAt(x, y, z, data)
+    except IndexError:
+        # trying to make a tree most likely
+        print 'tried to setBlockAt %d, %d, %d, %d' % (x, y, z, data)
         pass
 
 # everything an explorer needs, for now
@@ -501,17 +497,11 @@ def printLandCoverStatistics():
         print '  %d (%f): %s' % (value, treePercent, key)
 
 def buildChunk(chunkxz):
-    global mainargs
-    # consider using the old version of fillBlocks as an example.
     chunkstart = clock()
     (cx, cz) = chunkxz
     myChunk = world.getChunk(cx, cz)
-    for x in xrange(16):
-        for z in xrange(16):
-            for y in xrange(128):
-                myChunk.Blocks[x,z,y] = massarray[cx*16+x,cz*16+z,y]
-                if massarraydata[cx*16+x,cz*16+z,y]:
-                    myChunk.Data[x,z,y] = massarray[cx*16+x,cz*16+z,y]
+    myChunk.Blocks[:,:,:] = massarray[cx*16:16,cz*16:16,:]
+    myChunk.Data[:,:,:] = massarraydata[cx*16:16,cz*16:16,:]
     myChunk.chunkChanged()
     return (clock()-chunkstart)
 
@@ -533,7 +523,7 @@ def checkImageset(string):
     "Checks to see if there are images for this imageset."
     if (string != None and not string in imageDirs):
         listImagesets(imageDirs)
-        raise argparse.error("%s is not a valid imageset" % string)
+        argparse.error("%s is not a valid imageset" % string)
     return string
 
 def checkProcesses(mainargs):
@@ -569,7 +559,9 @@ def main(argv):
     processes = checkProcesses(mainargs)
     
     worlddir = "/home/jmt/.minecraft/saves/World5"
-    world = mclevel.MCInfdevOldLevel(worlddir, create=True)
+    rmtree(worlddir)
+    os.mkdir(worlddir)
+    world = mclevel.MCInfdevOldLevel(worlddir)
 
     # let us create massarray
     (maxrows, maxcols) = imageDims[mainargs.region]
@@ -596,12 +588,9 @@ def main(argv):
     # resetting the world
     for ch in list(world.allChunks):
         world.deleteChunk(*ch)
-    # a) the top of the bounding box is the shape of the other array
-    # b) runThem can iterate over chunkPositions
     world.createChunksInBox(BoundingBox((0,0,0), massarray.shape))
-    
-    # (cx, cz) for cx in xrange(maxrows>>4) for cz in xrange(maxcols>>4)])
-    times = runThem(buildChunk, [args for args in world.allChunks])
+    #times = runThem(buildChunk, [args for args in world.allChunks])
+    times = [buildChunk(args) for args in world.allChunks]
     countChunks = len(times)
     averageChunkTime = math.fsum(times)/countChunks
     print 'created %d new chunks (average %f seconds)' % (countChunks, averageChunkTime)
@@ -613,10 +602,9 @@ def main(argv):
     #equipPlayer()
     world.setPlayerPosition(peak)
     world.setPlayerSpawnPosition(peak)
-    print 'starting lights...'
     world.generateLights()
     world.saveInPlace()
-    print world.getPlayerPosition()
+    world.saveInPlace()
 
     print 'Processing done -- took %f seconds.' % (clock()-maintime)
     printLandCoverStatistics()
