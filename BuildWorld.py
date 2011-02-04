@@ -111,17 +111,9 @@ def processImage(offset_x, offset_z):
     # iterate over the image
     for x in xrange(size_x):
         for z in xrange(size_z):
-            # X is north-south, increasing south 
-            #   (second coordinate normally)
-            # Z is east-west increasing westward 
-            #   (first coordinate normally, backwards)
-            try:
-                lcval = lcarray[z][x]
-                elevval = elevarray[z][x]
-                bathyval = bathyarray[z][x]
-            except IndexError:
-                print 'x was %d, z was %d' % (x, z)
-                return -1
+            lcval = lcarray[z][x]
+            elevval = elevarray[z][x]
+            bathyval = bathyarray[z][x]
             real_x = offset_x + x
             real_z = offset_z + z
             if (elevval > maxMapHeight):
@@ -131,7 +123,6 @@ def processImage(offset_x, offset_z):
                 localmax = elevval
                 spawnx = real_x
                 spawnz = real_z
-
             processLcval(lcval, real_x, real_z, elevval, bathyval)
 	
     # print out status
@@ -544,6 +535,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
     parser.add_argument('region', nargs='?', type=checkImageset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
+    parser.add_argument('--world', default=default_world, type=int, choices=xrange(1,6), help="number of world to generate (default %d)" % default_world)
 
     # this is global
     mainargs = parser.parse_args()
@@ -583,7 +575,6 @@ def main(argv):
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
-    print 'Setting spawn values: %d, %d, %d' % (peak)
 
     # write array to level
     # resetting the world
@@ -600,7 +591,6 @@ def main(argv):
     world.setPlayerPosition(peak)
     world.setPlayerSpawnPosition(peak)
     world.generateLights()
-    world.saveInPlace()
     world.saveInPlace()
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
