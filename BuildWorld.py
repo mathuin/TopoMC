@@ -16,7 +16,6 @@ from pymclevel.materials import materials
 from random import random, randint
 from multiprocessing import Pool, cpu_count
 
-usemassarray = True
 # paths for images
 imagesPaths = ['Images']
 
@@ -44,7 +43,7 @@ def getImagesDict(imagepaths):
                     (size_z, size_x) = ary.shape
                     img = None
                     ary = None
-                    tmpis[filetype].append(((int(offset_x), int(offset_z)), (int(size_x), int(size_z))))
+                    tmpis[filetype].append(((int(offset_x), int(offset_z)), (int(size_z), int(size_x))))
             # lazy man will look for largest file and add the coordinates
             tmpid = {'lc': [], 'elev': [], 'bathy': []}
             for key in tmpid.keys():
@@ -100,10 +99,6 @@ def processImage(offset_x, offset_z):
     elevarray = numpy.asarray(elevimg)
     bathyarray = numpy.asarray(bathyimg)
 
-    (size_z, size_x) = lcarray.shape
-    stop_x = offset_x+size_x
-    stop_z = offset_z+size_z
-
     # gotta start somewhere!
     localmax = 0
     spawnx = 10
@@ -111,13 +106,22 @@ def processImage(offset_x, offset_z):
 
     # inform the user
     print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
+    (size_z, size_x) = lcarray.shape
 
     # iterate over the image
     for x in xrange(size_x):
         for z in xrange(size_z):
-            lcval = lcarray[z][x]
-            elevval = elevarray[z][x]
-            bathyval = bathyarray[z][x]
+            # X is north-south, increasing south 
+            #   (second coordinate normally)
+            # Z is east-west increasing westward 
+            #   (first coordinate normally, backwards)
+            try:
+                lcval = lcarray[z][x]
+                elevval = elevarray[z][x]
+                bathyval = bathyarray[z][x]
+            except IndexError:
+                print 'x was %d, z was %d' % (x, z)
+                return -1
             real_x = offset_x + x
             real_z = offset_z + z
             if (elevval > maxMapHeight):
@@ -131,7 +135,7 @@ def processImage(offset_x, offset_z):
             processLcval(lcval, real_x, real_z, elevval, bathyval)
 	
     # print out status
-    print '... finished in %f seconds.' % (clock()-imagetime)
+    print '... finished in %.2f seconds.' % (clock()-imagetime)
 
     return (spawnx, spawnz, localmax)
 
@@ -193,6 +197,7 @@ def populateLandCoverVariables(lcType, lcCount, treeType, treeCount):
 # process a given land cover value
 def processLcval(lcval, x, z, elevval, bathyval):
     global lcTotal
+    global lcCount
     lcTotal += 1
     if (lcval not in lcType):
         print('unexpected value for land cover: ' + lcval)
@@ -424,9 +429,9 @@ def makeTree(x, z, elevval, height, treeType):
                             if (math.sqrt(sumsquares) < curleafwidth*.75):
                                 setBlockAt(xindex, y, zindex, 'Leaves')
                                 setBlockDataAt(xindex, y, zindex, treeType)
-                if (index < height):
-                    setBlockAt(x, y, z, 'Wood')
-                    setBlockDataAt(x, y, z, treeType)
+            if (index < height):
+                setBlockAt(x, y, z, 'Wood')
+                setBlockDataAt(x, y, z, treeType)
                 
     # increment tree count
     treeCount[treeType+1] += 1
@@ -449,36 +454,19 @@ def placeTree(x, z, elevval, prob, treeType):
         elif (treeType == 2):
             # birch
             height = randint(7, 9)
-        makeTree(x, z, elevval, height, treeType)
+        #temporarily disabling trees
+        #makeTree(x, z, elevval, height, treeType)
 
 # my own setblockat
 def setBlockAt(x, y, z, string):
-    global mainargs
     global massarray
     blockType = materials.materialNamed(string)
-    try:
-        if (usemassarray):
-            massarray[x,z,y] = blockType
-        else:
-            world.setBlockAt(x, y, z, blockType)
-    except:
-        # trying to make a tree most likely
-        #print 'tried to setBlockAt %d, %d, %d, %s' % (x, y, z, string)
-        pass
+    massarray[x,z,y] = blockType
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
-    global mainargs
     global massarraydata
-    try:
-        if (usemassarray):
-            massarraydata[x,z,y] = data
-        else:
-            world.setBlockDataAt(x, y, z, data)
-    except IndexError:
-        # trying to make a tree most likely
-        print 'tried to setBlockAt %d, %d, %d, %d' % (x, y, z, data)
-        pass
+    massarraydata[x,z,y] = data
 
 # everything an explorer needs, for now
 def equipPlayer():
@@ -496,32 +484,12 @@ def printLandCoverStatistics():
     lcTuples = [(lcType[index], lcCount[index]) for index in lcCount if lcCount[index] > 0]
     for key, value in sorted(lcTuples, key=lambda lc: lc[1], reverse=True):
         lcPercent = round((value*10000)/lcTotal)/100.0
-        print '  %d (%f): %s' % (value, lcPercent, key)
+        print '  %d (%.2f): %s' % (value, lcPercent, key)
     print 'Tree statistics (%d total):' % treeTotal
     treeTuples = [(treeType[index], treeCount[index]) for index in treeCount if treeCount[index] > 0]
     for key, value in sorted(treeTuples, key=lambda tree: tree[1], reverse=True):
         treePercent = round((value*10000)/treeTotal)/100.0
-        print '  %d (%f): %s' % (value, treePercent, key)
-
-def buildChunk(chunkxz):
-    chunkstart = clock()
-    (cx, cz) = chunkxz
-    myChunk = world.getChunk(cx, cz)
-    if (usemassarray):
-        # this one the one under test when I use massarray
-        if (False):
-            for x in xrange(16):
-                for z in xrange(16):
-                    for y in xrange(128):
-                        myChunk.Blocks[x,z,y] = massarray[cx*16+x,cz*16+z,y]
-                        if massarraydata[cx*16+x,cz*16+z,y]:
-                            myChunk.Data[x,z,y] = massarraydata[cx*16+x,cz*16+z,y]
-        else:
-            world.getChunk(cx,cz).Blocks[:,:,:] = massarray[cx*16:16,cz*16:16,:]
-            world.getChunk(cx,cz).Data[:,:,:] = massarraydata[cx*16:16,cz*16:16,:]
-    # either way I need to run this
-    myChunk.chunkChanged()
-    return (clock()-chunkstart)
+        print '  %d (%.2f): %s' % (value, treePercent, key)
 
 def runThem(function, tasks, flag=False):
     if (mainargs.processes == 1 or flag == True):
@@ -554,24 +522,22 @@ def checkProcesses(mainargs):
     return processes
 
 def populateChunk(args):
-    global massarray
-    global massarraydata
+    (size_z, size_x) = imageDims[mainargs.region]
     (chunk, slices, point) = args
     (slicex, slicez, slicey) = slices
     (newminx, newminy, newminz) = point
-    cx, cy = chunk.chunkPosition
-    for x in xrange(16):
-        for z in xrange(16):
-            for y in xrange(128):
-                chunk.Blocks[x,z,y] = massarray[newminx+x,newminz+z,y]
-                chunk.Data[x,z,y] = massarraydata[newminx+x,newminz+z,y]
+    cx, cz = chunk.chunkPosition
+    for z in xrange(min(16,size_z-newminz)):
+        for x in xrange(min(16,size_x-newminx)):
+            chunk.Blocks[x,z] = massarray[newminx+x,newminz+z]
+            chunk.Data[x,z] = massarraydata[newminx+x,newminz+z]
     chunk.chunkChanged()
     
 def main(argv):
     global mainargs
-    global world
     global massarray
     global massarraydata
+    global world
     maintime = clock()
     default_processes = cpu_count()
     default_world = 5
@@ -597,9 +563,10 @@ def main(argv):
     processes = checkProcesses(mainargs)
     
     # let us create massarray
-    (maxrows, maxcols) = imageDims[mainargs.region]
+    (size_z, size_x) = imageDims[mainargs.region]
+    print "imagedims size_x is %d, size_z is %d" % (size_x, size_z)
     # yes, x z y
-    massarray = numpy.empty([maxrows, maxcols, 128])
+    massarray = numpy.empty([size_x, size_z, 128])
     massarraydata = numpy.empty_like(massarray)
 
     # opening the world
@@ -607,11 +574,6 @@ def main(argv):
     rmtree(worlddir)
     os.mkdir(worlddir)
     world = mclevel.MCInfdevOldLevel(worlddir)
-
-    # resetting the world
-    for ch in list(world.allChunks):
-        world.deleteChunk(*ch)
-    world.createChunksInBox(BoundingBox((0,0,0), massarray.shape))
 
     # iterate over images
     # FIXME: this does not run in multiprocessor mode
@@ -624,15 +586,14 @@ def main(argv):
     print 'Setting spawn values: %d, %d, %d' % (peak)
 
     # write array to level
-    #times = runThem(buildChunk, [args for args in world.allChunks])
-    #times = [buildChunk(args) for args in world.allChunks]
-    #countChunks = len(times)
-    #averageChunkTime = math.fsum(times)/countChunks
-    #print 'created %d new chunks (average %f seconds)' % (countChunks, averageChunkTime)
+    # resetting the world
+    for ch in list(world.allChunks):
+        world.deleteChunk(*ch)
+    world.createChunksInBox(BoundingBox((0,0,0), (size_x, 0, size_z)))
     times = [populateChunk(args) for args in world.getAllChunkSlices()]
 
     # maximum elevation
-    print 'Maximum elevation: %d (at %d, %d)' % (peak[1], peak[0], peak[2])
+    print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
 
     # set player position and spawn point (in this case, equal)
     #equipPlayer()
@@ -642,7 +603,7 @@ def main(argv):
     world.saveInPlace()
     world.saveInPlace()
 
-    print 'Processing done -- took %f seconds.' % (clock()-maintime)
+    print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     printLandCoverStatistics()
 
 if __name__ == '__main__':
