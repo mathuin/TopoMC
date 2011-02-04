@@ -91,23 +91,18 @@ treeProb = 0.001
 def processImage(offset_x, offset_z):
     imagetime = clock()
 
-    # prolly a better way to do this
     imgtemp = '%s/%%s-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z)
-    lcimg = Image.open(imgtemp, 'lc')
-    elevimg = Image.open(imgtemp, 'elev')
-    bathyimg = Image.open(imgtemp, 'bathy')
+    lcimg = Image.open(imgtemp % 'lc')
+    elevimg = Image.open(imgtemp % 'elev')
+    bathyimg = Image.open(imgtemp % 'bathy')
 
     lcarray = numpy.asarray(lcimg)
     elevarray = numpy.asarray(elevimg)
     bathyarray = numpy.asarray(bathyimg)
 
-    # doh!
     (size_z, size_x) = lcarray.shape
     stop_x = offset_x+size_x
     stop_z = offset_z+size_z
-
-    # sigh
-    world.createChunksInBox(BoundingBox((offset_x, 0, offset_z), (stop_x, 128, stop_z)))
 
     # gotta start somewhere!
     localmax = 0
@@ -540,7 +535,7 @@ def runThem(function, tasks, flag=False):
 def listImagesets(imageDirs):
     "Given an images dict, list the imagesets and their dimensions."
     print 'Valid imagesets detected:'
-    print "\n".join(["\t%s" % region for region in imageDirs])
+    print "\n".join(["\t%s:\n\t\t%d tiles (%d, %d)" % (region, len(imageSets[region]), imageDims[region][0], imageDims[region][1]) for region in imageDirs])
 
 def checkImageset(string):
     "Checks to see if there are images for this imageset."
@@ -558,6 +553,20 @@ def checkProcesses(mainargs):
     mainargs.processes = processes
     return processes
 
+def populateChunk(args):
+    global massarray
+    global massarraydata
+    (chunk, slices, point) = args
+    (slicex, slicez, slicey) = slices
+    (newminx, newminy, newminz) = point
+    cx, cy = chunk.chunkPosition
+    for x in xrange(16):
+        for z in xrange(16):
+            for y in xrange(128):
+                chunk.Blocks[x,z,y] = massarray[newminx+x,newminz+z,y]
+                chunk.Data[x,z,y] = massarraydata[newminx+x,newminz+z,y]
+    chunk.chunkChanged()
+    
 def main(argv):
     global mainargs
     global world
@@ -616,10 +625,11 @@ def main(argv):
 
     # write array to level
     #times = runThem(buildChunk, [args for args in world.allChunks])
-    times = [buildChunk(args) for args in world.allChunks]
-    countChunks = len(times)
-    averageChunkTime = math.fsum(times)/countChunks
-    print 'created %d new chunks (average %f seconds)' % (countChunks, averageChunkTime)
+    #times = [buildChunk(args) for args in world.allChunks]
+    #countChunks = len(times)
+    #averageChunkTime = math.fsum(times)/countChunks
+    #print 'created %d new chunks (average %f seconds)' % (countChunks, averageChunkTime)
+    times = [populateChunk(args) for args in world.getAllChunkSlices()]
 
     # maximum elevation
     print 'Maximum elevation: %d (at %d, %d)' % (peak[1], peak[0], peak[2])
