@@ -555,15 +555,14 @@ def main(argv):
     
     # let us create massarray
     (size_z, size_x) = imageDims[mainargs.region]
-    print "imagedims size_x is %d, size_z is %d" % (size_x, size_z)
     # yes, x z y
-    massarray = numpy.empty([size_x, size_z, 128])
+    massarray = numpy.empty([size_x, size_z, 128],dtype=numpy.uint8)
     massarraydata = numpy.empty_like(massarray)
 
     # opening the world
-    worlddir = "/home/jmt/.minecraft/saves/World%d" % mainargs.world
-    rmtree(worlddir)
-    os.mkdir(worlddir)
+    #worlddir = "/home/jmt/.minecraft/saves/World%d" % mainargs.world
+    #rmtree(worlddir)
+    #os.mkdir(worlddir)
     world = mclevel.MCInfdevOldLevel(worlddir)
 
     # iterate over images
