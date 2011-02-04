@@ -40,10 +40,10 @@ def getImagesDict(imagepaths):
                 if (filetype in tmpis.keys()):
                     img = Image.open(os.path.join(imageregion, imagefile))
                     ary = numpy.asarray(img)
-                    (size_z, size_x) = ary.shape
+                    (size_x, size_z) = ary.shape
                     img = None
                     ary = None
-                    tmpis[filetype].append(((int(offset_x), int(offset_z)), (int(size_z), int(size_x))))
+                    tmpis[filetype].append(((int(offset_z), int(offset_x)), (int(size_x), int(size_z))))
             # lazy man will look for largest file and add the coordinates
             tmpid = {'lc': [], 'elev': [], 'bathy': []}
             for key in tmpid.keys():
@@ -87,7 +87,7 @@ treeTotal = 0
 treeProb = 0.001
 
 # inside the loop
-def processImage(offset_x, offset_z):
+def processImage(offset_z, offset_x):
     imagetime = clock()
 
     imgtemp = '%s/%%s-%d-%d.gif' % (imageDirs[mainargs.region], offset_x, offset_z)
@@ -193,16 +193,16 @@ def processLcval(lcval, x, z, elevval, bathyval):
     if (lcval not in lcType):
         print('unexpected value for land cover: ' + lcval)
         lcCount[0] += 1
-        layers(x, z, elevval, 'Dirt')
+        layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt')
     else:
         lcCount[lcval] += 1
         # http://www.mrlc.gov/nlcd_definitions.php
         if (lcval == 11):
             # water
-            layers(x, z, elevval, 'Sand', bathyval, 'Water')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Sand', bathyval, 'Water')
         elif (lcval == 12):
             # ice
-            layers(x, z, elevval, 'Sand', bathyval, 'Ice')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Sand', bathyval, 'Ice')
         elif (lcval == 21):
             # developed/open-space (20% stone 80% grass rand tree)
             if (random() < 0.20):
@@ -210,7 +210,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
             else:
                 blockType = 'Grass'
                 placeTree(x, z, elevval, treeProb, 0)
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 22):
             # developed/open-space (35% stone 65% grass rand tree)
             if (random() < 0.35):
@@ -218,7 +218,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
             else:
                 blockType = 'Grass'
                 placeTree(x, z, elevval, treeProb, 0)
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 23):
             # developed/open-space (65% stone 35% grass rand tree)
             if (random() < 0.65):
@@ -226,7 +226,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
             else:
                 blockType = 'Grass'
             placeTree(x, z, elevval, treeProb, 0)
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 24):
             # developed/open-space (90% stone 10% grass rand tree)
             if (random() < 0.90):
@@ -234,7 +234,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
             else:
                 blockType = 'Grass'
                 placeTree(x, z, elevval, treeProb, 0)
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 31):
             # barren land (baseline% sand baseline% stone)
             if (random() < 0.20):
@@ -242,17 +242,17 @@ def processLcval(lcval, x, z, elevval, bathyval):
             else:
                 placeTree(x, z, elevval, treeProb, -1)
                 blockType = 'Sand'
-            layers(x, z, elevval, 'Sand', 2, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Sand', 2, blockType)
         elif (lcval == 32):
             # unconsolidated shore (sand)	 
-            layers(x, z, elevval, 'Sand')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Sand')
         elif (lcval == 41):
             # deciduous forest (grass with tree #1)
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
             placeTree(x, z, elevval, treeProb*5, 2)
         elif (lcval == 42):
             # evergreen forest (grass with tree #2)
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
             placeTree(x, z, elevval, treeProb*5, 1)
         elif (lcval == 43):
             # mixed forest (grass with either tree)
@@ -260,7 +260,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
                 treeType = 0
             else:
                 treeType = 1
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
             placeTree(x, z, elevval, treeProb*5, treeType)
         elif (lcval == 51):
             # dwarf scrub (grass with 25% stone)
@@ -268,7 +268,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
                 blockType = 'Stone'
             else:
                 blockType = 'Grass'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 52):
             # shrub/scrub (grass with 25% stone)
             # FIXME: make shrubs?
@@ -276,33 +276,33 @@ def processLcval(lcval, x, z, elevval, bathyval):
                 blockType = 'Stone'
             else:
                 blockType = 'Grass'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 71):
             # grasslands/herbaceous
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
         elif (lcval == 72):
             # sedge/herbaceous
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
         elif (lcval == 73):
             # lichens (90% stone 10% grass)
             if (random() < 0.90):
                 blockType = 'Stone'
             else:
                 blockType = 'Grass'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 74):
             # moss (90% stone 10% grass)
             if (random() < 0.90):
                 blockType = 'Stone'
             else:
                 blockType = 'Grass'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 81):
             # pasture/hay
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
         elif (lcval == 82):
             # cultivated crops
-            layers(x, z, elevval, 'Dirt', 1, 'Grass')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Grass')
         elif (lcval == 90):
             # woody wetlands (grass with rand trees and -1m water)
             if (random() < 0.50):
@@ -310,7 +310,7 @@ def processLcval(lcval, x, z, elevval, bathyval):
                 placeTree(x, z, elevval, treeProb*5, 1)
             else:
                 blockType = 'Water'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 91):
             # palustrine forested wetlands
             if (random() < 0.50):
@@ -318,14 +318,14 @@ def processLcval(lcval, x, z, elevval, bathyval):
                 placeTree(x, z, elevval, treeProb*5, 0)
             else:
                 blockType = 'Water'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 92):
             # palustrine scrub/shrub wetlands (grass with baseline% -1m water)
             if (random() < 0.50):
                 blockType = 'Grass'
             else:
                 blockType = 'Water'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 93):
             # estuarine forested wetlands (grass with rand trees and water)
             if (random() < 0.50):
@@ -333,33 +333,33 @@ def processLcval(lcval, x, z, elevval, bathyval):
                 placeTree(x, z, elevval, treeProb*5, 2)
             else:
                 blockType = 'Water'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 94):
             # estuarine scrub/shrub wetlands (grass with baseline% -1m water)
             if (random() < 0.50):
                 blockType = 'Grass'
             else:
                 blockType = 'Water'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 95):
             # emergent herbaceous wetlands (grass with baseline% -1m water)
             if (random() < 0.50):
                 blockType = 'Grass'
             else:
                 blockType = 'Water'
-            layers(x, z, elevval, 'Dirt', 1, blockType)
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, blockType)
         elif (lcval == 96):
             # palustrine emergent wetlands-persistent (-1m water?)
-            layers(x, z, elevval, 'Dirt', 1, 'Water')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Water')
         elif (lcval == 97):
             # estuarine emergent wetlands (-1m water)
-            layers(x, z, elevval, 'Dirt', 1, 'Water')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Water')
         elif (lcval == 98):
             # palustrine aquatic bed (-1m water)
-            layers(x, z, elevval, 'Dirt', 1, 'Water')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Water')
         elif (lcval == 99):
             # estuarine aquatic bed (-1m water)
-            layers(x, z, elevval, 'Dirt', 1, 'Water')
+            layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt', 1, 'Water')
 
 # fills a column with layers of stuff
 # examples:
@@ -374,7 +374,6 @@ def layers(x, z, elevval, *args):
     bottom = sealevel
     top = sealevel+elevval
 
-    [setBlockAt(x, y, z, 'Stone') for y in xrange(0,bottom)]
     data = list(args)
     while (len(data) > 0 or bottom < top):
         # better be a block
