@@ -562,7 +562,7 @@ def main(argv):
     massarraydata = numpy.empty_like(massarray)
 
     # opening the world
-    worlddir = "/home/jmt/.minecraft/saves/World5"
+    worlddir = "/home/jmt/.minecraft/saves/World%d" % mainargs.world
     rmtree(worlddir)
     os.mkdir(worlddir)
     world = mclevel.MCInfdevOldLevel(worlddir)
