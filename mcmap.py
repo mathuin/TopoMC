@@ -105,7 +105,8 @@ def populateWorld(processes):
     global world
     allkeys = array([list(key.split(',')) for key in arrayBlocks.keys()])
     maxcz = int(max(allkeys[:,1]))
-    if (processes == 1):
+    # FIXME: no multiprocessor support here either
+    if (processes == 1 or True):
         times = [populateChunk(key,maxcz) for key in arrayBlocks.keys()]
     else:
         pool = Pool(processes)
