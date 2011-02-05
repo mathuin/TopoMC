@@ -55,8 +55,7 @@ def printLandCoverStatistics():
     print 'Land cover statistics (%d total):' % lcTotal
     lcTuples = [(lcType[index], lcCount[index]) for index in lcCount if lcCount[index] > 0]
     for key, value in sorted(lcTuples, key=lambda lc: lc[1], reverse=True):
-        #lcPercent = round((value*10000)/lcTotal)/100.0
-        lcPercent = (value/lcTotal)*100
+        lcPercent = round((value*10000)/lcTotal)/100.0
         print '  %d (%.2f): %s' % (value, lcPercent, key)
 
 # process a given land cover value
