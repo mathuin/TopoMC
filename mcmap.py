@@ -69,7 +69,7 @@ def setBlockDataAt(x, y, z, data):
     arrayData[arrayKey][ix,iz,y] = data
 
 def populateChunk(key):
-    print "key is %s" % (key)
+    #print "key is %s" % (key)
     global world
     start = clock()
     ctuple = key.split(',')
@@ -81,8 +81,10 @@ def populateChunk(key):
         world.createChunk(cx, cz)
     chunk = world.getChunk(cx, cz)
     chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
+    arrayBlocks[key] = None
     if key in arrayData:
         chunk.Data[:,:,:] = arrayData[key][:,:,:]
+        arrayData[key] = None
     chunk.chunkChanged()
     return (clock()-start)
 
@@ -92,15 +94,11 @@ def populateChunkstar(args):
 def populateWorld(processes):
     global world
     # FIXME: only uniprocessor at the moment
-    if (len(arrayBlocks) == 0):
-        print 'oh no!'
-        raise Exception
     if (processes == 1):
         times = [populateChunk(key, None) for key in arrayBlocks.keys()]
     else:
         pool = Pool(processes)
         tasks = [(key,) for key in arrayBlocks.keys()]
-        print tasks
         results = pool.imap_unordered(populateChunkstar, tasks)
         times = [x for x in results]
     count = len(times)

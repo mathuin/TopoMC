@@ -8,6 +8,7 @@ from time import clock
 from lc import processLcval
 from mcmap import maxelev
 from multiprocessing import Pool
+from itertools import product
 
 # paths for images
 imagesPaths = ['Images']
@@ -15,7 +16,6 @@ imagesPaths = ['Images']
 # functions
 def getImagesDict(imagepaths):
     "Given a list of paths, generate a dict of imagesets."
-    global imageDirs
     # FIXME: check to see that images are 'complete' and report back sizes.
     # i.e., check names and dimensions
 
@@ -81,6 +81,10 @@ def processImage(region, offset_x, offset_z):
     elevarray = asarray(elevimg)
     bathyarray = asarray(bathyimg)
 
+    lcimg = None
+    elevimg = None
+    bathyimg = None
+
     # gotta start somewhere!
     localmax = 0
     spawnx = 10
@@ -89,25 +93,27 @@ def processImage(region, offset_x, offset_z):
     # inform the user
     print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
     (size_z, size_x) = lcarray.shape
-    print ' -- size is %d, %d' % (size_x, size_z)
 
     # iterate over the image
-    for x in xrange(size_x):
-        for z in xrange(size_z):
-            lcval = lcarray[z,x]
-            elevval = elevarray[z,x]
-            bathyval = bathyarray[z,x]
-            real_x = offset_x + x
-            real_z = offset_z + z
-            if (elevval > maxelev):
-                print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev)
-                elevval = maxelev
-            if (elevval > localmax):
-                localmax = elevval
-                spawnx = real_x
-                spawnz = real_z
-            processLcval(lcval, real_x, real_z, elevval, bathyval)
+    for x,z in product(xrange(size_x), xrange(size_z)):
+        lcval = lcarray[z,x]
+        elevval = elevarray[z,x]
+        bathyval = bathyarray[z,x]
+        real_x = offset_x + x
+        real_z = offset_z + z
+        if (elevval > maxelev):
+            print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev)
+            elevval = maxelev
+        if (elevval > localmax):
+            localmax = elevval
+            spawnx = real_x
+            spawnz = real_z
+        #processLcval(lcval, real_x, real_z, elevval, bathyval)
 	
+    lcarray = None
+    elevarray = None
+    bathyarray = None
+
     # print out status
     print '... finished in %.2f seconds.' % (clock()-imagetime)
 

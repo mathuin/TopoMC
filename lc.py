@@ -7,6 +7,7 @@ from tree import placeTree
 lcType = {}
 lcCount = {}
 lcTotal = 0
+nodata = 0
 
 def populateLandCoverVariables(lcType, lcCount):
     # first add all the text values for land covers
@@ -41,7 +42,8 @@ def populateLandCoverVariables(lcType, lcCount):
 	96 : "Palustrine Emergent Wetlands",
 	97 : "Estuarine Emergent Wetlands",
 	98 : "Palustrine Aquatic Bed",
-	99 : "Estuarine Aquatic Bed"
+	99 : "Estuarine Aquatic Bed",
+        127: "No Data"
         }
     
     for i in lcMetaType:
@@ -55,6 +57,7 @@ def printLandCoverStatistics():
     for key, value in sorted(lcTuples, key=lambda lc: lc[1], reverse=True):
         lcPercent = round((value*10000)/lcTotal)/100.0
         print '  %d (%.2f): %s' % (value, lcPercent, key)
+
 # process a given land cover value
 def processLcval(lcval, x, z, elevval, bathyval):
     global lcTotal
@@ -65,6 +68,9 @@ def processLcval(lcval, x, z, elevval, bathyval):
         lcCount[0] += 1
         layers(x, z, elevval, 'Stone', randint(5,7), 'Dirt')
     else:
+        if (lcval == 127):
+            # no data!
+            lcval = nodata
         lcCount[lcval] += 1
         # http://www.mrlc.gov/nlcd_definitions.php
         if (lcval == 11):
