@@ -3,5 +3,10 @@ To do:
 Normal stuff underground!
  - a few ideas, always looking for more!
 Full multiprocessing support
+ - Pool() isn't working, maybe Manager() will?
+More optimization
+ - change image module to use aggregates
 Test and drivers for all functions
  - maybe even comments!
+Schematics and equipping the player
+ - pymclevel supports the former but not yet the latter

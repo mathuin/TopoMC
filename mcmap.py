@@ -1,15 +1,18 @@
 # minecraft map module
-from numpy import empty, array, uint8
+from numpy import empty, array, uint8, zeros
 from pymclevel import mclevel
 from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
 from time import clock
 from multiprocessing import Pool
+from itertools import product
 
 # constants
 sealevel = 64
+# headroom is the room between the tallest peak and the ceiling
 headroom = 5
-maxelev = 128-sealevel-headroom
+maxelev = 128-headroom-sealevel
+rotateMe = True
 
 # fills a column with layers of stuff
 # examples:
@@ -21,7 +24,7 @@ maxelev = 128-sealevel-headroom
 #  - elevval down one level of water, then one level of dirt, then stone
 def layers(x, z, elevval, *args):
     global mainargs
-    bottom = sealevel
+    bottom = 0
     top = sealevel+elevval
 
     data = list(args)
@@ -51,7 +54,7 @@ def setBlockAt(x, y, z, string):
     try:
         arrayBlocks[arrayKey]
     except KeyError:
-        arrayBlocks[arrayKey] = empty((16,16,128),dtype=uint8)
+        arrayBlocks[arrayKey] = zeros((16,16,128),dtype=uint8)
     arrayBlocks[arrayKey][ix,iz,y] = blockType
 
 # my own setblockdataat
@@ -65,7 +68,7 @@ def setBlockDataAt(x, y, z, data):
     try:
         arrayData[arrayKey]
     except KeyError:
-        arrayData[arrayKey] = empty((16,16,128),dtype=uint8)
+        arrayData[arrayKey] = zeros((16,16,128),dtype=uint8)
     arrayData[arrayKey][ix,iz,y] = data
 
 def populateChunk(key,maxcz):
@@ -76,24 +79,38 @@ def populateChunk(key,maxcz):
     # JMT: trying to fix rotated files
     ocx = int(ctuple[0])
     ocz = int(ctuple[1])
-    cz = maxcz-ocx
-    cx = ocz
+    if (rotateMe):
+        cz = maxcz-ocx
+        cx = ocz
+    else:
+        cz = ocz
+        cx = ocx
     try:
         world.getChunk(cx, cz)
     except mclevel.ChunkNotPresent:
         world.createChunk(cx, cz)
     chunk = world.getChunk(cx, cz)
-    for x in xrange(16):
-        for z in xrange(16):
-            for y in xrange(128):
+    world.compressChunk(cx, cz)
+    if (rotateMe):
+        if (True):
+            for x, z in product(xrange(16), xrange(16)):
+                chunk.Blocks[x,z] = arrayBlocks[key][15-z,x]
+        else:
+            for x, z, y in product(xrange(16), xrange(16), xrange(128)):
                 chunk.Blocks[x,z,y] = arrayBlocks[key][15-z,x,y]
-    #chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
+    else:
+        chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
     arrayBlocks[key] = None
     if key in arrayData:
-        for x in xrange(16):
-            for z in xrange(16):
-                for y in xrange(128):
+        if (rotateMe):
+            if (True):
+                for x, z in product(xrange(16), xrange(16)):
+                    chunk.Data[x,z] = arrayData[key][15-z,x]
+            else:
+                for x, z, y in product(xrange(16), xrange(16), xrange(128)):
                     chunk.Data[x,z,y] = arrayData[key][15-z,x,y]
+        else:
+            chunk.Data[:,:,:] = arrayData[key][:,:,:]
         arrayData[key] = None
     chunk.chunkChanged()
     return (clock()-start)
@@ -124,12 +141,13 @@ def initializeWorld(worldNum):
     world = mclevel.MCInfdevOldLevel(filename, create = True);
     return world
 
-def saveWorld(peak):
+def saveWorld(spawn):
     global world
-    # incoming peak is in xzy
-    peakxyz = (peak[0], peak[2]+sealevel+2, peak[1])
-    world.setPlayerPosition(peakxyz)
-    world.setPlayerSpawnPosition(peakxyz)
+    # incoming spawn is in xzy
+    # adjust it to sealevel, and then up another two for good measure
+    spawnxyz = (spawn[0], spawn[2]+sealevel+2, spawn[1])
+    world.setPlayerPosition(spawnxyz)
+    world.setPlayerSpawnPosition(spawnxyz)
     world.generateLights()
     world.saveInPlace()
 

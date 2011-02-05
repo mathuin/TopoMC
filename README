@@ -1,14 +1,13 @@
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS Seamless Map data, specifically the NED and NLCD datasets.
 
+Features include:
+ * North is now north!  That math was more annoying than I expected. :-)
+ * Simulated bathymetric data based on local terrain.
+ * Large datasets can be handled with tiling support.
+
 This project generates input files suitable for JCraft (http://www.minecraftforum.net/viewtopic.php?f=1022&t=147476) written by BagelMann.  Always check for the latest version of JCraft from http://genericdeveloper.com/JCraft.zip -- it works on Linux via Mono.
 
 This project includes one small dataset for testing.  Other datasets can be found in the TopoMC-Datasets repository at git@github.com:mathuin/TopoMC-Datasets.git.
-
-The old blockiness is gone!  Land cover should be much smoother now.
-
-Tiling functionality has been added.  The stock configuration will generate a world based on Block Island, RI, at 1:6 scale (both horizontal and vertical).
-
-Simulated bathymetric data is now enabled by default.  Changing the slope and maximum depth may be interesting -- try it!
 
 The default spawn point is at the highest point in the dataset, and currently has a two-story glass-and-stone building lit up with torches as a safe haven.
 
