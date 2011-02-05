@@ -1,5 +1,8 @@
 # coords module
 
+from osgeo import gdal, osr
+import numpy
+
 def getLatLongArray(ds, offset, size, mult=1):
     "Given transformations, dimensions, and multiplier, generate the interpolated array."
     rows = numpy.linspace(offset[1]/mult, (offset[1]+size[1])/mult, size[1], False)

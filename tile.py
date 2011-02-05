@@ -1,4 +1,10 @@
 # tile module
+import Image
+from time import time
+from dataset import *
+from coords import *
+from invdisttree import *
+from bathy import getBathymetry
 
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
