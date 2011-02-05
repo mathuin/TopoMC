@@ -7,6 +7,7 @@ from numpy import asarray
 from time import clock
 from lc import processLcval
 from mcmap import maxelev
+from multiprocessing import Pool
 
 # paths for images
 imagesPaths = ['Images']
@@ -116,8 +117,15 @@ def processImage(region, offset_x, offset_z):
 def processImagestar(args):
     return processImage(*args)
 
-def processImages(region):
-    peaks = [processImage(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
+def processImages(region, processes):
+    # FIXME: not multiprocessor friendly (problem with processLcvar?)
+    if (processes == 1 or True):
+        peaks = [processImage(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
+    else:
+        pool = Pool(processes)
+        tasks = [(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
+        results = pool.imap_unordered(processImagestar, tasks)
+        peaks = [x for x in results]
     return peaks
 
 # initialize variables

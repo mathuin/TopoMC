@@ -4,6 +4,7 @@ from pymclevel import mclevel
 from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
 from time import clock
+from multiprocessing import Pool
 
 # constants
 sealevel = 64
@@ -68,6 +69,7 @@ def setBlockDataAt(x, y, z, data):
     arrayData[arrayKey][ix,iz,y] = data
 
 def populateChunk(key):
+    print "key is %s" % (key)
     global world
     start = clock()
     ctuple = key.split(',')
@@ -84,6 +86,26 @@ def populateChunk(key):
     chunk.chunkChanged()
     return (clock()-start)
 
+def populateChunkstar(args):
+    return populateChunk(*args)
+
+def populateWorld(processes):
+    global world
+    # FIXME: only uniprocessor at the moment
+    if (len(arrayBlocks) == 0):
+        print 'oh no!'
+        raise Exception
+    if (processes == 1):
+        times = [populateChunk(key, None) for key in arrayBlocks.keys()]
+    else:
+        pool = Pool(processes)
+        tasks = [(key,) for key in arrayBlocks.keys()]
+        print tasks
+        results = pool.imap_unordered(populateChunkstar, tasks)
+        times = [x for x in results]
+    count = len(times)
+    print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
+
 def initializeWorld(worldNum):
     global world
     "Create a new Minecraft world given a value."
@@ -91,13 +113,6 @@ def initializeWorld(worldNum):
     filename = "/home/jmt/.minecraft/saves/World%d" % worldNum
     world = mclevel.MCInfdevOldLevel(filename, create = True);
     return world
-
-def populateWorld():
-    global world
-    # FIXME: only uniprocessor at the moment
-    times = [populateChunk(key) for key in arrayBlocks.keys()]
-    count = len(times)
-    print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
 
 def saveWorld(peak):
     global world

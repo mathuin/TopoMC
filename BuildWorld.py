@@ -8,6 +8,7 @@ from multiprocessing import Pool, cpu_count
 #
 import image
 import lc
+import tree
 import mcmap
 
 # everything an explorer needs, for now
@@ -37,6 +38,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
     parser.add_argument('region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
+    # FIXME: eventually check for string-or-number
     parser.add_argument('--world', default=default_world, type=int, choices=xrange(1,6), help="number of world to generate (default %d)" % default_world)
 
     # this is global
@@ -53,20 +55,20 @@ def main(argv):
     # set up all the values
     processes = checkProcesses(mainargs)
     
-    # opening the world
-    mcmap.world = mcmap.initializeWorld(mainargs.world)
-
     # iterate over images
     # FIXME: this does not run in multiprocessor mode
-    #peaks = [image.processImage(image.imageDirs[mainargs.region], offset[0], offset[1]) for (offset, size) in image.imageSets[mainargs.region]]
-    peaks = image.processImages(mainargs.region)
+    peaks = image.processImages(mainargs.region, mainargs.processes)
 
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
+    # opening the world
+    # FIXME: gotta be a more Pythonic way
+    mcmap.world = mcmap.initializeWorld(mainargs.world)
+
     # write array to level
-    mcmap.populateWorld()
+    mcmap.populateWorld(mainargs.processes)
 
     # maximum elevation
     print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
@@ -77,6 +79,7 @@ def main(argv):
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     lc.printLandCoverStatistics()
+    tree.printTreeStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
