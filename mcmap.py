@@ -1,8 +1,9 @@
 # minecraft map module
-from numpy import empty, empty_like, uint8
+from numpy import empty, uint8, copy
 from pymclevel import mclevel
+from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
-import image
+from time import clock
 
 # constants
 sealevel = 64
@@ -40,34 +41,48 @@ def layers(x, z, elevval, *args):
 # my own setblockat
 def setBlockAt(x, y, z, string):
     global arrayBlocks
-    blockType = world.materials.materialNamed(string)
-    arrayBlocks[x,z,y] = blockType
+    blockType = materials.materialNamed(string)
+    cx = x >> 4
+    cz = z >> 4
+    ix = x & 0xf
+    iz = z & 0xf
+    arrayKey = '%d,%d' % (cx,cz)
+    try:
+        arrayBlocks[arrayKey]
+    except KeyError:
+        arrayBlocks[arrayKey] = empty((16,16,128))
+    arrayBlocks[arrayKey][ix,iz,y] = blockType
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
     global arrayData
-    arrayData[x,z,y] = data
+    cx = x >> 4
+    cz = z >> 4
+    ix = x & 0xf
+    iz = z & 0xf
+    arrayKey = '%d,%d' % (cx,cz)
+    try:
+        arrayData[arrayKey]
+    except KeyError:
+        arrayData[arrayKey] = empty((16,16,128))
+    arrayData[arrayKey][ix,iz,y] = data
 
-def populateChunk(region, chunk):
+def populateChunk(key):
     global world
-    (size_z, size_x) = image.imageDims[region]
-    (cx, cz) = chunk.chunkPosition
-    newminx = cx * 16
-    newminz = cz * 16
-    for z in xrange(min(16,size_z-newminz)):
-        for x in xrange(min(16,size_x-newminx)):
-            chunk.Blocks[x,z] = arrayBlocks[newminx+x,newminz+z]
-            chunk.Data[x,z] = arrayData[newminx+x,newminz+z]
+    start = clock()
+    ctuple = key.split(',')
+    cx = int(ctuple[0])
+    cz = int(ctuple[1])
+    try:
+        world.getChunk(cx, cz)
+    except mclevel.ChunkNotPresent:
+        world.createChunk(cx, cz)
+    chunk = world.getChunk(cx, cz)
+    chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
+    if key in arrayData:
+        chunk.Data[:,:,:] = arrayData[key][:,:,:]
     chunk.chunkChanged()
-    
-def createArrays(region):
-    global arrayBlocks
-    global arrayData
-    "Create arrays used by blocks based on dimensions."
-    (size_z, size_x) = image.imageDims[region]
-    arrayBlocks = empty([size_x+1, size_z+1, 128],dtype=uint8)
-    arrayData = empty_like(arrayBlocks)
-    return arrayBlocks, arrayData
+    return (clock()-start)
 
 def initializeWorld(worldNum):
     global world
@@ -75,8 +90,14 @@ def initializeWorld(worldNum):
     # FIXME: bogus!
     filename = "/home/jmt/.minecraft/saves/World%d" % worldNum
     world = mclevel.MCInfdevOldLevel(filename, create = True);
-    world.createChunksInBox(BoundingBox((0,0,0),(arrayBlocks.shape[0], 128, arrayBlocks.shape[1])))
     return world
+
+def populateWorld():
+    global world
+    # FIXME: only uniprocessor at the moment
+    times = [populateChunk(key) for key in arrayBlocks.keys()]
+    count = len(times)
+    print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
 
 def saveWorld(peak):
     global world
@@ -84,3 +105,8 @@ def saveWorld(peak):
     world.setPlayerSpawnPosition(peak)
     world.generateLights()
     world.saveInPlace()
+
+# variables
+arrayBlocks = {}
+arrayData = {}
+

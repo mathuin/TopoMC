@@ -93,13 +93,11 @@ def processImage(region, offset_x, offset_z):
     # iterate over the image
     for x in xrange(size_x):
         for z in xrange(size_z):
-            lcval = lcarray[x][z]
-            elevval = elevarray[x][z]
-            bathyval = bathyarray[x][z]
+            lcval = lcarray[z,x]
+            elevval = elevarray[z,x]
+            bathyval = bathyarray[z,x]
             real_x = offset_x + x
             real_z = offset_z + z
-            if (offset_x != 0 or offset_z != 0):
-                print 'x is %d, z is %d, real_x is %d, real_z is %d' % (x, z, real_x, real_z)
             if (elevval > maxelev):
                 print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev)
                 elevval = maxelev
@@ -117,6 +115,10 @@ def processImage(region, offset_x, offset_z):
 # pointer function used for multiprocessing
 def processImagestar(args):
     return processImage(*args)
+
+def processImages(region):
+    peaks = [processImage(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
+    return peaks
 
 # initialize variables
 imageDirs, imageSets, imageDims = getImagesDict(imagesPaths)

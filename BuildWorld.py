@@ -10,10 +10,6 @@ import image
 import lc
 import mcmap
 
-# constants
-# sealevel now found in mcmap
-# headroom now found in image
-
 # everything an explorer needs, for now
 def equipPlayer():
     global mainargs
@@ -57,23 +53,20 @@ def main(argv):
     # set up all the values
     processes = checkProcesses(mainargs)
     
-    # create array
-    mcmap.arrayBlocks, mcmap.arrayData = mcmap.createArrays(mainargs.region)
-
     # opening the world
     mcmap.world = mcmap.initializeWorld(mainargs.world)
 
     # iterate over images
     # FIXME: this does not run in multiprocessor mode
-    #peaks = runThem(processImagestar, ((offset[0], offset[1]) for (offset, size) in imageSets[mainargs.region]))
-    peaks = [image.processImage(image.imageDirs[mainargs.region], offset[0], offset[1]) for (offset, size) in image.imageSets[mainargs.region]]
+    #peaks = [image.processImage(image.imageDirs[mainargs.region], offset[0], offset[1]) for (offset, size) in image.imageSets[mainargs.region]]
+    peaks = image.processImages(mainargs.region)
 
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # write array to level
-    times = [mcmap.populateChunk(mainargs.region, chunk) for chunk in list(mcmap.world.getChunks())]
+    mcmap.populateWorld()
 
     # maximum elevation
     print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
