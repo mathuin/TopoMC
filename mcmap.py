@@ -1,5 +1,5 @@
 # minecraft map module
-from numpy import empty, uint8, array
+from numpy import empty, array, uint8
 from pymclevel import mclevel
 from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
@@ -51,7 +51,7 @@ def setBlockAt(x, y, z, string):
     try:
         arrayBlocks[arrayKey]
     except KeyError:
-        arrayBlocks[arrayKey] = empty((16,16,128))
+        arrayBlocks[arrayKey] = empty((16,16,128),dtype=uint8)
     arrayBlocks[arrayKey][ix,iz,y] = blockType
 
 # my own setblockdataat
@@ -65,7 +65,7 @@ def setBlockDataAt(x, y, z, data):
     try:
         arrayData[arrayKey]
     except KeyError:
-        arrayData[arrayKey] = empty((16,16,128))
+        arrayData[arrayKey] = empty((16,16,128),dtype=uint8)
     arrayData[arrayKey][ix,iz,y] = data
 
 def populateChunk(key,maxcz):
