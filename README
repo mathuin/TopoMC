@@ -25,3 +25,5 @@ To build a Minecraft world based on a dataset, here's what to do:
 
 BuildImages.py now has option parsing support: try "./BuildImages.py -h".
 
+I have a version of BuildWorld.js in Python.  It is very fast but amazingly
+memory hungry.  Feel free to give it a spin!  Try "./BuildWorld.py -h".

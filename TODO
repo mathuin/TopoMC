@@ -1,6 +1,7 @@
 To do:
 
-Add better automation to BuildWorld.js
- - automatic file searching in JCraft?  how?
 Normal stuff underground!
- - no idea!
+ - a few ideas, always looking for more!
+Full multiprocessing support
+Test and drivers for all functions
+ - maybe even comments!
