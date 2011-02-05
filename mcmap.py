@@ -93,9 +93,8 @@ def populateChunkstar(args):
 
 def populateWorld(processes):
     global world
-    # FIXME: only uniprocessor at the moment
     if (processes == 1):
-        times = [populateChunk(key, None) for key in arrayBlocks.keys()]
+        times = [populateChunk(key,) for key in arrayBlocks.keys()]
     else:
         pool = Pool(processes)
         tasks = [(key,) for key in arrayBlocks.keys()]
@@ -114,8 +113,10 @@ def initializeWorld(worldNum):
 
 def saveWorld(peak):
     global world
-    world.setPlayerPosition(peak)
-    world.setPlayerSpawnPosition(peak)
+    # incoming peak is in xzy
+    peakxyz = (peak[0], peak[2]+sealevel+2, peak[1])
+    world.setPlayerPosition(peakxyz)
+    world.setPlayerSpawnPosition(peakxyz)
     world.generateLights()
     world.saveInPlace()
 

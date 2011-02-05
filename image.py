@@ -108,7 +108,7 @@ def processImage(region, offset_x, offset_z):
             localmax = elevval
             spawnx = real_x
             spawnz = real_z
-        #processLcval(lcval, real_x, real_z, elevval, bathyval)
+        processLcval(lcval, real_x, real_z, elevval, bathyval)
 	
     lcarray = None
     elevarray = None

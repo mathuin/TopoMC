@@ -2,6 +2,8 @@
 from random import random, randint
 from mcmap import sealevel, setBlockAt, setBlockDataAt
 from math import fabs, sqrt
+from pymclevel.materials import alphaMaterials
+from itertools import product
 
 # tree constants
 treeProb = 0.001
@@ -51,35 +53,37 @@ def placeTree(x, z, elevval, probFactor, treeType):
 # actually places leaves and tree
 def makeTree(x, z, elevval, height, treeType):
     global treeTotal
-    maxleafheight = height+1
-    trunkheight = 1
+    base = sealevel+elevval
+    maxleafheight = height+2
+    trunkheight = 3
+    leafheight = maxleafheight-trunkheight
+    if (treeTotal < 5):
+        treeDebug = True
+    else:
+        treeDebug = False
     if (treeType == -1):
         [setBlockAt(x, sealevel+elevval+y, z, 'Cactus') for y in xrange(3)]
     else:
-        for index in xrange(maxleafheight):
-            y = sealevel+elevval+index
-            if (index > trunkheight):
-                curleafheight = index-trunkheight
-                totop = (maxleafheight-trunkheight)-curleafheight
-                if (curleafheight > totop):
-                    curleafwidth = totop+1
-                else:
-                    curleafwidth = curleafheight
-                    xminleaf = x - curleafwidth
-                    xmaxleaf = x + curleafwidth
-                    zminleaf = z - curleafwidth
-                    zmaxleaf = z + curleafwidth
-                    for xindex in xrange(xminleaf, xmaxleaf+1):
-                        for zindex in xrange(zminleaf, zmaxleaf+1):
-                            deltax = fabs(xindex-x)
-                            deltaz = fabs(zindex-z)
-                            sumsquares = pow(deltax,2)+pow(deltaz,2)
-                            if (sqrt(sumsquares) < curleafwidth*.75):
-                                setBlockAt(xindex, y, zindex, 'Leaves')
-                                setBlockDataAt(xindex, y, zindex, treeType)
-            if (index < height):
-                setBlockAt(x, y, z, 'Wood')
-                setBlockDataAt(x, y, z, treeType)
+        for y in xrange(base,base+trunkheight):
+            # FIXME: sigh, 'Tree trunk' doesn't work
+            setBlockAt(x, y, z, alphaMaterials.names[17])
+            setBlockDataAt(x, y, z, treeType)
+        for y in xrange(base+trunkheight,base+maxleafheight):
+            curleafheight = y-(base+trunkheight)
+            #curleafwidth = min(curleafheight,leafheight-curleafheight)
+            # JMT: this makes a redwood-like leaf pattern
+            curleafwidth = (leafheight-curleafheight)/2+1
+            
+            xminleaf = x - curleafwidth
+            xmaxleaf = x + curleafwidth +1
+            xrangeleaf = xrange(xminleaf, xmaxleaf)
+            zminleaf = z - curleafwidth
+            zmaxleaf = z + curleafwidth +1
+            zrangeleaf = xrange(zminleaf, zmaxleaf)
+            for xindex, zindex in product(xrangeleaf, zrangeleaf):
+                if (sqrt(pow(xindex-x,2)+pow(zindex-z,2)) < 0.75*curleafwidth):
+                    setBlockAt(xindex, y, zindex, 'Leaves')
+                    setBlockDataAt(xindex, y, zindex, treeType)
                 
     # increment tree count
     treeCount[treeType+1] += 1
