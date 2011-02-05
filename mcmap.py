@@ -1,5 +1,5 @@
 # minecraft map module
-from numpy import empty, uint8, copy
+from numpy import empty, uint8, array
 from pymclevel import mclevel
 from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
@@ -68,22 +68,32 @@ def setBlockDataAt(x, y, z, data):
         arrayData[arrayKey] = empty((16,16,128))
     arrayData[arrayKey][ix,iz,y] = data
 
-def populateChunk(key):
+def populateChunk(key,maxcz):
     #print "key is %s" % (key)
     global world
     start = clock()
     ctuple = key.split(',')
-    cx = int(ctuple[0])
-    cz = int(ctuple[1])
+    # JMT: trying to fix rotated files
+    ocx = int(ctuple[0])
+    ocz = int(ctuple[1])
+    cz = maxcz-ocx
+    cx = ocz
     try:
         world.getChunk(cx, cz)
     except mclevel.ChunkNotPresent:
         world.createChunk(cx, cz)
     chunk = world.getChunk(cx, cz)
-    chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
+    for x in xrange(16):
+        for z in xrange(16):
+            for y in xrange(128):
+                chunk.Blocks[x,z,y] = arrayBlocks[key][15-z,x,y]
+    #chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
     arrayBlocks[key] = None
     if key in arrayData:
-        chunk.Data[:,:,:] = arrayData[key][:,:,:]
+        for x in xrange(16):
+            for z in xrange(16):
+                for y in xrange(128):
+                    chunk.Data[x,z,y] = arrayData[key][15-z,x,y]
         arrayData[key] = None
     chunk.chunkChanged()
     return (clock()-start)
@@ -93,11 +103,13 @@ def populateChunkstar(args):
 
 def populateWorld(processes):
     global world
+    allkeys = array([list(key.split(',')) for key in arrayBlocks.keys()])
+    maxcz = int(max(allkeys[:,1]))
     if (processes == 1):
-        times = [populateChunk(key,) for key in arrayBlocks.keys()]
+        times = [populateChunk(key,maxcz) for key in arrayBlocks.keys()]
     else:
         pool = Pool(processes)
-        tasks = [(key,) for key in arrayBlocks.keys()]
+        tasks = [(key,maxcz) for key in arrayBlocks.keys()]
         results = pool.imap_unordered(populateChunkstar, tasks)
         times = [x for x in results]
     count = len(times)
