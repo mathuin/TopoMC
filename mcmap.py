@@ -1,4 +1,5 @@
 # minecraft map module
+import os
 from numpy import empty, array, uint8, zeros
 from pymclevel import mclevel
 from pymclevel.materials import materials
@@ -143,22 +144,49 @@ def populateWorld(processes):
     count = len(times)
     print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
 
-def initializeWorld(worldNum):
+def checkWorld(string):
+    try:
+        worldNum = int(string)
+    except ValueError:
+        if not os.path.exists(string):
+            os.mkdir(string)
+        if not os.path.isdir(string):
+            raise IOError, "%s already exists" % string
+        level = mclevel.MCInfdevOldLevel(string, create=True)
+        level.saveInPlace()
+        level = None
+        return string
+    else:
+        if 1 < worldNum <= 5:
+            #myworld = mclevel.loadWorldNumber(worldNum)
+            string = worldNum
+        else:
+            raise IOError, "bad value for world: %s" % string
+    return string
+
+def initWorld(string):
+    "Open this world."
     global world
-    "Create a new Minecraft world given a value."
-    # FIXME: bogus!
-    filename = "/home/jmt/.minecraft/saves/World%d" % worldNum
-    world = mclevel.MCInfdevOldLevel(filename, create = True);
-    return world
+    if string.isdigit():
+        myworld = mclevel.loadWorldNumber(string)
+    else:
+        myworld = mclevel.fromFile(string)
+    return myworld
 
 def saveWorld(spawn):
     global world
+    sizeOnDisk = 0
     # incoming spawn is in xzy
     # adjust it to sealevel, and then up another two for good measure
     spawnxyz = (spawn[0], spawn[2]+sealevel+2, spawn[1])
     world.setPlayerPosition(spawnxyz)
     world.setPlayerSpawnPosition(spawnxyz)
     world.generateLights()
+    # stolen from pymclevel/mce.py
+    for i, cPos in enumerate(world.allChunks, 1):
+        ch = world.getChunk(*cPos);
+        sizeOnDisk += ch.compressedSize();
+    world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
 
 # variables

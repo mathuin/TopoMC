@@ -13,8 +13,9 @@ import mcmap
 
 # everything an explorer needs, for now
 def equipPlayer():
+    global args
     # eventually give out full iron toolset and a handful of torches
-    inventory = world.root_tag['Data']['Player']['Inventory']
+    inventory = args.world.root_tag['Data']['Player']['Inventory']
     inventory.append(Itemstack(278, slot=8))
     inventory.append(Itemstack(50, slot=0, count=-1)) # Torches
     inventory.append(Itemstack(1, slot=1, count=-1))  # Stone
@@ -40,7 +41,7 @@ def main(argv):
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--nodata', nargs=1, default=default_nodata, type=int, help="value to substitute when landcover file has no data (default %d)" % default_nodata)
     # FIXME: eventually check for string-or-number
-    parser.add_argument('--world', default=default_world, type=int, choices=xrange(1,6), help="number of world to generate (default %d)" % default_world)
+    parser.add_argument('--world', default=default_world, type=mcmap.checkWorld, help="number of world to generate (default %d)" % default_world)
 
     # this is global
     args = parser.parse_args()
@@ -53,21 +54,17 @@ def main(argv):
     # set up all the values
     processes = checkProcesses(args)
     lc.nodata = args.nodata
+    mcmap.world = mcmap.initWorld(args.world)
     
     # what are we doing?
     print 'Creating world from region %s' % args.region
 
     # iterate over images
-    # FIXME: this does not run in multiprocessor mode
     peaks = image.processImages(args.region, args.processes)
 
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
-
-    # opening the world
-    # FIXME: gotta be a more Pythonic way
-    mcmap.world = mcmap.initializeWorld(args.world)
 
     # write array to level
     mcmap.populateWorld(args.processes)
