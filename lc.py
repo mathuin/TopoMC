@@ -1,6 +1,6 @@
 # landcover module
 from random import random, randint
-from mcmap import layers
+from mcmap import manylayers, layers
 from tree import placeTree
 
 # land cover statistics
@@ -241,13 +241,14 @@ def processLcval(lcval, x, z, elevval, bathyval):
 def processLcvals(lcvals):
     global lcTotal
     global lcCount
+    columns = []
     for elem in lcvals:
         (lcval, x, z, elevval, bathyval) = elem
         lcTotal += 1
         if (lcval not in lcType):
             print('unexpected value for land cover: ' + lcval)
             lcCount[0] += 1
-            column = ('Dirt')
+            columns.append([x, z, elevval, 'Dirt'])
         else:
             if (lcval == 127):
                 # no data!
@@ -255,141 +256,142 @@ def processLcvals(lcvals):
             lcCount[lcval] += 1
             # http://www.mrlc.gov/nlcd_definitions.php
             if (lcval == 11):
-                column = ('Sand', bathyval, 'Water')
+                columns.append([x, z, elevval, 'Sand', bathyval, 'Water'])
             elif (lcval == 12):
-                column = ('Sand', bathyval, 'Ice')
+                columns.append([x, z, elevval, 'Sand', bathyval, 'Ice'])
             elif (lcval == 21):
                 if (random() < 0.20):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 1, 0)
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 22):
                 if (random() < 0.35):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 1, 0)
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 23):
                 if (random() < 0.65):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 1, 0)
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 24):
                 if (random() < 0.90):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 1, 0)
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 31):
                 if (random() < 0.20):
                     blockType = 'Stone'
                 else:
                     placeTree(x, z, elevval, 1, -1)
                     blockType = 'Sand'
-                column = ('Sand', 2, blockType)
+                columns.append([x, z, elevval, 'Sand', 2, blockType])
             elif (lcval == 32):
-                column = ('Sand')
+                columns.append([x, z, elevval, 'Sand'])
             elif (lcval == 41):
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
                 placeTree(x, z, elevval, 5, 2)
             elif (lcval == 42):
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
                 placeTree(x, z, elevval, 5, 1)
             elif (lcval == 43):
                 if (random() < 0.50):
                     treeType = 0
                 else:
                     treeType = 1
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
                 placeTree(x, z, elevval, 5, treeType)
             elif (lcval == 51):
                 if (random() < 0.25):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 52):
                 # FIXME: make shrubs?
                 if (random() < 0.25):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 71):
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
             elif (lcval == 72):
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
             elif (lcval == 73):
                 if (random() < 0.90):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 74):
                 if (random() < 0.90):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 81):
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
             elif (lcval == 82):
-                column = ('Dirt', 1, 'Grass')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
             elif (lcval == 90):
                 if (random() < 0.50):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 5, 1)
                 else:
                     blockType = 'Water'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 91):
                 if (random() < 0.50):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 5, 0)
                 else:
                     blockType = 'Water'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 92):
                 if (random() < 0.50):
                     blockType = 'Grass'
                 else:
                     blockType = 'Water'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 93):
                 if (random() < 0.50):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, 5, 2)
                 else:
                     blockType = 'Water'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 94):
                 if (random() < 0.50):
                     blockType = 'Grass'
                 else:
                     blockType = 'Water'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 95):
                 if (random() < 0.50):
                     blockType = 'Grass'
                 else:
                     blockType = 'Water'
-                column = ('Dirt', 1, blockType)
+                columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 96):
-                column = ('Dirt', 1, 'Water')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Water'])
             elif (lcval == 97):
-                column = ('Dirt', 1, 'Water')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Water'])
             elif (lcval == 98):
-                column = ('Dirt', 1, 'Water')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Water'])
             elif (lcval == 99):
-                column = ('Dirt', 1, 'Water')
+                columns.append([x, z, elevval, 'Dirt', 1, 'Water'])
             # we have a column and coordinates
             # we should make a big list and send it to a new layers()
+    manylayers(columns)
 
 # initialize
 populateLandCoverVariables(lcType, lcCount)

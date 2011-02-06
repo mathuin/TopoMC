@@ -6,13 +6,13 @@ from pymclevel.box import BoundingBox
 from time import clock
 from multiprocessing import Pool
 from itertools import product
+from random import randint
 
 # constants
 sealevel = 64
 # headroom is the room between the tallest peak and the ceiling
 headroom = 5
 maxelev = 128-headroom-sealevel
-rotateMe = True
 
 # fills a column with layers of stuff
 # examples:
@@ -41,35 +41,63 @@ def layers(x, z, elevval, *args):
         if (layer > 0):
             [setBlockAt(x, y, z, block) for y in xrange(top-layer,top)]
             top -= layer
+
+def manylayers(columns):
+    blocks = []
+    for column in columns:
+        x = column.pop(0)
+        z = column.pop(0)
+        elevval = column.pop(0)
+        top = sealevel+elevval
+        # gonna have to add 'Stone', randint(5,7) to args list somehow
+        column.insert(0, 'Stone')
+        column.insert(1, randint(5,7))
+        while (len(column) > 0 or top > 0):
+            # better be a block
+            block = column.pop()
+            # print 'block is %s' % block
+            if (len(column) > 0):
+                layer = column.pop()
+            else:
+                layer = top
+            # now do something
+            # print 'layer is %d' % layer
+            if (layer > 0):
+                (blocks.append((x, y, z, block)) for y in xrange(top-layer,top))
+                top -= layer
+    setBlocksAt(blocks)
         
 # my own setblockat
 def setBlockAt(x, y, z, string):
     global arrayBlocks
-    blockType = materials.materialNamed(string)
-    cx = x >> 4
-    cz = z >> 4
-    ix = x & 0xf
-    iz = z & 0xf
-    arrayKey = '%d,%d' % (cx,cz)
+    arrayKey = '%d,%d' % (x >> 4, z >> 4)
     try:
         arrayBlocks[arrayKey]
     except KeyError:
         arrayBlocks[arrayKey] = zeros((16,16,128),dtype=uint8)
-    arrayBlocks[arrayKey][ix,iz,y] = blockType
+    arrayBlocks[arrayKey][x & 0xf, z & 0xf, y] = materials.materialNamed(string)
+
+# more aggregates
+def setBlocksAt(blocks):
+    global arrayBlocks
+    for block in blocks:
+        (x, y, z, string) = block
+        arrayKey = '%d,%d' % (x >> 4, z >> 4)
+        try:
+            arrayBlocks[arrayKey]
+        except KeyError:
+            arrayBlocks[arrayKey] = zeros((16,16,128),dtype=uint8)
+        arrayBlocks[arrayKey][x & 0xf, z & 0xf, y] = materials.materialNamed(string)
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
     global arrayData
-    cx = x >> 4
-    cz = z >> 4
-    ix = x & 0xf
-    iz = z & 0xf
-    arrayKey = '%d,%d' % (cx,cz)
+    arrayKey = '%d,%d' % (x >> 4, z >> 4)
     try:
         arrayData[arrayKey]
     except KeyError:
         arrayData[arrayKey] = zeros((16,16,128),dtype=uint8)
-    arrayData[arrayKey][ix,iz,y] = data
+    arrayData[arrayKey][x & 0xf, z & 0xf, y] = data
 
 def populateChunk(key,maxcz):
     #print "key is %s" % (key)
@@ -79,38 +107,20 @@ def populateChunk(key,maxcz):
     # JMT: trying to fix rotated files
     ocx = int(ctuple[0])
     ocz = int(ctuple[1])
-    if (rotateMe):
-        cz = maxcz-ocx
-        cx = ocz
-    else:
-        cz = ocz
-        cx = ocx
+    cz = maxcz-ocx
+    cx = ocz
     try:
         world.getChunk(cx, cz)
     except mclevel.ChunkNotPresent:
         world.createChunk(cx, cz)
     chunk = world.getChunk(cx, cz)
     world.compressChunk(cx, cz)
-    if (rotateMe):
-        if (True):
-            for x, z in product(xrange(16), xrange(16)):
-                chunk.Blocks[x,z] = arrayBlocks[key][15-z,x]
-        else:
-            for x, z, y in product(xrange(16), xrange(16), xrange(128)):
-                chunk.Blocks[x,z,y] = arrayBlocks[key][15-z,x,y]
-    else:
-        chunk.Blocks[:,:,:] = arrayBlocks[key][:,:,:]
+    for x, z in product(xrange(16), xrange(16)):
+        chunk.Blocks[x,z] = arrayBlocks[key][15-z,x]
     arrayBlocks[key] = None
     if key in arrayData:
-        if (rotateMe):
-            if (True):
-                for x, z in product(xrange(16), xrange(16)):
-                    chunk.Data[x,z] = arrayData[key][15-z,x]
-            else:
-                for x, z, y in product(xrange(16), xrange(16), xrange(128)):
-                    chunk.Data[x,z,y] = arrayData[key][15-z,x,y]
-        else:
-            chunk.Data[:,:,:] = arrayData[key][:,:,:]
+        for x, z in product(xrange(16), xrange(16)):
+            chunk.Data[x,z] = arrayData[key][15-z,x]
         arrayData[key] = None
     chunk.chunkChanged()
     return (clock()-start)

@@ -5,13 +5,14 @@ import operator
 import Image
 from numpy import asarray
 from time import clock
-from lc import processLcval
+from lc import processLcval,processLcvals
 from mcmap import maxelev
 from multiprocessing import Pool
 from itertools import product
 
 # paths for images
 imagesPaths = ['Images']
+useAggregates = False
 
 # functions
 def getImagesDict(imagepaths):
@@ -93,6 +94,7 @@ def processImage(region, offset_x, offset_z):
     # inform the user
     print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
     (size_z, size_x) = lcarray.shape
+    lcvals = []
 
     # iterate over the image
     for x,z in product(xrange(size_x), xrange(size_z)):
@@ -108,7 +110,12 @@ def processImage(region, offset_x, offset_z):
             localmax = elevval
             spawnx = real_x
             spawnz = real_z
-        processLcval(lcval, real_x, real_z, elevval, bathyval)
+        if (useAggregates):
+            lcvals.append((lcval, real_x, real_z, elevval, bathyval))
+        else:
+            processLcval(lcval, real_x, real_z, elevval, bathyval)
+    if (useAggregates):
+        processLcvals(lcvals)
 	
     lcarray = None
     elevarray = None
