@@ -167,7 +167,7 @@ def checkWorld(string):
 def initWorld(string):
     "Open this world."
     global world
-    if string.isdigit():
+    if int(string):
         myworld = mclevel.loadWorldNumber(string)
     else:
         myworld = mclevel.fromFile(string)
