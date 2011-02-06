@@ -24,19 +24,17 @@ maxelev = 128-headroom-sealevel
 # layers(x, y, elevval, 'Stone', 1, 'Dirt', 1, 'Water')
 #  - elevval down one level of water, then one level of dirt, then stone
 def layers(x, z, elevval, *args):
-    global mainargs
-    bottom = 0
     top = sealevel+elevval
 
     data = list(args)
-    while (len(data) > 0 or bottom < top):
+    while (len(data) > 0 or top > 0):
         # better be a block
         block = data.pop()
         #print 'block is %s' % block
         if (len(data) > 0):
             layer = data.pop()
         else:
-            layer = top - bottom
+            layer = top
         # now do something
         #print 'layer is %d' % layer
         if (layer > 0):
@@ -167,10 +165,12 @@ def checkWorld(string):
 def initWorld(string):
     "Open this world."
     global world
-    if int(string):
-        myworld = mclevel.loadWorldNumber(string)
+    try:
+        worldNum = int(string)
+    except ValueError:
+        myworld = mclevel.MCInfdevOldLevel(string, create=True)
     else:
-        myworld = mclevel.fromFile(string)
+        myworld = mclevel.loadWorldNumber(worldNum)
     return myworld
 
 def saveWorld(spawn):
