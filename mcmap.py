@@ -121,7 +121,7 @@ def populateChunk(key,maxcz):
         for x, z in product(xrange(16), xrange(16)):
             chunk.Data[x,z] = arrayData[key][15-z,x]
         arrayData[key] = None
-    chunk.chunkChanged()
+    chunk.chunkChanged(False)
     return (clock()-start)
 
 def populateChunkstar(args):
@@ -156,7 +156,6 @@ def checkWorld(string):
         return string
     else:
         if 1 < worldNum <= 5:
-            #myworld = mclevel.loadWorldNumber(worldNum)
             string = worldNum
         else:
             raise IOError, "bad value for world: %s" % string
@@ -181,7 +180,6 @@ def saveWorld(spawn):
     spawnxyz = (spawn[0], spawn[2]+sealevel+2, spawn[1])
     world.setPlayerPosition(spawnxyz)
     world.setPlayerSpawnPosition(spawnxyz)
-    world.generateLights()
     # stolen from pymclevel/mce.py
     for i, cPos in enumerate(world.allChunks, 1):
         ch = world.getChunk(*cPos);
