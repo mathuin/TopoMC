@@ -5,14 +5,13 @@ import operator
 import Image
 from numpy import asarray
 from time import clock
-from lc import processLcval,processLcvals
+from terrain import processTerrain
 from mcmap import maxelev
 from multiprocessing import Pool
 from itertools import product
 
 # paths for images
 imagesPaths = ['Images']
-useAggregates = False
 
 # functions
 def getImagesDict(imagepaths):
@@ -110,12 +109,10 @@ def processImage(region, offset_x, offset_z):
             localmax = elevval
             spawnx = real_x
             spawnz = real_z
-        if (useAggregates):
-            lcvals.append((lcval, real_x, real_z, elevval, bathyval))
-        else:
-            processLcval(lcval, real_x, real_z, elevval, bathyval)
-    if (useAggregates):
-        processLcvals(lcvals)
+        # FIXME: why does aggregation here not improve performance?
+        #lcvals.append((lcval, real_x, real_z, elevval, bathyval))
+        processTerrain([(lcval, real_x, real_z, elevval, bathyval)])
+    #processTerrain(lcvals)
 	
     lcarray = None
     elevarray = None

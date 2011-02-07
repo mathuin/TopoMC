@@ -15,40 +15,25 @@ sealevel = 64
 headroom = 5
 maxelev = 128-headroom-sealevel
 
-# fills a column with layers of stuff
+# each column consists of [x, z, elevval, ...]
+# where ... is a block followed by zero or more number-block pairs
 # examples:
-# layers(x, y, elevval, 'Stone')
+# [x, y, elevval, 'Stone']
 #  - fill everything from 0 to elevval with stone
-# layers(x, y, elevval, 'Dirt', 2, 'Water')
+# [x, y, elevval, 'Dirt', 2, 'Water']
 #  - elevval down two levels of water, rest dirt
-# layers(x, y, elevval, 'Stone', 1, 'Dirt', 1, 'Water')
+# [x, y, elevval, 'Stone', 1, 'Dirt', 1, 'Water']
 #  - elevval down one level of water, then one level of dirt, then stone
-def layers(x, z, elevval, *args):
-    top = sealevel+elevval
-
-    data = list(args)
-    while (len(data) > 0 or top > 0):
-        # better be a block
-        block = data.pop()
-        #print 'block is %s' % block
-        if (len(data) > 0):
-            layer = data.pop()
-        else:
-            layer = top
-        # now do something
-        #print 'layer is %d' % layer
-        if (layer > 0):
-            [setBlockAt(x, y, z, block) for y in xrange(top-layer,top)]
-            top -= layer
-
-def manylayers(columns):
+# NB: we currently push 'Stone', randint(5,7) at the front
+# so whatever the user originally requested has a thin layer before
+# becoming stone all the way down.
+def layers(columns):
     blocks = []
     for column in columns:
         x = column.pop(0)
         z = column.pop(0)
         elevval = column.pop(0)
         top = sealevel+elevval
-        # gonna have to add 'Stone', randint(5,7) to args list somehow
         column.insert(0, 'Stone')
         column.insert(1, randint(5,7))
         while (len(column) > 0 or top > 0):
@@ -62,7 +47,7 @@ def manylayers(columns):
             # now do something
             # print 'layer is %d' % layer
             if (layer > 0):
-                (blocks.append((x, y, z, block)) for y in xrange(top-layer,top))
+                [blocks.append((x, y, z, block)) for y in xrange(top-layer,top)]
                 top -= layer
     setBlocksAt(blocks)
         
@@ -98,12 +83,23 @@ def setBlockDataAt(x, y, z, data):
         arrayData[arrayKey] = zeros((16,16,128),dtype=uint8)
     arrayData[arrayKey][x & 0xf, z & 0xf, y] = data
 
+# my own setblocksdataat
+def setBlocksDataAt(blocks):
+    global arrayData
+    for block in blocks:
+        (x, y, z, data) = block
+        arrayKey = '%d,%d' % (x >> 4, z >> 4)
+        try:
+            arrayData[arrayKey]
+        except KeyError:
+            arrayData[arrayKey] = zeros((16,16,128),dtype=uint8)
+        arrayData[arrayKey][x & 0xf, z & 0xf, y] = data
+
 def populateChunk(key,maxcz):
     #print "key is %s" % (key)
     global world
     start = clock()
     ctuple = key.split(',')
-    # JMT: trying to fix rotated files
     ocx = int(ctuple[0])
     ocz = int(ctuple[1])
     cz = maxcz-ocx

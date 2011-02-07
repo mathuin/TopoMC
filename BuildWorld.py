@@ -7,7 +7,7 @@ from time import clock
 from multiprocessing import cpu_count
 #
 import image
-import lc
+import terrain
 import tree
 import mcmap
 
@@ -52,7 +52,7 @@ def main(argv):
 
     # set up all the values
     processes = checkProcesses(args)
-    lc.nodata = args.nodata
+    terrain.nodata = args.nodata
     mcmap.world = mcmap.initWorld(args.world)
     
     # what are we doing?
@@ -76,7 +76,7 @@ def main(argv):
     mcmap.saveWorld(peak)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
-    lc.printLandCoverStatistics()
+    terrain.printLandCoverStatistics()
     tree.printTreeStatistics()
 
 if __name__ == '__main__':
