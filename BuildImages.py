@@ -194,10 +194,10 @@ def main(argv):
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
     if (processes == 1):
-        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
     else:
         pool = Pool(processes)
-        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in range(minTileRows, maxTileRows) for tileColIndex in range(minTileCols, maxTileCols)]
+        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
         results = pool.imap_unordered(processTilestar, tasks)
         bleah = [x for x in results]
             
