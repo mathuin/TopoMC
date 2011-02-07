@@ -40,9 +40,8 @@ def checkScale(args):
         oldscale = int(args.scale)
     lcds, elevds = getDataset(args.region)
     elevds = None
-    lcTrans, lcArcTrans, lcGeoTrans = getTransforms(lcds)
+    lcperpixel = lcds.transforms[2][1]
     lcds = None
-    lcperpixel = lcGeoTrans[1]
     scale = min(oldscale, lcperpixel)
     scale = max(scale, fullScale)
     if (scale != oldscale):
