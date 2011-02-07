@@ -4,6 +4,7 @@ import os
 import re
 from osgeo import gdal, osr
 from osgeo.gdalconst import *
+from coords import getTransforms
 
 # paths for datasets
 dsPaths = ['Datasets', '../TopoMC-Datasets']
@@ -66,7 +67,11 @@ def getDataset(region):
     "Given a region name, return a tuple of datasets: (lc, elev)"
     if (region in dsDict):
         dsList = dsDict[region]
-        return (gdal.Open(dsList[0], GA_ReadOnly), gdal.Open(dsList[1], GA_ReadOnly))
+        dsOne = gdal.Open(dsList[0], GA_ReadOnly)
+        dsOne.transforms = getTransforms(dsOne)
+        dsTwo = gdal.Open(dsList[1], GA_ReadOnly)
+        dsTwo.transforms = getTransforms(dsTwo)
+        return (dsOne, dsTwo)
     else:
         return None
 

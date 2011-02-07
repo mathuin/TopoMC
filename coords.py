@@ -13,10 +13,10 @@ def getLatLongArray(ds, offset, size, mult=1):
 
 def getLatLong(ds, x, y):
     "Given dataset and coordinates, return latitude and longitude.  Based on GDALInfoReportCorner() from gdalinfo.py"
-    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
-    dfGeoX = GeoTrans[0] + GeoTrans[1] * x + GeoTrans[2] * y
-    dfGeoY = GeoTrans[3] + GeoTrans[4] * x + GeoTrans[5] * y
-    pnt = Trans.TransformPoint(dfGeoX, dfGeoY, 0)
+    #(Trans, ArcTrans, GeoTrans) = getTransforms(ds)
+    dfGeoX = ds.transforms[2][0] + ds.transforms[2][1] * x + ds.transforms[2][2] * y
+    dfGeoY = ds.transforms[2][3] + ds.transforms[2][4] * x + ds.transforms[2][5] * y
+    pnt = ds.transforms[0].TransformPoint(dfGeoX, dfGeoY, 0)
     return pnt[1], pnt[0]
 
 def getTransforms(ds):
@@ -32,9 +32,9 @@ def getTransforms(ds):
 
 def getCoords(ds, lat, lon):
     "The backwards version of getLatLong, from geo_trans.c."
-    (Trans, ArcTrans, GeoTrans) = getTransforms(ds)
-    pnt = ArcTrans.TransformPoint(lon, lat, 0)
-    x = (pnt[0] - GeoTrans[0])/GeoTrans[1]
-    y = (pnt[1] - GeoTrans[3])/GeoTrans[5]
+    #(Trans, ArcTrans, GeoTrans) = getTransforms(ds)
+    pnt = ds.transforms[1].TransformPoint(lon, lat, 0)
+    x = (pnt[0] - ds.transforms[2][0])/ds.transforms[2][1]
+    y = (pnt[1] - ds.transforms[2][3])/ds.transforms[2][5]
     return int(x), int(y)
 
