@@ -5,7 +5,7 @@ Normal stuff underground!
 Full multiprocessing support
  - Pool() isn't working, maybe Manager() will?
 More optimization
- - change image module to use aggregates
+ - aggregates aren't working, sigh
 Test and drivers for all functions
  - maybe even comments!
 Schematics and equipping the player

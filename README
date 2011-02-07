@@ -1,28 +1,22 @@
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS Seamless Map data, specifically the NED and NLCD datasets.
 
 Features include:
+ * The project is now pure Python.  The speed is worth it.
+ * Both single-player and multi-player worlds can be generated.
  * North is now north!  That math was more annoying than I expected. :-)
  * Simulated bathymetric data based on local terrain.
  * Large datasets can be handled with tiling support.
 
-This project generates input files suitable for JCraft (http://www.minecraftforum.net/viewtopic.php?f=1022&t=147476) written by BagelMann.  Always check for the latest version of JCraft from http://genericdeveloper.com/JCraft.zip -- it works on Linux via Mono.
-
 This project includes one small dataset for testing.  Other datasets can be found in the TopoMC-Datasets repository at git@github.com:mathuin/TopoMC-Datasets.git.
 
-The default spawn point is at the highest point in the dataset, and currently has a two-story glass-and-stone building lit up with torches as a safe haven.
+The default spawn point is at the highest point in the dataset.
 
 To build a Minecraft world based on a dataset, here's what to do:
 
 1.  Build the elevation and land cover images.
     jmt@belle:~/TopoMC$ ./BuildImages.py BlockIsland
 
-2. Build a new world!
-    jmt@belle:~/TopoMC$ mono ../JCraft/JCraft.exe
-    Select 'BuildWorld.js' as a script, it defaults to BlockIsland.
-    Select an unused world.
-    Click 'Generate'.
+2. Build a new world!  (warning: this overwrites world 5!)
+    jmt@belle:~/TopoMC$ ./BuildWorld.py BlockIsland
 
-BuildImages.py now has option parsing support: try "./BuildImages.py -h".
-
-I have a version of BuildWorld.js in Python.  It is very fast but amazingly
-memory hungry.  Feel free to give it a spin!  Try "./BuildWorld.py -h".
+Both BuildImages.py and BuildWorld.py have lots of options!
