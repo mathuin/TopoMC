@@ -17,8 +17,8 @@
 : ${MAPPER:="../c10t/build/c10t"}
 : ${MAPPEROPTS:="-z -w $WORLDNAME -o $IMAGE"}
 
-rm -rf $DATADIR $WORLDNAME $IMAGE
-./BuildImages.py $BIOPTS $DATASET
-./BuildWorld.py $BWOPTS $DATASET
-$MAPPER $MAPPEROPTS
-display $IMAGE
+rm -rf $DATADIR $WORLDNAME $IMAGE && \
+./BuildImages.py $BIOPTS $DATASET && \
+./BuildWorld.py $BWOPTS $DATASET && \
+$MAPPER $MAPPEROPTS && \
+display $IMAGE 
