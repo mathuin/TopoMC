@@ -22,17 +22,13 @@ def getBathymetry(lcArray, maxDepth, slope=1):
                 ringrange = xrange(min([elem for elem in bathyList if elem > 0])-1,min(max(bathyList)+2, maxDepth))
             try:
                 for ring in ringrange:
-                    if (True):
-                        if any(lcArray[ringrow,ringcol] != 11 for ringrow in xrange(max(0, brow-ring+1), min(bathyMaxRows, brow+ring+1)) for ringcol in xrange(max(0, bcol-ring+1), min(bathyMaxCols, bcol+ring+1))):
-                            raise Exception
-                    else:
-                        xmin = max(0, brow-ring+1)
-                        xmax = min(bathyMaxRows, brow+ring+1)
-                        zmin = max(0, bcol-ring+1)
-                        zmax = min(bathyMaxCols, bcol+ring+1)
-                        ringarray = lcArray[xmin:xmax,zmin:zmax]
-                        if any(x != 11 for x in ringarray):
-                            raise Exception
+                    rbxmin = max(0, brow-ring+1)
+                    rbxmax = min(bathyMaxRows, brow+ring+1)
+                    rbzmin = max(0, bcol-ring+1)
+                    rbzmax = min(bathyMaxCols, bcol+ring+1)
+                    ringarray = lcArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
+                    if (any(element != 11 for element in ringarray)):
+                        raise Exception
             except Exception:
                 pass
             if (random() > 1/slope):
