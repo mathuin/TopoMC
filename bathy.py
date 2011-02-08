@@ -1,26 +1,28 @@
 # bathy module
 
-import numpy
+from numpy import zeros, uint8, transpose, nonzero, array
+from numpy.linalg import norm
 from itertools import product
 from random import random
+
+useNew = True
 
 def getBathymetry(lcArray, maxDepth, slope=1):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
     bathyMaxRows, bathyMaxCols = lcArray.shape
-    bathyArray = numpy.zeros((bathyMaxRows, bathyMaxCols))
+    bathyArray = zeros((bathyMaxRows, bathyMaxCols),dtype=uint8)
     for brow, bcol in product(xrange(bathyMaxRows), xrange(bathyMaxCols)):
         if (lcArray[brow,bcol] == 11):
             bxmin = max(0, brow-1)
             bxmax = min(bathyMaxRows,brow+2)
             bzmin = max(0, bcol-1)
             bzmax = min(bathyMaxCols,bcol+1)
-            barray = bathyArray[bxmin:bxmax,bzmin:bzmax].flatten()
-            bathyList = [int(x) for x in barray]
+            barray = bathyArray[bathyArray[bxmin:bxmax,bzmin:bzmax].flatten().nonzero()]
             #if (all(element == 0 for element in bathyList)):
-            if (barray == 0).all():
+            if (len(barray) == 0):
                 ringrange = xrange(1,maxDepth)
             else:
-                ringrange = xrange(min([elem for elem in bathyList if elem > 0])-1,min(max(bathyList)+2, maxDepth))
+                ringrange = xrange(barray.min()-1,min(barray.max()+2, maxDepth))
             try:
                 for ring in ringrange:
                     rbxmin = max(0, brow-ring+1)
@@ -28,7 +30,7 @@ def getBathymetry(lcArray, maxDepth, slope=1):
                     rbzmin = max(0, bcol-ring+1)
                     rbzmax = min(bathyMaxCols, bcol+ring+1)
                     ringarray = lcArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
-                    #if (any(element != 11 for element in ringarray)):
+                    # if (any(element != 11 for element in ringarray)):
                     if any(ringarray != 11):
                         raise Exception
             except Exception:
