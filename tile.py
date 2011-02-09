@@ -5,6 +5,7 @@ from dataset import *
 from coords import *
 from invdisttree import *
 from bathy import getBathymetry
+from dataset import getDatasetDims
 
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
@@ -110,4 +111,43 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
 
 def processTilestar(args):
     return processTile(*args)
+
+def checkTile(args, mult):
+    "Checks to see if a tile dimension is too big for a region."
+    oldtilex, oldtiley = args.tile
+    rows, cols = getDatasetDims(args.region)
+    maxRows = int(rows * mult)
+    maxCols = int(cols * mult)
+    tilex = min(oldtilex, maxRows)
+    tiley = min(oldtiley, maxCols)
+    if (tilex != oldtilex or tiley != oldtiley):
+        print "Warning: tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley)
+    args.tile = (tilex, tiley)
+    return (tilex, tiley)
+
+def checkStartEnd(args, mult, tile):
+    "Checks to see if start and end values are valid for a region."
+    (rows, cols) = getDatasetDims(args.region)
+    (minTileRows, minTileCols) = args.start
+    (maxTileRows, maxTileCols) = args.end
+    (tileRows, tileCols) = tile
+
+    numRowTiles = int((rows*mult+tileRows-1)/tileRows)
+    numColTiles = int((cols*mult+tileCols-1)/tileCols)
+    # maxTileRows and maxTileCols default to 0 meaning do everything
+    if (maxTileRows == 0 or maxTileRows > numRowTiles):
+        if (maxTileRows > numRowTiles):
+            print "Warning: maxTileRows greater than numRowTiles, setting to %d" % numRowTiles
+        maxTileRows = numRowTiles
+    if (minTileRows > maxTileRows):
+        print "Warning: minTileRows less than maxTileRows, setting to %d" % maxTileRows
+        minTileRows = maxTileRows
+    if (maxTileCols == 0 or maxTileCols > numColTiles):
+        if (maxTileCols > numColTiles):
+            print "Warning: maxTileCols greater than numColTiles, setting to %d" % numColTiles
+        maxTileCols = numColTiles
+    if (minTileCols > maxTileCols):
+        print "Warning: minTileCols less than maxTileCols, setting to %d" % maxTileCols
+        minTileCols = maxTileCols
+    return (minTileRows, minTileCols, maxTileRows, maxTileCols)
 

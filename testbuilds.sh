@@ -5,11 +5,16 @@
 # This script tests the build process so I can make sure 
 # that changes do not break things.
 
+# The script now records profiling data for later analysis.
+
 # This script requires c10t to render a map of the world.
 # c10t can be found at git://github.com/udoprog/c10t.git
 
 : ${DATASET:="BlockIsland"}
 : ${DATADIR:="Images/$DATASET"}
+: ${PROFDATESTR:=$(date +"%Y%m%d%H%m")}
+: ${PROFBIFILE:="BI-$PROFDATESTR.prof"}
+: ${PROFBWFILE:="BW-$PROFDATESTR.prof"}
 : ${BIOPTS:="--scale 15"}
 : ${WORLDNAME:="TestWorld"}
 : ${BWOPTS:="--world $WORLDNAME"}
@@ -18,7 +23,7 @@
 : ${MAPPEROPTS:="-z -w $WORLDNAME -o $IMAGE"}
 
 rm -rf $DATADIR $WORLDNAME $IMAGE && \
-./BuildImages.py $BIOPTS $DATASET && \
-./BuildWorld.py $BWOPTS $DATASET && \
+python -m cProfile -o $PROFBIFILE ./BuildImages.py $BIOPTS $DATASET && \
+python -m cProfile -o $PROFBWFILE ./BuildWorld.py $BWOPTS $DATASET && \
 $MAPPER $MAPPEROPTS && \
 display $IMAGE 
