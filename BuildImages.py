@@ -86,7 +86,7 @@ def main(argv):
     default_processes = cpu_count()
 
     parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
-    parser.add_argument('region', nargs='?', type=checkDataset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--region', nargs='?', type=checkDataset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--scale', nargs=1, default=default_scale, type=int, help="horizontal scale factor (default %d)" % default_scale)
     parser.add_argument('--vscale', nargs=1, default=default_vscale, type=int, help="vertical scale factor (default %d)" % default_vscale)

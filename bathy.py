@@ -1,7 +1,6 @@
 # bathy module
 
-from numpy import zeros, uint8, transpose, nonzero, array
-from numpy.linalg import norm
+from numpy import zeros, uint8
 from itertools import product
 from random import random
 from dataset import getDatasetDims
@@ -10,20 +9,12 @@ useNew = True
 
 def getBathymetry(lcArray, maxDepth, slope=1):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
+    # FIXME: eventually support ice as well as water here
     bathyMaxRows, bathyMaxCols = lcArray.shape
     bathyArray = zeros((bathyMaxRows, bathyMaxCols),dtype=uint8)
+    ringrange = xrange(1,maxDepth)
     for brow, bcol in product(xrange(bathyMaxRows), xrange(bathyMaxCols)):
         if (lcArray[brow,bcol] == 11):
-            bxmin = max(0, brow-1)
-            bxmax = min(bathyMaxRows,brow+2)
-            bzmin = max(0, bcol-1)
-            bzmax = min(bathyMaxCols,bcol+1)
-            barray = bathyArray[bathyArray[bxmin:bxmax,bzmin:bzmax].flatten().nonzero()]
-            #if (all(element == 0 for element in bathyList)):
-            if (len(barray) == 0):
-                ringrange = xrange(1,maxDepth)
-            else:
-                ringrange = xrange(barray.min()-1,min(barray.max()+2, maxDepth))
             try:
                 for ring in ringrange:
                     rbxmin = max(0, brow-ring+1)
@@ -31,7 +22,6 @@ def getBathymetry(lcArray, maxDepth, slope=1):
                     rbzmin = max(0, bcol-ring+1)
                     rbzmax = min(bathyMaxCols, bcol+ring+1)
                     ringarray = lcArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
-                    # if (any(element != 11 for element in ringarray)):
                     if any(ringarray != 11):
                         raise Exception
             except Exception:

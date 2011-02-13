@@ -1,22 +1,30 @@
-The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS Seamless Map data, specifically the NED and NLCD datasets.
+The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
 
 Features include:
+ * Datasets can now be downloaded directly from the USGS!
  * The project is now pure Python.  The speed is worth it.
  * Both single-player and multi-player worlds can be generated.
  * North is now north!  That math was more annoying than I expected. :-)
  * Simulated bathymetric data based on local terrain.
- * Large datasets can be handled with tiling support.
 
-This project includes one small dataset for testing.  Other datasets can be found in the TopoMC-Datasets repository at git@github.com:mathuin/TopoMC-Datasets.git.
+This project includes one small dataset for testing.  I am retiring the other repository.  You will have to remove any checkout of TopoMC-Datasets if you wish to use this code.
 
 The default spawn point is at the highest point in the dataset.
 
-To build a Minecraft world based on a dataset, here's what to do:
+The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet and right-click to place latlong markers in the upper left and lower right of the region you wish to model.  This will give you the maximum and minimum latitude and longitude (Y and X in my model) values.
 
-1.  Build the elevation and land cover images.
-    jmt@belle:~/TopoMC$ ./BuildImages.py BlockIsland
+Next, here's what to do!
 
-2. Build a new world!  (warning: this overwrites world 5!)
-    jmt@belle:~/TopoMC$ ./BuildWorld.py BlockIsland
+1.  Download the dataset from the USGS.
+    jmt@belle:~/TopoMC$ ./GetDataset.py --region Provincetown --ymax 42.0901 --ymin 42.0091 --xmin -70.2611 --xmax -70.1100
 
-Both BuildImages.py and BuildWorld.py have lots of options!
+2.  Extract the data files and warp the elevation file.
+    jmt@belle:~/TopoMC$ ./WarpElev.sh --region Provincetown
+
+3.  Build the elevation and land cover images.
+    jmt@belle:~/TopoMC$ ./BuildImages.py --region Provincetown
+
+4.  Build a new world! 
+    jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown --world Worlds/Provincetown
+
+Both BuildImages.py and BuildWorld.py have lots of options for the curious.

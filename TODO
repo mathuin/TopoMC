@@ -1,12 +1,16 @@
 To do:
 
+Test and drivers for all functions
+ - maybe even comments!
+Convert most print output to logging statements
+ - boy this is spammy
+More optimization
+ - aggregates aren't working, sigh
+Schematics and equipping the player
+ - pymclevel supports the former but not yet the latter
+Support multiple USGS chunks per dataset
+ - ./image.py needs to be redesigned
 Normal stuff underground!
  - a few ideas, always looking for more!
 Full multiprocessing support
  - Pool() isn't working, maybe Manager() will?
-More optimization
- - aggregates aren't working, sigh
-Test and drivers for all functions
- - maybe even comments!
-Schematics and equipping the player
- - pymclevel supports the former but not yet the latter

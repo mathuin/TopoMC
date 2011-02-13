@@ -10,32 +10,76 @@ from coords import getTransforms
 dsPaths = ['Datasets', '../TopoMC-Datasets']
 
 # functions
+def decodeLayerID(layerID):
+    "Given a layer ID, return the product type, image type, metadata type, and compression type."
+    productID = layerID[0]+layerID[1]+layerID[2]
+    if (productID == "L01"):
+        pType = "landcover"
+    elif (productID == "NED" or productID == "ND3"):
+        pType = "elevation"
+    else:
+        print "Invalid product ID %s" % productID
+        return -1
+
+    imagetype = layerID[3]+layerID[4]
+    if (imagetype == "02"):
+        iType = "tif"
+    else:
+        print "Invalid image type %s" % imagetype
+        return -1
+        
+    metatype = layerID[5]
+    if (metatype == "H"):
+        mType = "HTML"
+    elif (metatype == "T"):
+        mType = "TXT"
+    elif (metatype == "X"):
+        mType = "XML"
+    else:
+        print "Invalid metadata type %s" % metatype
+        return -1
+
+    compressiontype = layerID[6]
+    if (compressiontype == "Z"):
+        cType = "ZIP"
+    elif (compressiontype == "T"):
+        cType = "TGZ"
+    else:
+        print "Invalid compression type %s" % compressiontype
+        return -1
+
+    return (pType, iType, mType, cType)
+
 def getDatasetDict(dspaths):
     "Given a list of paths, generate a dict of datasets."
 
-    lcdirre = '\d\d\d\d\d\d\d\d'
-    elevdirre = 'NED_\d\d\d\d\d\d\d\d'
-
     retval = {}
     for dspath in dspaths:
+        if not os.path.exists(dspath):
+            continue
         regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
         for region in regions:
             dsregion = os.path.join(dspath, region)
             lcfile = ''
             elevfile = ''
             elevorigfile = ''
-            subdirs = [ name for name in os.listdir(os.path.join(dsregion)) if os.path.isdir(os.path.join(dsregion, name)) ]
-            for subdir in subdirs:
-                dsregionsub = os.path.join(dsregion, subdir)
-                if re.match(lcdirre, subdir):
-                    maybelcfile = os.path.join(dsregionsub, subdir+'.tif')
-                    if (os.path.isfile(maybelcfile)):
-                        lcfile = maybelcfile
-                if re.match(elevdirre, subdir):
-                    maybeelevfile = os.path.join(dsregionsub, subdir+'.tif')
-                    if (os.path.isfile(maybeelevfile)):
-                        elevfile = maybeelevfile
-                        maybeelevorigfile = os.path.join(dsregionsub, subdir+'.tif-orig')
+            layerids = [ name for name in os.listdir(dsregion) if os.path.isdir(os.path.join(dsregion, name)) ]
+            for layerid in layerids:
+                dsregionlayerid = os.path.join(dsregion, layerid)
+                (pType, iType, mType, cType) = decodeLayerID(layerid)
+                subdirs = [ name for name in os.listdir(dsregionlayerid) if os.path.isdir(os.path.join(dsregionlayerid, name)) ]
+                for subdir in subdirs:
+                    dsregionsub = os.path.join(dsregionlayerid, subdir)
+                    if (pType == "landcover"):
+                        maybelcfile = os.path.join(dsregionsub, "%s.%s" % (subdir, iType))
+                        if (os.path.isfile(maybelcfile)):
+                            lcfile = maybelcfile
+                    if (pType == "elevation"):
+                        maybeelevfile = os.path.join(dsregionsub, "%s.%s" % (subdir, iType))
+                        if (os.path.isfile(maybeelevfile)):
+                            elevfile = maybeelevfile
+                        maybeelevorigfile = os.path.join(dsregionsub, "%s.%s-orig" % (subdir, iType))
+
                         if (os.path.isfile(maybeelevorigfile)):
                             elevorigfile = maybeelevorigfile
             if (lcfile != '' and elevfile != '' and elevorigfile != ''):
