@@ -5,8 +5,9 @@
 # this script builds arrays for land cover and elevation
 
 from __future__ import division
-import os
 import sys
+sys.path.append('..')
+import os
 import numpy
 import Image
 import argparse
@@ -21,6 +22,7 @@ from dataset import *
 from coords import *
 from tile import *
 from bathy import *
+from mcmap import maxelev
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -53,7 +55,6 @@ def checkScale(args):
 
 def checkVScale(args):
     "Checks to see if the given vScale is valid for the given region."
-    maxMapHeight = 40 # total guess
     if (isinstance(args.vscale, list)):
         oldvscale = args.vscale[0]
     else:
@@ -66,7 +67,7 @@ def checkVScale(args):
     elevds = None
     elevMax = elevCMinMax[1]
     vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, (elevMax/maxMapHeight)-1)
+    vscale = max(vscale, (elevMax/maxelev)-1)
     if (vscale != oldvscale):
         print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
     args.vscale = vscale
