@@ -39,12 +39,12 @@ def getOffsetSize(ds, corners, mult=1):
     size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
     return offset, size
 
-def getImageArray(ds, idtCorners, baseArray, nnear, vScale=1, majority=False):
+def getImageArray(ds, idtCorners, baseArray, vScale=1, majority=False):
     "Given the relevant information, builds the image array."
 
     Offset, Size = getOffsetSize(ds, idtCorners)
     IDT = getIDT(ds, Offset, Size, vScale)
-    ImageArray = IDT(baseArray, nnear=nnear, eps=0.1, majority=majority)
+    ImageArray = IDT(baseArray, eps=0.1, majority=majority)
 
     return ImageArray
 
@@ -85,19 +85,19 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
     idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
 
-    # nnear=1 for landcover, 11 for elevation
-    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, 11, majority=True)
+    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, majority=True)
     lcImageArray.resize(baseShape)
 
     # nnear=1 for landcover, 11 for elevation
-    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, 11, vscale)
+    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, vscale)
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
-    bigImageArray = getImageArray(lcds, (idtUL, idtLR), idtArray, 11, majority=True)
+    bigImageArray = getImageArray(lcds, (idtUL, idtLR), idtArray, majority=True)
     bigImageArray.resize(idtShape)
-    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, maxdepth, slope)
+    # problem: how to know what the real dimensions of the idtShape are!
+    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, idtOffset, maxdepth, slope)
     
     # save images
     lcImage = Image.fromarray(lcImageArray)

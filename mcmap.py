@@ -139,6 +139,8 @@ def populateWorld(processes):
     print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
 
 def checkWorld(string):
+    if (string == None):
+        argparse.error("a world must be defined")
     try:
         worldNum = int(string)
     except ValueError:
