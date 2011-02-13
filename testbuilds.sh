@@ -23,7 +23,7 @@
 : ${MAPPEROPTS:="-z -w $WORLDNAME -o $IMAGE"}
 
 rm -rf $DATADIR $WORLDNAME $IMAGE && \
-python -m cProfile -o $PROFBIFILE ./BuildImages.py $BIOPTS $DATASET && \
-python -m cProfile -o $PROFBWFILE ./BuildWorld.py $BWOPTS $DATASET && \
+python -m cProfile -o $PROFBIFILE ./BuildImages.py --region $DATASET --processes 1 $BIOPTS && \
+python -m cProfile -o $PROFBWFILE ./BuildWorld.py --region $DATASET --processes 1 $BWOPTS && \
 $MAPPER $MAPPEROPTS && \
 display $IMAGE 
