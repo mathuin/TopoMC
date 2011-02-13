@@ -4,7 +4,10 @@ import sys
 sys.path.append('..')
 import argparse
 from time import clock
-from multiprocessing import cpu_count
+from multiprocessing import cpu_count, RawArray
+from itertools import product
+from multinumpy import SharedMemArray
+import numpy
 #
 import image
 import terrain
@@ -57,6 +60,15 @@ def main(argv):
     # what are we doing?
     print 'Creating world from region %s' % args.region
 
+    # create every chunk we need
+    maxXchunk = (image.imageDims[args.region][0]>>4)+1
+    maxZchunk = (image.imageDims[args.region][1]>>4)+1
+    monkey = numpy.zeros((16,16,128),dtype=numpy.uint8)
+    for x, z in product(xrange(maxXchunk), xrange(maxZchunk)):
+        arrayKey = '%d,%d' % (x, z)
+        mcmap.arrayBlocks[arrayKey] = SharedMemArray(monkey)
+        mcmap.arrayData[arrayKey] = SharedMemArray(monkey)
+
     # iterate over images
     peaks = image.processImages(args.region, args.processes)
 
@@ -75,8 +87,8 @@ def main(argv):
     mcmap.saveWorld(peak)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
-    terrain.printLandCoverStatistics()
-    tree.printTreeStatistics()
+    #terrain.printLandCoverStatistics()
+    #tree.printTreeStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

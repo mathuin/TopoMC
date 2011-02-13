@@ -20,10 +20,14 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
         if (lcArray[brow,bcol] == 11):
             try:
                 for ring in ringrange:
-                    rbxmin = max(0, (brow-ring+1)+xDiff)
-                    rbxmax = min(bigMaxRows, (brow+ring+1)+xDiff)
-                    rbzmin = max(0, (bcol-ring+1)+zDiff)
-                    rbzmax = min(bigMaxCols, (bcol+ring+1)+zDiff)
+                    # rbxmin = max(0, (brow-ring+1)+xDiff)
+                    # rbxmax = min(bigMaxRows, (brow+ring+1)+xDiff)
+                    # rbzmin = max(0, (bcol-ring+1)+zDiff)
+                    # rbzmax = min(bigMaxCols, (bcol+ring+1)+zDiff)
+                    rbxmin = (brow-ring+1)+xDiff
+                    rbxmax = (brow+ring+1)+xDiff
+                    rbzmin = (bcol-ring+1)+zDiff
+                    rbzmax = (bcol+ring+1)+zDiff
                     ringarray = bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
                     if any(ringarray != 11):
                         raise Exception

@@ -1,6 +1,6 @@
 # minecraft map module
 import os
-from numpy import empty, array, uint8, zeros
+import numpy
 from pymclevel import mclevel
 from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
@@ -55,11 +55,8 @@ def layers(columns):
 def setBlockAt(x, y, z, string):
     global arrayBlocks
     arrayKey = '%d,%d' % (x >> 4, z >> 4)
-    try:
-        arrayBlocks[arrayKey]
-    except KeyError:
-        arrayBlocks[arrayKey] = zeros((16,16,128),dtype=uint8)
-    arrayBlocks[arrayKey][x & 0xf, z & 0xf, y] = materials.materialNamed(string)
+    myBlocks = arrayBlocks[arrayKey].asarray()
+    myBlocks[x & 0xf, z & 0xf, y] = materials.materialNamed(string)
 
 # more aggregates
 def setBlocksAt(blocks):
@@ -67,21 +64,15 @@ def setBlocksAt(blocks):
     for block in blocks:
         (x, y, z, string) = block
         arrayKey = '%d,%d' % (x >> 4, z >> 4)
-        try:
-            arrayBlocks[arrayKey]
-        except KeyError:
-            arrayBlocks[arrayKey] = zeros((16,16,128),dtype=uint8)
-        arrayBlocks[arrayKey][x & 0xf, z & 0xf, y] = materials.materialNamed(string)
+        myBlocks = arrayBlocks[arrayKey].asarray()
+        myBlocks[x & 0xf, z & 0xf, y] = materials.materialNamed(string)
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
     global arrayData
     arrayKey = '%d,%d' % (x >> 4, z >> 4)
-    try:
-        arrayData[arrayKey]
-    except KeyError:
-        arrayData[arrayKey] = zeros((16,16,128),dtype=uint8)
-    arrayData[arrayKey][x & 0xf, z & 0xf, y] = data
+    myData = arrayData[arrayKey].asarray()
+    myData[x & 0xf, z & 0xf, y] = data
 
 # my own setblocksdataat
 def setBlocksDataAt(blocks):
@@ -89,11 +80,8 @@ def setBlocksDataAt(blocks):
     for block in blocks:
         (x, y, z, data) = block
         arrayKey = '%d,%d' % (x >> 4, z >> 4)
-        try:
-            arrayData[arrayKey]
-        except KeyError:
-            arrayData[arrayKey] = zeros((16,16,128),dtype=uint8)
-        arrayData[arrayKey][x & 0xf, z & 0xf, y] = data
+        myData = arrayData[arrayKey].asarray()
+        myData[x & 0xf, z & 0xf, y] = data
 
 def populateChunk(key,maxcz):
     #print "key is %s" % (key)
@@ -110,13 +98,16 @@ def populateChunk(key,maxcz):
         world.createChunk(cx, cz)
     chunk = world.getChunk(cx, cz)
     world.compressChunk(cx, cz)
+    myBlocks = arrayBlocks[key].asarray()
+    myData = arrayData[key].asarray()
     for x, z in product(xrange(16), xrange(16)):
-        chunk.Blocks[x,z] = arrayBlocks[key][15-z,x]
-    arrayBlocks[key] = None
+        #chunk.Blocks[x,z] = arrayBlocks[key][15-z,x]
+        chunk.Blocks[x,z] = myBlocks[15-z,x]
+    #arrayBlocks[key] = None
     if key in arrayData:
         for x, z in product(xrange(16), xrange(16)):
-            chunk.Data[x,z] = arrayData[key][15-z,x]
-        arrayData[key] = None
+            chunk.Data[x,z] = myData[15-z,x]
+        #arrayData[key] = None
     chunk.chunkChanged(False)
     return (clock()-start)
 
@@ -125,9 +116,9 @@ def populateChunkstar(args):
 
 def populateWorld(processes):
     global world
-    allkeys = array([list(key.split(',')) for key in arrayBlocks.keys()])
+    allkeys = numpy.array([list(key.split(',')) for key in arrayBlocks.keys()])
     maxcz = int(max(allkeys[:,1]))
-    # FIXME: no multiprocessor support here either
+    # FIXME: still no multiprocessing support but less important
     if (processes == 1 or True):
         times = [populateChunk(key,maxcz) for key in arrayBlocks.keys()]
     else:

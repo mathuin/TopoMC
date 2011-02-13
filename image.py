@@ -91,7 +91,7 @@ def processImage(region, offset_x, offset_z):
     spawnz = 10
 
     # inform the user
-    print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
+    #print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
     (size_z, size_x) = lcarray.shape
     lcvals = []
 
@@ -109,17 +109,14 @@ def processImage(region, offset_x, offset_z):
             localmax = elevval
             spawnx = real_x
             spawnz = real_z
-        # FIXME: why does aggregation here not improve performance?
-        #lcvals.append((lcval, real_x, real_z, elevval, bathyval))
         processTerrain([(lcval, real_x, real_z, elevval, bathyval)])
-    #processTerrain(lcvals)
 	
     lcarray = None
     elevarray = None
     bathyarray = None
 
     # print out status
-    print '... finished in %.2f seconds.' % (clock()-imagetime)
+    #print '... finished in %.2f seconds.' % (clock()-imagetime)
 
     return (spawnx, spawnz, localmax)
 
@@ -128,8 +125,7 @@ def processImagestar(args):
     return processImage(*args)
 
 def processImages(region, processes):
-    # FIXME: not multiprocessor friendly (problem with processLcvar?)
-    if (processes == 1 or True):
+    if (processes == 1):
         peaks = [processImage(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
     else:
         pool = Pool(processes)
