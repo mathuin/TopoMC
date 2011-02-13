@@ -91,9 +91,12 @@ def processImage(region, offset_x, offset_z):
     spawnz = 10
 
     # inform the user
-    #print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
+    print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
     (size_z, size_x) = lcarray.shape
     lcvals = []
+    
+    # FIXME: aggregating lcvals is three times slower than individual?!
+    useAggregates = False
 
     # iterate over the image
     for x,z in product(xrange(size_x), xrange(size_z)):
@@ -109,14 +112,20 @@ def processImage(region, offset_x, offset_z):
             localmax = elevval
             spawnx = real_x
             spawnz = real_z
-        processTerrain([(lcval, real_x, real_z, elevval, bathyval)])
+        if (useAggregates):
+            lcvals.append((lcval, real_x, real_z, elevval, bathyval))
+        else:
+            processTerrain([(lcval, real_x, real_z, elevval, bathyval)])
+
+    if (useAggregates):
+        processTerrain(lcvals)
 	
     lcarray = None
     elevarray = None
     bathyarray = None
 
     # print out status
-    #print '... finished in %.2f seconds.' % (clock()-imagetime)
+    print '... finished with (%d, %d) in %.2f seconds.' % (offset_x, offset_z, clock()-imagetime)
 
     return (spawnx, spawnz, localmax)
 

@@ -12,7 +12,7 @@ from random import randint
 # constants
 sealevel = 64
 # headroom is the room between the tallest peak and the ceiling
-headroom = 5
+headroom = 10
 maxelev = 128-headroom-sealevel
 
 # each column consists of [x, z, elevval, ...]
@@ -114,16 +114,14 @@ def populateChunk(key,maxcz):
 def populateChunkstar(args):
     return populateChunk(*args)
 
-def populateWorld(processes):
+def populateWorld(processes,maxcx):
     global world
-    allkeys = numpy.array([list(key.split(',')) for key in arrayBlocks.keys()])
-    maxcz = int(max(allkeys[:,1]))
     # FIXME: still no multiprocessing support but less important
     if (processes == 1 or True):
-        times = [populateChunk(key,maxcz) for key in arrayBlocks.keys()]
+        times = [populateChunk(key,maxcx) for key in arrayBlocks.keys()]
     else:
         pool = Pool(processes)
-        tasks = [(key,maxcz) for key in arrayBlocks.keys()]
+        tasks = [(key,maxcx) for key in arrayBlocks.keys()]
         results = pool.imap_unordered(populateChunkstar, tasks)
         times = [x for x in results]
     count = len(times)
@@ -164,9 +162,8 @@ def initWorld(string):
 def saveWorld(spawn):
     global world
     sizeOnDisk = 0
-    # incoming spawn is in xzy
     # adjust it to sealevel, and then up another two for good measure
-    spawnxyz = (spawn[0], spawn[2]+sealevel+2, spawn[1])
+    spawnxyz = (spawn[0], spawn[2]+sealevel+1, spawn[1])
     world.setPlayerPosition(spawnxyz)
     world.setPlayerSpawnPosition(spawnxyz)
     # stolen from pymclevel/mce.py
