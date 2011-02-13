@@ -9,12 +9,13 @@ from itertools import product
 from multinumpy import SharedMemArray
 from numpy import zeros, uint8
 from pymclevel import mclevel
+from pymclevel.nbt import TAG_List, TAG_Compound, TAG_Short, TAG_Byte
 #
 import image
 import terrain
 import tree
 import mcmap
-from pymclevel.nbt import TAG_List, TAG_Compound, TAG_Short, TAG_Byte
+import building
 
 # everything an explorer needs, for now
 def equipPlayer(world):
@@ -79,7 +80,6 @@ def main(argv):
     maxX, maxZ = image.imageDims[args.region]
     maxXchunk = (maxX >> 4)
     maxZchunk = (maxZ >> 4)
-    #monkey = zeros((16,16,128),dtype=uint8)
     for x, z in product(xrange(-1,maxXchunk+1), xrange(-1,maxZchunk+1)):
         arrayKey = '%d,%d' % (x, z)
         try:
@@ -92,20 +92,13 @@ def main(argv):
 
     # iterate over images
     peaks = image.processImages(args.region, args.processes)
-    # FIXME: these peaks need to be rotated to be valid
-    newpeaks = [(peak[1], maxX-peak[0], peak[2]) for peak in peaks]
         
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
-    peak = sorted(newpeaks, key=lambda point: point[2], reverse=True)[0]
+    peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # place the safehouse at the peak (adjust it)
-    print "reading safehouse"
-    safeHouse = mclevel.fromFile("SafeHouse.schematic")
-    print "safehouse has %s" % safeHouse.bounds
-    safeHouseCorner = (peak[0]-5, peak[2]-1+mcmap.sealevel, peak[1]-4)
-    print "corner is %d, %d, %d" % (safeHouseCorner[0], safeHouseCorner[1], safeHouseCorner[2])
-    mcmap.world.copyBlocksFrom(safeHouse, safeHouse.bounds, safeHouseCorner, range(256))
+    building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
 
     # write array to level
     mcmap.populateWorld(args.processes,maxXchunk)
@@ -115,7 +108,7 @@ def main(argv):
 
     # set player position and spawn point (in this case, equal)
     equipPlayer(mcmap.world)
-    mcmap.saveWorld(peak)
+    mcmap.saveWorld(peak, maxX)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     #terrain.printLandCoverStatistics()
