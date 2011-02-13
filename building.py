@@ -58,7 +58,7 @@ def building(x, z, elevval, length, width, height, side):
 	doorleftz = z-1;
 	doorrightx = left;
 	doorrightz = z+1;
-	doorhinge = 0x2;
+	doorhinge = 0x1;
 	doortorchx = left+1;
 	doortorchz = z;
 	doortorchdata = 0x4;
@@ -100,7 +100,7 @@ def building(x, z, elevval, length, width, height, side):
 	doorleftz = z+1;
 	doorrightx = right;
 	doorrightz = z-1;
-	doorhinge = 0x1;
+	doorhinge = 0x2;
 	doortorchx = right-1;
 	doortorchz = z;
 	doortorchdata = 0x3;
