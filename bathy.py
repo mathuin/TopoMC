@@ -7,21 +7,24 @@ from dataset import getDatasetDims
 
 useNew = True
 
-def getBathymetry(lcArray, maxDepth, slope=1):
+def getBathymetry(lcArray, bigArray, maxDepth, slope=1):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
     # FIXME: eventually support ice as well as water here
     bathyMaxRows, bathyMaxCols = lcArray.shape
+    bigMaxRows, bigMaxCols = bigArray.shape
+    xDiff = (bigMaxRows-bathyMaxRows)/2
+    zDiff = (bigMaxCols-bathyMaxCols)/2
     bathyArray = zeros((bathyMaxRows, bathyMaxCols),dtype=uint8)
     ringrange = xrange(1,maxDepth)
     for brow, bcol in product(xrange(bathyMaxRows), xrange(bathyMaxCols)):
         if (lcArray[brow,bcol] == 11):
             try:
                 for ring in ringrange:
-                    rbxmin = max(0, brow-ring+1)
-                    rbxmax = min(bathyMaxRows, brow+ring+1)
-                    rbzmin = max(0, bcol-ring+1)
-                    rbzmax = min(bathyMaxCols, bcol+ring+1)
-                    ringarray = lcArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
+                    rbxmin = max(0, (brow-ring+1)+xDiff)
+                    rbxmax = min(bigMaxRows, (brow+ring+1)+xDiff)
+                    rbzmin = max(0, (bcol-ring+1)+zDiff)
+                    rbzmax = min(bigMaxCols, (bcol+ring+1)+zDiff)
+                    ringarray = bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
                     if any(ringarray != 11):
                         raise Exception
             except Exception:

@@ -78,6 +78,8 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
 
     baseShape = (baseSize[1], baseSize[0])
     baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
+    idtShape = (idtSize[1], idtSize[0])
+    idtArray = getLatLongArray(lcds, idtOffset, idtSize, mult)
 
     # these points are scaled coordinates
     idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
@@ -93,8 +95,9 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
-    # TODO: fix this so it reads idtpadded data
-    bathyImageArray = getBathymetry(lcImageArray, maxdepth, slope)
+    bigImageArray = getImageArray(lcds, (idtUL, idtLR), idtArray, 11, majority=True)
+    bigImageArray.resize(idtShape)
+    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, maxdepth, slope)
     
     # save images
     lcImage = Image.fromarray(lcImageArray)
