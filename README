@@ -1,5 +1,7 @@
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
 
+Please delete any checkout of TopoMC-Datasets.  This information is no longer compatible with TopoMC and will be deleted from github soon.
+
 Features include:
  * Datasets can now be downloaded directly from the USGS!
  * The project is now pure Python.  The speed is worth it.
@@ -7,7 +9,9 @@ Features include:
  * North is now north!  That math was more annoying than I expected. :-)
  * Simulated bathymetric data based on local terrain.
 
-This project includes one small dataset for testing.  I am retiring the other repository.  You will have to remove any checkout of TopoMC-Datasets if you wish to use this code.
+This project includes one small dataset for testing.  It was generated with the following commands:
+     ./GetDataset.py --region BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
+     ./WarpElev.sh --region BlockIsland
 
 The default spawn point is at the highest point in the dataset.
 
