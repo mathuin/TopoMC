@@ -159,11 +159,11 @@ def initWorld(string):
         myworld = mclevel.loadWorldNumber(worldNum)
     return myworld
 
-def saveWorld(spawn):
+def saveWorld(spawn, maxx):
     global world
     sizeOnDisk = 0
     # adjust it to sealevel, and then up another two for good measure
-    spawnxyz = (spawn[0], spawn[2]+sealevel+1, spawn[1])
+    spawnxyz = (spawn[1], spawn[2]+sealevel+2, maxx-spawn[0])
     world.setPlayerPosition(spawnxyz)
     world.setPlayerSpawnPosition(spawnxyz)
     # stolen from pymclevel/mce.py
