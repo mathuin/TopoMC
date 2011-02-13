@@ -4,13 +4,13 @@ Test and drivers for all functions
  - maybe even comments!
 Convert most print output to logging statements
  - boy this is spammy
-More optimization
- - aggregates aren't working, sigh
 Schematics and equipping the player
- - pymclevel supports the former but not yet the latter
+ - in progress
 Support multiple USGS chunks per dataset
  - ./image.py needs to be redesigned
 Normal stuff underground!
  - a few ideas, always looking for more!
 Full multiprocessing support
- - Pool() isn't working, maybe Manager() will?
+ - everything works except turning chunks into worlds
+Clean up WarpElev.sh
+ - only unzip the files we want
