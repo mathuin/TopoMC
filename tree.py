@@ -1,12 +1,13 @@
 # tree module
+from __future__ import division
 from random import random, randint
 from mcmap import sealevel, setBlockAt, setBlockDataAt
-from math import fabs, sqrt
+from math import fabs, sqrt, ceil
 from pymclevel.materials import alphaMaterials
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
-from numpy import zeros, int64
+from numpy import zeros, int64, fromfunction
 
 # tree constants
 treeProb = 0.001
@@ -14,85 +15,83 @@ treeProb = 0.001
 # in a 10x10 area would provide about 60% coverage.
 forestProb = 0.03
 
+# maximum distance from the trunk
+treeWidth = 3
+sumSquares = fromfunction(lambda i, j: ((i-treeWidth)*(i-treeWidth)+(j-treeWidth)*(j-treeWidth)), (treeWidth*2+1, treeWidth*2+1), dtype=int64)
+
+# leaf pattern functions
+def regularPattern(x, z, y, maxy):
+    ydist = min(y, maxy-y)
+    return (sumSquares[ydist, ydist] < sumSquares[x, z])
+
+def redwoodPattern(x, z, y, maxy):
+    if (y == maxy):
+        sawtooth = 1
+    else:
+        sawtooth = (maxy-y)%3+2
+    return (sumSquares[sawtooth, sawtooth] < sumSquares[x, z])
+
+def birchPattern(x, z, y, maxy):
+    if (y == maxy):
+        fromTop = 1
+    else:
+        fromTop = ceil((maxy-y)/3)
+    return (sumSquares[fromTop, fromTop] < sumSquares[x, z])
+
+def shrubPattern(x, z, y, maxy):
+    return (sumSquares[x, z] < 3)
+
 # tree statistics
-# last two here need to be multiprocessor friendly
 treeType = {
-    0 : "cactus",
-    1 : "regular",
-    2 : "redwood",
-    3 : "birch",
-    4 : "shrub"
+    0 : 'Cactus',
+    1 : 'Regular',
+    2 : 'Redwood',
+    3 : 'Birch',
+    4 : 'Shrub'
     }
 treeCount = {}
 for key in treeType.keys():
     treeCount[key] = Value('i', 0)
-treeTotal = Value('i', 0)
+#treeTotal = Value('i', 0)
+# min height, max height, trunk height
+treeHeight = [[3, 3, 3], [5, 7, 3], [7, 9, 3], [6, 8, 3], [2, 4, 1]]
+leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
 
 def printTreeStatistics():
-    print 'Tree statistics (%d total):' % treeTotal.value
     treeTuples = [(treeType[index], treeCount[index].value) for index in treeCount if treeCount[index].value > 0]
+    treeTotal = sum([treeTuple[1] for treeTuple in treeTuples])
+    print 'Tree statistics (%d total):' % treeTotal
     for key, value in sorted(treeTuples, key=lambda tree: tree[1], reverse=True):
-        treePercent = round((value*10000)/treeTotal.value)/100.0
+        treePercent = (value*100)/treeTotal
         print '  %d (%.2f%%): %s' % (value, treePercent, key)
 
-def placeTree(x, z, elevval, probFactor, treeType):
+def placeTree(x, z, elevval, probFactor, treeName):
     chance = random()
     if (chance < probFactor):
-        makeTree(x, z, elevval, treeType)
+        treeNum = [key for key in treeType if treeType[key] == treeName][0]
+        makeTree(x, z, elevval, treeNum)
 
-# actually places leaves and tree
-# trees may hit roof!
-# need to watch for this
-def makeTree(x, z, elevval, treeType):
-    global treeTotal
-    # FIXME: define leaf function somehow here
-    # example redwood: _\\\
-    #         regular: _/-\
-    #         birch  : _|-\
-    #         shrub  : -\     
-    if (treeType == -1):
-        # cactus
-        height = 3
-    elif (treeType == 0):
-        # regular
-        height = randint(5, 7)
-    elif (treeType == 1):
-        # redwood
-        height = randint(7, 9)
-    elif (treeType == 2):
-        # birch
-        height = randint(6, 8)
-    elif (treeType == 3):
-        # shrub
-        height = randint(2, 4)
+def makeTree(x, z, elevval, treeNum):
+    testMonkey = True
     base = sealevel+elevval
-    maxleafheight = height+2
-    trunkheight = 3
-    leafheight = maxleafheight-trunkheight
-    if (treeType == -1):
-        [setBlockAt(x, sealevel+elevval+y, z, 'Cactus') for y in xrange(height)]
+    height = randint(treeHeight[treeNum][0], treeHeight[treeNum][1])
+    leafbottom = base+treeHeight[treeNum][2]
+    maxleafheight = base+height+1
+    leafheight = maxleafheight-leafbottom
+    # special case cactus!
+    if (treeNum == 0):
+        [setBlockAt(x, base+y, z, 'Cactus') for y in xrange(height)]
     else:
-        for y in xrange(base+trunkheight,base+maxleafheight):
-            curleafheight = y-(base+trunkheight)
-            #curleafwidth = min(curleafheight,leafheight-curleafheight)
-            # JMT: this makes a redwood-like leaf pattern
-            curleafwidth = (leafheight-curleafheight)/2+1
-            
-            xminleaf = x - curleafwidth
-            xmaxleaf = x + curleafwidth +1
-            xrangeleaf = xrange(xminleaf, xmaxleaf)
-            zminleaf = z - curleafwidth
-            zmaxleaf = z + curleafwidth +1
-            zrangeleaf = xrange(zminleaf, zmaxleaf)
-            for xindex, zindex in product(xrangeleaf, zrangeleaf):
-                if (sqrt(pow(xindex-x,2)+pow(zindex-z,2)) < 0.75*curleafwidth):
-                    setBlockAt(xindex, y, zindex, 'Leaves')
-                    setBlockDataAt(xindex, y, zindex, treeType)
+        leafxzrange = xrange(0-treeWidth,sumSquares.shape[0]-treeWidth)
+        leafyrange = xrange(leafheight+1)
+        for leafx, leafz, leafy in product(leafxzrange, leafxzrange, leafyrange):
+            if leafPattern[treeNum](leafx, leafz, leafy, leafheight):
+                setBlockAt(x+leafx, leafbottom+leafy, z+leafz, 'Leaves')
+                setBlockDataAt(x+leafx, leafbottom+leafy, z+leafz, treeNum-1)
         for y in xrange(base,base+height):
             # FIXME: sigh, 'Tree trunk' doesn't work
             setBlockAt(x, y, z, alphaMaterials.names[17])
-            setBlockDataAt(x, y, z, treeType)
-                
+            setBlockDataAt(x, y, z, treeNum-1)
     # increment tree count
-    treeCount[treeType+1].value += 1
-    treeTotal.value += 1
+    treeCount[treeNum].value += 1
+    #treeTotal.value += 1

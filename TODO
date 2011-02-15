@@ -14,3 +14,8 @@ Full multiprocessing support
  - everything works except turning chunks into worlds
 Clean up WarpElev.sh
  - only unzip the files we want
+Clean up terrain.py
+ - move terrain types into abstract routines to support more land cover types
+Support NED 1/9 arc seconds
+ - is this anything more than downloading?
+ - multiple chunks come first!
