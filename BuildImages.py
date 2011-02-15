@@ -67,7 +67,7 @@ def checkVScale(args):
     elevds = None
     elevMax = elevCMinMax[1]
     vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, (elevMax/maxelev)-1)
+    vscale = max(vscale, (elevMax/maxelev)+1)
     if (vscale != oldvscale):
         print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
     args.vscale = vscale
