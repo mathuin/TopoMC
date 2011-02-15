@@ -1,10 +1,33 @@
 # landcover module
 from random import random, randint
 from mcmap import layers
-from tree import placeTree
+from tree import placeTree, treeProb, forestProb
 from multinumpy import SharedMemArray
-from numpy import zeros, int32
+from numpy import zeros, int64
 from multiprocessing import Value
+
+# land cover constants
+# (see http://www.epa.gov/mrlc/definitions.html among others)
+# what portion of developed land should be stone versus grass
+# 21: <20, 22: 20-49, 23: 50-79, 24: 80-100
+level21stone = 0.10
+level22stone = 0.35
+level23stone = 0.65
+level24stone = 0.90
+# what portion of barren land should be stone versus sand
+# no real values inferred
+level31stone = 0.50
+# forest: trees > 5m tall, canopy 25-100%
+# what portion of mixed forest is deciduous versus evergreen
+# 43: neither deciduous nor evergreen is greater than 75 percent
+level43tree0 = 0.50
+# shrubland: trees < 5m tall
+level51stone = 0.25
+level52stone = 0.25
+level73stone = 0.90
+level74stone = 0.90
+# what percentage of wetlands should be grass (versus water)
+wetlandsgrass = 0.80
 
 # land cover statistics
 # last two here need to be multiprocessor friendly
@@ -267,99 +290,99 @@ lcType = {
         # 254 : "Unused", 
         # 255 : "Unused" 
         }
-lcCount = SharedMemArray(zeros((256),dtype=int32))
+# FIXME: this should be a dict!
+lcCount = {}
+for key in lcType.keys():
+    lcCount[key] = Value('i', 0)
 lcTotal = Value('i', 0)
 nodata = 0
 
 def printLandCoverStatistics():
     print 'Land cover statistics (%d total):' % lcTotal.value
-    lcCountArr = lcCount.asarray()
-    lcTuples = [(lcType[index], lcCountArr[index]) for index in lcCountArr]
+    lcTuples = [(lcType[index], lcCount[index].value) for index in lcCount.keys() if lcCount[index].value > 0]
     for key, value in sorted(lcTuples, key=lambda lc: lc[1], reverse=True):
-        if value > 0:
-            lcPercent = round((value*10000)/lcTotal.value)/100.0
-            print '  %d (%.2f%%): %s' % (value, lcPercent, key)
+        lcPercent = round((value*10000)/lcTotal.value)/100.0
+        print '  %d (%.2f%%): %s' % (value, lcPercent, key)
 
 # process an aggregate of given land cover value
 def processTerrain(terrains):
     columns = []
-    lcCountArr = lcCount.asarray()
     for terrain in terrains:
         (lcval, x, z, elevval, bathyval) = terrain
         lcTotal.value += 1
         if (lcval not in lcType):
-            print('unexpected value for land cover: ' + lcval)
-            lcCountArr[0] += 1
+            print('unexpected value for land cover: %d' % lcval)
+            lcCount[0].value += 1
             columns.append([x, z, elevval, 'Dirt'])
         else:
             if (lcval == 127):
                 # no data!
                 lcval = nodata
-            lcCountArr[lcval] += 1
+            lcCount[lcval].value += 1
             # http://www.mrlc.gov/nlcd_definitions.php
             if (lcval == 11):
                 columns.append([x, z, elevval, 'Sand', bathyval, 'Water'])
             elif (lcval == 12):
                 columns.append([x, z, elevval, 'Sand', bathyval, 'Ice'])
             elif (lcval == 21):
-                if (random() < 0.20):
+                if (random() < level21stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 1, 0)
+                    placeTree(x, z, elevval, treeProb, 0)
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 22):
-                if (random() < 0.35):
+                if (random() < level22stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 1, 0)
+                    placeTree(x, z, elevval, treeProb, 0)
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 23):
-                if (random() < 0.65):
+                if (random() < level23stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 1, 0)
+                    placeTree(x, z, elevval, treeProb, 0)
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 24):
-                if (random() < 0.90):
+                if (random() < level24stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 1, 0)
+                    placeTree(x, z, elevval, treeProb, 0)
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 31):
-                if (random() < 0.20):
+                if (random() < level31stone):
                     blockType = 'Stone'
                 else:
-                    placeTree(x, z, elevval, 1, -1)
+                    placeTree(x, z, elevval, treeProb, -1)
                     blockType = 'Sand'
                 columns.append([x, z, elevval, 'Sand', 2, blockType])
             elif (lcval == 32):
                 columns.append([x, z, elevval, 'Sand'])
             elif (lcval == 41):
                 columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
-                placeTree(x, z, elevval, 5, 2)
+                placeTree(x, z, elevval, forestProb, 2)
             elif (lcval == 42):
                 columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
-                placeTree(x, z, elevval, 5, 1)
+                placeTree(x, z, elevval, forestProb, 1)
             elif (lcval == 43):
-                if (random() < 0.50):
+                if (random() < level43tree0):
                     treeType = 0
                 else:
                     treeType = 1
                 columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
-                placeTree(x, z, elevval, 5, treeType)
+                placeTree(x, z, elevval, forestProb, treeType)
             elif (lcval == 51):
-                if (random() < 0.25):
+                if (random() < level51stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 52):
                 # FIXME: make shrubs?
-                if (random() < 0.25):
+                if (random() < level52stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
@@ -369,13 +392,13 @@ def processTerrain(terrains):
             elif (lcval == 72):
                 columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
             elif (lcval == 73):
-                if (random() < 0.90):
+                if (random() < level73stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 74):
-                if (random() < 0.90):
+                if (random() < level74stone):
                     blockType = 'Stone'
                 else:
                     blockType = 'Grass'
@@ -385,40 +408,40 @@ def processTerrain(terrains):
             elif (lcval == 82):
                 columns.append([x, z, elevval, 'Dirt', 1, 'Grass'])
             elif (lcval == 90):
-                if (random() < 0.50):
+                if (random() < wetlandsgrass):
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 5, 1)
+                    placeTree(x, z, elevval, forestProb, 1)
                 else:
                     blockType = 'Water'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 91):
-                if (random() < 0.50):
+                if (random() < wetlandsgrass):
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 5, 0)
+                    placeTree(x, z, elevval, forestProb, 0)
                 else:
                     blockType = 'Water'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 92):
-                if (random() < 0.50):
+                if (random() < wetlandsgrass):
                     blockType = 'Grass'
                 else:
                     blockType = 'Water'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 93):
-                if (random() < 0.50):
+                if (random() < wetlandsgrass):
                     blockType = 'Grass'
-                    placeTree(x, z, elevval, 5, 2)
+                    placeTree(x, z, elevval, forestProb, 2)
                 else:
                     blockType = 'Water'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 94):
-                if (random() < 0.50):
+                if (random() < wetlandsgrass):
                     blockType = 'Grass'
                 else:
                     blockType = 'Water'
                 columns.append([x, z, elevval, 'Dirt', 1, blockType])
             elif (lcval == 95):
-                if (random() < 0.50):
+                if (random() < wetlandsgrass):
                     blockType = 'Grass'
                 else:
                     blockType = 'Water'
