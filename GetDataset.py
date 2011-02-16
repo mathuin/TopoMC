@@ -52,6 +52,11 @@ def checkInventory(args, EPSG):
     # NED: elevation (1 arc second, about 30 meters)
     # ND3: elevation (1/3 arc second, about 10 meters)
     # (where are roads and crap? not here yet)
+    # other possibly desirable datasets:
+    # LIS: 2001 land cover impervious surface (stone coverage?)
+    # LCY: 2001 land cover canopy (more trees)
+    # L92: 1992 land cover (uses different definitions)
+    # ND9: elevation (1/9 arc second, about 3 meters)
     desiredProductIDs = ['L01','NED','ND3']
     productIDs = []
     # this returns an array of custom attributes
