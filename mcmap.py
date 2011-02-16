@@ -6,6 +6,8 @@ from pymclevel.materials import materials
 from pymclevel.box import BoundingBox
 from time import clock
 from multiprocessing import Pool
+from multinumpy import SharedMemArray
+from numpy import zeros, uint8
 from itertools import product
 from random import randint
 
@@ -14,6 +16,28 @@ sealevel = 64
 # headroom is the room between the tallest peak and the ceiling
 headroom = 10
 maxelev = 128-headroom-sealevel
+
+makeWorldNow = False
+# FIXME: add map extents here
+# minx, maxx, minz, maxz
+def scaffoldWorld(minX, minZ, maxX, maxZ):
+    # for now, assume minX and minZ are zero
+    minXchunk = (minX >> 4)
+    minZchunk = (minZ >> 4)
+    maxXchunk = (maxX >> 4)
+    maxZchunk = (maxZ >> 4)
+    chunkX = xrange(minXchunk-1, maxXchunk+2)
+    chunkZ = xrange(minZchunk-1, maxZchunk+2)
+    for x, z in product(chunkX, chunkZ):
+        arrayKey = '%d,%d' % (x, z)
+        if (makeWorldNow):
+            try:
+                world.getChunk(z, x)
+            except mclevel.ChunkNotPresent:
+                world.createChunk(z, x)
+            world.compressChunk(z, x)
+        arrayBlocks[arrayKey] = SharedMemArray(zeros((16,16,128),dtype=uint8))
+        arrayData[arrayKey] = SharedMemArray(zeros((16,16,128),dtype=uint8))
 
 # each column consists of [x, z, elevval, ...]
 # where ... is a block followed by zero or more number-block pairs
@@ -51,6 +75,22 @@ def layers(columns):
                 top -= layer
     setBlocksAt(blocks)
         
+# fillBlocks(right, length, bottom, height, back, width, blockTypes.Air);
+def fillBlocks(ix, dx, iy, dy, iz, dz, block, data=None):
+    rx = xrange(int(ix), int(ix+dx))
+    ry = xrange(int(iy), int(iy+dy))
+    rz = xrange(int(iz), int(iz+dz))
+
+    blockList = []
+    dataList = []
+
+    [blockList.append((x, y, z, block)) for x,y,z in product(rx, ry, rz)]
+    setBlocksAt(blockList)
+
+    if (data != None):
+        [dataList.append((x, y, z, data)) for x,y,z in product(rx, ry, rz)]
+        setBlocksDataAt(dataList)
+
 # my own setblockat
 def setBlockAt(x, y, z, string):
     global arrayBlocks
@@ -101,21 +141,18 @@ def populateChunk(key,maxcz):
     myBlocks = arrayBlocks[key].asarray()
     myData = arrayData[key].asarray()
     for x, z in product(xrange(16), xrange(16)):
-        #chunk.Blocks[x,z] = arrayBlocks[key][15-z,x]
         chunk.Blocks[x,z] = myBlocks[15-z,x]
-    #arrayBlocks[key] = None
     if key in arrayData:
         for x, z in product(xrange(16), xrange(16)):
             chunk.Data[x,z] = myData[15-z,x]
-        #arrayData[key] = None
     chunk.chunkChanged(False)
     return (clock()-start)
 
 def populateChunkstar(args):
     return populateChunk(*args)
 
-def populateWorld(processes,maxcx):
-    global world
+def populateWorld(processes,minX,maxX):
+    maxcx = (maxX-minX) >> 4
     # FIXME: still no multiprocessing support but less important
     if (processes == 1 or True):
         times = [populateChunk(key,maxcx) for key in arrayBlocks.keys()]
@@ -159,11 +196,11 @@ def initWorld(string):
         myworld = mclevel.loadWorldNumber(worldNum)
     return myworld
 
-def saveWorld(spawn, maxx):
+def saveWorld(spawn, minX, maxX):
     global world
     sizeOnDisk = 0
     # adjust it to sealevel, and then up another two for good measure
-    spawnxyz = (spawn[1], spawn[2]+sealevel+2, maxx-spawn[0])
+    spawnxyz = (spawn[1], spawn[2]+sealevel+2, (maxX-minX)-spawn[0])
     world.setPlayerPosition(spawnxyz)
     world.setPlayerSpawnPosition(spawnxyz)
     # stolen from pymclevel/mce.py
