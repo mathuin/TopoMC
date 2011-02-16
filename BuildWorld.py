@@ -77,18 +77,10 @@ def main(argv):
     print 'Creating world from region %s' % args.region
 
     # create shared memory for each expected chunk
+    minX = 0
+    minZ = 0
     maxX, maxZ = image.imageDims[args.region]
-    maxXchunk = (maxX >> 4)
-    maxZchunk = (maxZ >> 4)
-    for x, z in product(xrange(-1,maxXchunk+1), xrange(-1,maxZchunk+1)):
-        arrayKey = '%d,%d' % (x, z)
-        try:
-            mcmap.world.getChunk(z, x)
-        except mclevel.ChunkNotPresent:
-            mcmap.world.createChunk(z, x)
-        mcmap.world.compressChunk(z, x)
-        mcmap.arrayBlocks[arrayKey] = SharedMemArray(zeros((16,16,128),dtype=uint8))
-        mcmap.arrayData[arrayKey] = SharedMemArray(zeros((16,16,128),dtype=uint8))
+    mcmap.scaffoldWorld(minX, minZ, maxX, maxZ)
 
     # iterate over images
     peaks = image.processImages(args.region, args.processes)
@@ -101,14 +93,14 @@ def main(argv):
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
 
     # write array to level
-    mcmap.populateWorld(args.processes,maxXchunk)
+    mcmap.populateWorld(args.processes, minX, maxX)
 
     # maximum elevation
     print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
 
     # set player position and spawn point (in this case, equal)
     equipPlayer(mcmap.world)
-    mcmap.saveWorld(peak, maxX)
+    mcmap.saveWorld(peak, minX, maxX)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     terrain.printLandCoverStatistics()
