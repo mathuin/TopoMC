@@ -1,22 +1,6 @@
 from itertools import product
-from mcmap import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel
+from mcmap import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel, fillBlocks
 from time import clock
-
-# fillBlocks(right, length, bottom, height, back, width, blockTypes.Air);
-def fillBlocks(ix, dx, iy, dy, iz, dz, block, data=None):
-    rx = xrange(int(ix), int(ix+dx))
-    ry = xrange(int(iy), int(iy+dy))
-    rz = xrange(int(iz), int(iz+dz))
-
-    blockList = []
-    dataList = []
-
-    [blockList.append((x, y, z, block)) for x,y,z in product(rx, ry, rz)]
-    setBlocksAt(blockList)
-
-    if (data != None):
-        [dataList.append((x, y, z, data)) for x,y,z in product(rx, ry, rz)]
-        setBlocksDataAt(dataList)
 
 def building(x, z, elevval, length, width, height, side):
     buildingstart = clock()
