@@ -2,12 +2,11 @@
 from __future__ import division
 from random import random, randint
 from mcmap import sealevel, setBlockAt, setBlockDataAt
-from math import fabs, sqrt, ceil
 from pymclevel.materials import alphaMaterials
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
-from numpy import zeros, int64, fromfunction
+from numpy import zeros, int64, fromfunction, float32, sqrt
 
 # tree constants
 treeProb = 0.001
@@ -17,29 +16,46 @@ forestProb = 0.03
 
 # maximum distance from the trunk
 treeWidth = 3
-sumSquares = fromfunction(lambda i, j: ((i-treeWidth)*(i-treeWidth)+(j-treeWidth)*(j-treeWidth)), (treeWidth*2+1, treeWidth*2+1), dtype=int64)
+leafDistance = fromfunction(lambda i, j: sqrt((i-treeWidth)*(i-treeWidth)+(j-treeWidth)*(j-treeWidth)), (treeWidth*2+1, treeWidth*2+1), dtype=float32)
+# [[ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24],
+#  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],
+#  [ 3.16, 2.23, 1.41, 1.00, 1.41, 2.23, 3.16],
+#  [ 3.00, 2.00, 1.00, 0.00, 1.00, 2.00, 3.00],
+#  [ 3.16, 2.23, 1.41, 1.00, 1.41, 2.23, 3.16],
+#  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],
+#  [ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24]]
 
-# leaf pattern functions
+print leafDistance
+
+# leaf pattern functions 
 def regularPattern(x, z, y, maxy):
-    ydist = min(y, maxy-y)
-    return (sumSquares[ydist, ydist] < sumSquares[x, z])
+    if (leafDistance[x, z] <= 2.5):
+        if (y == 0):
+            print "regular: x=%d, z=%d, ld=%.2f" % (x, z, leafDistance[x, z])
+        return True
+    else:
+        return False
 
 def redwoodPattern(x, z, y, maxy):
-    if (y == maxy):
-        sawtooth = 1
+    if (leafDistance[x, z] < 2.5):
+        return True
     else:
-        sawtooth = (maxy-y)%3+2
-    return (sumSquares[sawtooth, sawtooth] < sumSquares[x, z])
+        return False
 
 def birchPattern(x, z, y, maxy):
-    if (y == maxy):
-        fromTop = 1
+    if (leafDistance[x, z] < 2.5):
+        return True
     else:
-        fromTop = ceil((maxy-y)/3)
-    return (sumSquares[fromTop, fromTop] < sumSquares[x, z])
+        return False
 
 def shrubPattern(x, z, y, maxy):
-    return (sumSquares[x, z] < 3)
+    if (leafDistance[x, z] < 2.5):
+        return True
+    else:
+        return False
+
+def palmPattern(x, z, y, maxy):
+    return (y == maxy)
 
 # tree statistics
 treeType = {
@@ -82,12 +98,12 @@ def makeTree(x, z, elevval, treeNum):
     if (treeNum == 0):
         [setBlockAt(x, base+y, z, 'Cactus') for y in xrange(height)]
     else:
-        leafxzrange = xrange(0-treeWidth,sumSquares.shape[0]-treeWidth)
-        leafyrange = xrange(leafheight+1)
-        for leafx, leafz, leafy in product(leafxzrange, leafxzrange, leafyrange):
+        lxzrange = xrange(leafDistance.shape[0])
+        lyrange = xrange(leafheight+1)
+        for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
             if leafPattern[treeNum](leafx, leafz, leafy, leafheight):
-                setBlockAt(x+leafx, leafbottom+leafy, z+leafz, 'Leaves')
-                setBlockDataAt(x+leafx, leafbottom+leafy, z+leafz, treeNum-1)
+                setBlockAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, 'Leaves')
+                setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
         for y in xrange(base,base+height):
             # FIXME: sigh, 'Tree trunk' doesn't work
             setBlockAt(x, y, z, alphaMaterials.names[17])
