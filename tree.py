@@ -25,37 +25,21 @@ leafDistance = fromfunction(lambda i, j: sqrt((i-treeWidth)*(i-treeWidth)+(j-tre
 #  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],
 #  [ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24]]
 
-print leafDistance
-
 # leaf pattern functions 
 def regularPattern(x, z, y, maxy):
-    if (leafDistance[x, z] <= 2.5):
-        if (y == 0):
-            print "regular: x=%d, z=%d, ld=%.2f" % (x, z, leafDistance[x, z])
-        return True
-    else:
-        return False
+    return (leafDistance[x, z] <= 1.2*(min(y, maxy-y)+1))
 
 def redwoodPattern(x, z, y, maxy):
-    if (leafDistance[x, z] < 2.5):
-        return True
-    else:
-        return False
+    return (leafDistance[x, z] <= 0.75*((maxy-y)%(treeWidth+1)+1))
 
 def birchPattern(x, z, y, maxy):
-    if (leafDistance[x, z] < 2.5):
-        return True
-    else:
-        return False
+    return (leafDistance[x, z] <= (maxy-y+1)*treeWidth/maxy)
 
 def shrubPattern(x, z, y, maxy):
-    if (leafDistance[x, z] < 2.5):
-        return True
-    else:
-        return False
+    return (leafDistance[x, z] < 1.5*(maxy-y)/maxy+0.5)
 
 def palmPattern(x, z, y, maxy):
-    return (y == maxy)
+    return (y == maxy and leafDistance[x, z] < treeWidth+1)
 
 # tree statistics
 treeType = {
@@ -68,9 +52,8 @@ treeType = {
 treeCount = {}
 for key in treeType.keys():
     treeCount[key] = Value('i', 0)
-#treeTotal = Value('i', 0)
 # min height, max height, trunk height
-treeHeight = [[3, 3, 3], [5, 7, 3], [7, 9, 3], [6, 8, 3], [2, 4, 1]]
+treeHeight = [[3, 3, 3], [5, 7, 2], [9, 11, 2], [7, 9, 2], [1, 3, 0]]
 leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
 
 def printTreeStatistics():
@@ -99,9 +82,9 @@ def makeTree(x, z, elevval, treeNum):
         [setBlockAt(x, base+y, z, 'Cactus') for y in xrange(height)]
     else:
         lxzrange = xrange(leafDistance.shape[0])
-        lyrange = xrange(leafheight+1)
+        lyrange = xrange(leafheight)
         for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
-            if leafPattern[treeNum](leafx, leafz, leafy, leafheight):
+            if leafPattern[treeNum](leafx, leafz, leafy, leafheight-1):
                 setBlockAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, 'Leaves')
                 setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
         for y in xrange(base,base+height):
@@ -110,4 +93,3 @@ def makeTree(x, z, elevval, treeNum):
             setBlockDataAt(x, y, z, treeNum-1)
     # increment tree count
     treeCount[treeNum].value += 1
-    #treeTotal.value += 1
