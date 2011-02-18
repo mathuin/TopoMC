@@ -27,16 +27,16 @@ leafDistance = fromfunction(lambda i, j: sqrt((i-treeWidth)*(i-treeWidth)+(j-tre
 
 # leaf pattern functions 
 def regularPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= 1.2*(min(y, maxy-y)+1))
+    return (leafDistance[x, z] <= (maxy-y+2)*treeWidth/maxy)
 
 def redwoodPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= 0.75*((maxy-y)%(treeWidth+1)+1))
+    return (leafDistance[x, z] <= 0.75*((maxy-y+1)%(treeWidth+1)+1))
 
 def birchPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= (maxy-y+1)*treeWidth/maxy)
+    return (leafDistance[x, z] <= 1.2*(min(y, maxy-y+1)+1))
 
 def shrubPattern(x, z, y, maxy):
-    return (leafDistance[x, z] < 1.5*(maxy-y)/maxy+0.5)
+    return (leafDistance[x, z] <= 1.5*(maxy-y+1)/maxy+0.5)
 
 def palmPattern(x, z, y, maxy):
     return (y == maxy and leafDistance[x, z] < treeWidth+1)
