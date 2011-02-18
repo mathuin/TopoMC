@@ -5,7 +5,9 @@ from pymclevel import materials
 from random import randint
 from multiprocessing import Value
 from time import clock
-from mcmap import getBlocksAt, setBlocksAt, arrayBlocks
+from scipy.special import cbrt
+from math import pi
+from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {
@@ -23,51 +25,56 @@ oreValue = [3, 13, 16, 15, 14, 56, 73, 21]
 # http://www.minecraftforum.net/viewtopic.php?f=35&t=28299
 # "rounds" is how many times per chunk a deposit is generated
 # "size" is the rough max size of a deposit
-# (size/4)*(size/4)*(2+size/8)
-# "size" is the rough max size of a deposit
-# (size/4)*(size/4)*(2+size/8)
-# LL round value of 3 a guess.
+# user guide says (size/4)*(size/4)*(2+size/8)
+# I am insane. I model an ideal ellipsoid.  Yay!
+# BTW: LL round value of 3 a guess.
 oreRounds = [20, 10, 20, 20, 2, 1, 8, 3]
 oreSize = [32, 32, 16, 8, 8, 7, 7, 7]
-# statistics soon
 # this is a vein count -- make a node count soon enough
 oreCount = {}
 for key in oreType.keys():
     oreCount[key] = Value('i', 0)
+# any ore that tries to replace these blocks is hereby disqualified
+# air, water, lava
+# FIXME: this is not working!
+oreDQ = [0, 8, 9, 10, 11]
 
 # whole-world approach
 def placeOre(minX, minZ, maxX, maxZ):
     placestart = clock()
-    print "inputs = %d, %d, %d, %d" % (minX, minZ, maxX, maxZ) 
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
         print "Adding %s now..." % (oreType[ore])
-        # this math feels wrong, but I don't want to do cube roots either
-        # FIXME: add randomness later
-        # idea for randomness -- %age of distance from 'center point'?
-        clumpX = int(oreSize[ore]/4)
-        clumpZ = int(oreSize[ore]/4)
-        clumpY = int(2+oreSize[ore]/8)
-        # volume is x^2/16*(16+x)/8=(x^3+16x2)/128
-        # which equals 8.8 for x=7, 12 for x=8, and 2.5 for x=4
+        # everything starts on the bottom
+        # only doing common pass here
+        minY = 0
+        maxY = pow(2,oreDepth[ore])
+        maxExtent = cbrt(oreSize[ore])/2
         numRounds = int(oreRounds[ore]*numChunks)
         for round in xrange(numRounds):
-            # choose a triple
-            oreX = randint(minX,maxX-clumpX)
-            oreZ = randint(minZ,maxZ-clumpZ)
-            oreY = randint(0,128-clumpY)
-            #print "  round #%d: trying %d, %d, %d..." % (round, oreX, oreY, oreZ)
-            # now that we have a point, get blocks in range
-            oreCoords = [[x, y, z] for x in xrange(oreX, oreX+clumpX) for z in xrange(oreZ, oreZ+clumpZ) for y in xrange(oreY, oreY+clumpY)]
-            # install ore unless there's something else there
+            clumpX = randint(int(maxExtent*100),int(maxExtent*900))/1000
+            clumpY = randint(int(maxExtent*100),int(maxExtent*900))/1000
+            clumpZ = randint(int(maxExtent*100),int(maxExtent*900))/1000
+            clumpScale = ((4/3)*pi*clumpX*clumpY*clumpZ)/oreSize[ore]
+            # dunno about these boundaries
+            clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
+            clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
+            clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
+            oreX = randint(int(minX+clumpX),int(maxX-clumpX))
+            oreY = randint(int(minY+clumpY),int(maxY-clumpY))
+            oreZ = randint(int(minZ+clumpZ),int(maxZ-clumpZ))
+            oXrange = xrange(int(0-clumpX), int(clumpX+1))
+            oYrange = xrange(int(0-clumpX), int(clumpX+1))
+            oZrange = xrange(int(0-clumpX), int(clumpX+1))
+            # consider air/water/lava exemption here!
+            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x in oXrange for y in oYrange for z in oZrange if ((((x*x)/(clumpX*clumpX))+((y*y)/(clumpY*clumpY))+((z*z)/(clumpZ*clumpZ)))<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in ['Air', 'Water', 'Stationary Water', 'Lava', 'Stationary Lava']]
             oreBlocks = getBlocksAt(oreCoords)
-            # FIXME: currently excludes areas with other ores
-            # consider not excluding if it's only the same ore
-            if ('Stone' in oreBlocks and len(set(oreBlocks).intersection(set(oreType.values()))) == 0):
+            # FIXME: this does not exclude air/water/lava
+            if ('Stone' in oreBlocks and len(set(oreBlocks).intersection(set(oreDQ))) == 0 and len(set(oreBlocks).intersection(set(oreType.values()))) == 0):
                 #print "    success!"
-                oreCount[ore].value += 1
+                oreCount[ore].value += len(oreCoords)
                 setBlocksAt([x, y, z, materials.names[oreValue[ore]]] for x, y, z in oreCoords)
-        print "... %d veins placed." % oreCount[ore].value
+        print "... %d placed." % oreCount[ore].value
     print "finished in %.2f seconds." % (clock()-placestart)
 
 def printOreStatistics():
