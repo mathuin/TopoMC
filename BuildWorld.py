@@ -16,6 +16,7 @@ import terrain
 import tree
 import mcmap
 import building
+import ore
 
 # everything an explorer needs, for now
 def equipPlayer(world):
@@ -89,6 +90,9 @@ def main(argv):
     # ... consider doing something nice on all the peaks?
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
+    # where's that ore?
+    ore.placeOre(minX, minZ, maxX, maxZ)
+
     # place the safehouse at the peak (adjust it)
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
 
@@ -105,6 +109,7 @@ def main(argv):
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     terrain.printLandCoverStatistics()
     tree.printTreeStatistics()
+    ore.printOreStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
