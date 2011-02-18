@@ -123,6 +123,28 @@ def setBlocksDataAt(blocks):
         myData = arrayData[arrayKey].asarray()
         myData[x & 0xf, z & 0xf, y] = data
 
+def getBlockAt(x, y, z):
+    "Returns the block ID of the block at this point."
+    arrayKey = '%d,%d' % (x >> 4, z >> 4)
+    myBlocks = arrayBlocks[arrayKey].asarray()
+    return materials.names[myBlocks[x & 0xf, z & 0xf, y]]
+    
+def getBlockDataAt(x, y, z):
+    "Returns the data value of the block at this point."
+    arrayKey = '%d,%d' % (x >> 4, z >> 4)
+    myData = arrayData[arrayKey].asarray()
+    return myData[x & 0xf, z & 0xf, y]
+
+def getBlocksAt(blocks):
+    "Returns the block names of the blocks in the list."
+    retval = []
+    for block in blocks:
+        (x, y, z) = block
+        arrayKey = '%d,%d' % (x >> 4, z >> 4)
+        myBlocks = arrayBlocks[arrayKey].asarray()
+        retval.append(materials.names[myBlocks[x & 0xf, z & 0xf, y]])
+    return retval
+
 def populateChunk(key,maxcz):
     #print "key is %s" % (key)
     global world
