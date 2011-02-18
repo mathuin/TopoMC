@@ -9,7 +9,7 @@ Schematics and equipping the player
 Support multiple USGS chunks per dataset
  - ./image.py needs to be redesigned
 Normal stuff underground!
- - a few ideas, always looking for more!
+ - ore done, what about caves?
 Full multiprocessing support
  - everything works except turning chunks into worlds
 Clean up WarpElev.sh
