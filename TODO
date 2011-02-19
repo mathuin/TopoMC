@@ -19,3 +19,5 @@ Clean up terrain.py
 Support NED 1/9 arc seconds
  - is this anything more than downloading?
  - multiple chunks come first!
+Put buildings in developed areas
+ - need to do this without interfering with roads in the future?

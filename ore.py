@@ -30,10 +30,12 @@ oreValue = [3, 13, 16, 15, 14, 56, 73, 21]
 # BTW: LL round value of 3 a guess.
 oreRounds = [20, 10, 20, 20, 2, 1, 8, 3]
 oreSize = [32, 32, 16, 8, 8, 7, 7, 7]
-# this is a vein count -- make a node count soon enough
-oreCount = {}
+# statistics tracks nodes and veins
+oreNodeCount = {}
+oreVeinCount = {}
 for key in oreType.keys():
-    oreCount[key] = Value('i', 0)
+    oreNodeCount[key] = Value('i', 0)
+    oreVeinCount[key] = Value('i', 0)
 # any ore that tries to replace these blocks is hereby disqualified
 # air, water, lava
 # FIXME: this is not working!
@@ -72,16 +74,18 @@ def placeOre(minX, minZ, maxX, maxZ):
             # FIXME: this does not exclude air/water/lava
             if ('Stone' in oreBlocks and len(set(oreBlocks).intersection(set(oreDQ))) == 0 and len(set(oreBlocks).intersection(set(oreType.values()))) == 0):
                 #print "    success!"
-                oreCount[ore].value += len(oreCoords)
+                oreNodeCount[ore].value += len(oreCoords)
+                oreVeinCount[ore].value += 1
                 setBlocksAt([x, y, z, materials.names[oreValue[ore]]] for x, y, z in oreCoords)
-        print "... %d placed." % oreCount[ore].value
+        print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
     print "finished in %.2f seconds." % (clock()-placestart)
 
 def printOreStatistics():
-    oreTuples = [(oreType[index], oreCount[index].value) for index in oreCount if oreCount[index].value > 0]
-    oreTotal = sum([oreTuple[1] for oreTuple in oreTuples])
-    print 'Ore statistics (%d total):' % oreTotal
-    for key, value in sorted(oreTuples, key=lambda ore: ore[1], reverse=True):
-        orePercent = (value*100)/oreTotal
-        print '  %d (%.2f%%): %s' % (value, orePercent, key)
+    oreTuples = [(oreType[index], oreNodeCount[index].value, oreVeinCount[index].value) for index in oreNodeCount if oreNodeCount[index].value > 0]
+    oreNodeTotal = sum([oreTuple[1] for oreTuple in oreTuples])
+    oreVeinTotal = sum([oreTuple[2] for oreTuple in oreTuples])
+    print 'Ore statistics (%d total nodes, %d total veins):' % (oreNodeTotal, oreVeinTotal)
+    for key, value, value2 in sorted(oreTuples, key=lambda ore: ore[1], reverse=True):
+
+        print '  %d (%d veins): %s' % (value, value2, key)
 

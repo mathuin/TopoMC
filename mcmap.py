@@ -48,9 +48,11 @@ def scaffoldWorld(minX, minZ, maxX, maxZ):
 #  - elevval down two levels of water, rest dirt
 # [x, y, elevval, 'Stone', 1, 'Dirt', 1, 'Water']
 #  - elevval down one level of water, then one level of dirt, then stone
-# NB: we currently push 'Stone', randint(5,7) at the front
+# NB: we currently push 'Stone', randint(3,5) at the front
 # so whatever the user originally requested has a thin layer before
 # becoming stone all the way down.
+# INSANE: generate an invdistree with world-wide randomness
+# INSANER: scale for depth -- maxdepth ocean gets none
 def layers(columns):
     blocks = []
     for column in columns:
@@ -59,7 +61,7 @@ def layers(columns):
         elevval = column.pop(0)
         top = sealevel+elevval
         column.insert(0, 'Stone')
-        column.insert(1, randint(5,7))
+        column.insert(1, randint(3,5))
         while (len(column) > 0 or top > 0):
             # better be a block
             block = column.pop()
