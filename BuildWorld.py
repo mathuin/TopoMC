@@ -71,7 +71,11 @@ def main(argv):
 
     # set up all the values
     processes = checkProcesses(args)
-    terrain.nodata = args.nodata
+    # bah
+    if (type(args.nodata)is list):
+        terrain.nodata = args.nodata[0]
+    else:
+        terrain.nodata = args.nodata
     mcmap.world = mcmap.initWorld(args.world)
     
     # what are we doing?

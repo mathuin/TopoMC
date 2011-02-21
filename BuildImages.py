@@ -23,6 +23,7 @@ from coords import *
 from tile import *
 from bathy import *
 from mcmap import maxelev
+from crust import makeCrustIDT
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -123,6 +124,9 @@ def main(argv):
         os.makedirs(imagedir)
 
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
+
+    # build crust tree for the whole map
+    makeCrustIDT(args)
 
     if (processes == 1):
         [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]

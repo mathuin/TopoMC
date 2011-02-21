@@ -5,6 +5,7 @@ from dataset import *
 from coords import *
 from invdisttree import *
 from bathy import getBathymetry
+from crust import getCrust
 from dataset import getDatasetDims
 
 def getIDT(ds, offset, size, vScale=1):
@@ -98,6 +99,10 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     bigImageArray.resize(idtShape)
     # problem: how to know what the real dimensions of the idtShape are!
     bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, idtOffset, maxdepth, slope)
+
+    # second idea: crust
+    crustImageArray = getCrust(bathyImageArray, baseArray)
+    crustImageArray.resize(baseShape)
     
     # save images
     lcImage = Image.fromarray(lcImageArray)
@@ -109,6 +114,9 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     bathyImage = Image.fromarray(bathyImageArray)
     bathyImage.save(os.path.join(imagedir, 'bathy-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
     bathyImage = None
+    crustImage = Image.fromarray(crustImageArray)
+    crustImage.save(os.path.join(imagedir, 'crust-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
+    crustImage = None
 
     print '... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime))
 

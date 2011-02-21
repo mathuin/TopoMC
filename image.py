@@ -76,14 +76,17 @@ def processImage(region, offset_x, offset_z):
     lcimg = Image.open(imgtemp % 'lc')
     elevimg = Image.open(imgtemp % 'elev')
     bathyimg = Image.open(imgtemp % 'bathy')
+    crustimg = Image.open(imgtemp % 'crust')
 
     lcarray = asarray(lcimg)
     elevarray = asarray(elevimg)
     bathyarray = asarray(bathyimg)
+    crustarray = asarray(crustimg)
 
     lcimg = None
     elevimg = None
     bathyimg = None
+    crustimg = None
 
     # gotta start somewhere!
     localmax = 0
@@ -103,6 +106,7 @@ def processImage(region, offset_x, offset_z):
         lcval = lcarray[z,x]
         elevval = elevarray[z,x]
         bathyval = bathyarray[z,x]
+        crustval = crustarray[z,x]
         real_x = offset_x + x
         real_z = offset_z + z
         if (elevval > maxelev):
@@ -113,9 +117,9 @@ def processImage(region, offset_x, offset_z):
             spawnx = real_x
             spawnz = real_z
         if (useAggregates):
-            lcvals.append((lcval, real_x, real_z, elevval, bathyval))
+            lcvals.append((lcval, real_x, real_z, elevval, bathyval, crustval))
         else:
-            processTerrain([(lcval, real_x, real_z, elevval, bathyval)])
+            processTerrain([(lcval, real_x, real_z, elevval, bathyval, crustval)])
 
     if (useAggregates):
         processTerrain(lcvals)
