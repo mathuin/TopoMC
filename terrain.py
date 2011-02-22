@@ -88,9 +88,12 @@ def processTerrain(terrains):
             lcCount[0].value += 1
             columns.append([x, z, elevval, crustval, 'Dirt'])
         else:
+            if (lcval == 127):
+                # the "no data" value
+                lcval == nodata
             lcCount[lcval].value += 1
             # http://www.mrlc.gov/nlcd_definitions.php
-            if (lcval == 11) or (lcval == 127):
+            if (lcval == 11):
                 newcrustval = int(max(0,crustval-(bathyval/2)))
                 columns.append([x, z, elevval, newcrustval, 'Sand', bathyval, 'Water'])
             elif (lcval == 12):

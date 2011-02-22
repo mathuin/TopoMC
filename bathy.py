@@ -4,6 +4,7 @@ from numpy import zeros, uint8
 from itertools import product
 from random import random
 from dataset import getDatasetDims
+from terrain import nodata
 
 useNew = True
 
@@ -16,8 +17,12 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
     zDiff = baseOffset[0]-bigOffset[0]
     bathyArray = zeros((bathyMaxRows, bathyMaxCols),dtype=uint8)
     ringrange = xrange(1,maxDepth)
+    # the set of things which require depth processing
+    setWater = set([11, 12])
+    if (nodata in setWater):
+        setWater.update([127])
     for brow, bcol in product(xrange(bathyMaxRows), xrange(bathyMaxCols)):
-        if (lcArray[brow,bcol] == 11):
+        if (lcArray[brow,bcol] in setWater):
             try:
                 for ring in ringrange:
                     # rbxmin = max(0, (brow-ring+1)+xDiff)
@@ -28,8 +33,10 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
                     rbxmax = (brow+ring+1)+xDiff
                     rbzmin = (bcol-ring+1)+zDiff
                     rbzmax = (bcol+ring+1)+zDiff
-                    ringarray = bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
-                    if any(ringarray != 11):
+                    #ringarray = bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
+                    #if any(ringarray not in setWater):
+                    ringset = set([bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()])
+                    if len(ringset.difference(setWater)) > 0:
                         raise Exception
             except Exception:
                 pass
