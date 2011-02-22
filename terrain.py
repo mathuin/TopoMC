@@ -90,7 +90,7 @@ def processTerrain(terrains):
         else:
             if (lcval == 127):
                 # the "no data" value
-                lcval == nodata
+                lcval = nodata
             lcCount[lcval].value += 1
             # http://www.mrlc.gov/nlcd_definitions.php
             if (lcval == 11):
