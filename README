@@ -1,5 +1,7 @@
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
 
+This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
+
 Features include:
  * There's ore in them there hills.  Well, in the ground anyway!
  * Datasets can now be downloaded directly from the USGS!
