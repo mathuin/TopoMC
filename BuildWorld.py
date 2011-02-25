@@ -76,7 +76,7 @@ def main(argv):
         terrain.nodata = args.nodata[0]
     else:
         terrain.nodata = args.nodata
-    mcmap.world = mcmap.initWorld(args.world)
+    
     
     # what are we doing?
     print 'Creating world from region %s' % args.region
@@ -85,7 +85,7 @@ def main(argv):
     minX = 0
     minZ = 0
     maxX, maxZ = image.imageDims[args.region]
-    mcmap.scaffoldWorld(minX, minZ, maxX, maxZ)
+    mcmap.initWorld(args.world, minX, minZ, maxX, maxZ, processes)
 
     # iterate over images
     peaks = image.processImages(args.region, args.processes)
@@ -101,14 +101,14 @@ def main(argv):
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
 
     # write array to level
-    mcmap.populateWorld(args.processes, minX, maxX)
+    mcmap.populateWorld()
 
     # maximum elevation
     print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
 
     # set player position and spawn point (in this case, equal)
     equipPlayer(mcmap.world)
-    mcmap.saveWorld(peak, minX, maxX)
+    mcmap.saveWorld(peak)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     terrain.printLandCoverStatistics()
