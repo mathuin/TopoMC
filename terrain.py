@@ -95,10 +95,10 @@ def processTerrain(terrains):
             # http://www.mrlc.gov/nlcd_definitions.php
             if (lcval == 11):
                 newcrustval = int(max(0,crustval-(bathyval/2)))
-                columns.append([x, z, elevval, newcrustval, 'Sand', bathyval, 'Water'])
+                columns.append([x, z, elevval, newcrustval, 'Sand', bathyval, 'Water (still)'])
             elif (lcval == 12):
                 newcrustval = int(max(0,crustval-(bathyval/2)))
-                columns.append([x, z, elevval, newcrustval, 'Sand', bathyval-1, 'Water', 1, 'Ice'])
+                columns.append([x, z, elevval, newcrustval, 'Sand', bathyval-1, 'Water (still)', 1, 'Ice'])
             elif (lcval == 21):
                 if (random() < level21stone):
                     blockType = 'Stone'
@@ -190,48 +190,48 @@ def processTerrain(terrains):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, forestProb, 'Regular')
                 else:
-                    blockType = 'Water'
+                    blockType = 'Water (still)'
                 columns.append([x, z, elevval, crustval, 'Dirt', 1, blockType])
             elif (lcval == 91):
                 if (random() < wetlandsgrass):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, forestProb, 'Regular')
                 else:
-                    blockType = 'Water'
+                    blockType = 'Water (still)'
                 columns.append([x, z, elevval, crustval, 'Dirt', 1, blockType])
             elif (lcval == 92):
                 if (random() < wetlandsgrass):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, treeProb, 'Shrub')
                 else:
-                    blockType = 'Water'
+                    blockType = 'Water (still)'
                 columns.append([x, z, elevval, crustval, 'Dirt', 1, blockType])
             elif (lcval == 93):
                 if (random() < wetlandsgrass):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, forestProb, 'Regular')
                 else:
-                    blockType = 'Water'
+                    blockType = 'Water (still)'
                 columns.append([x, z, elevval, crustval, 'Dirt', 1, blockType])
             elif (lcval == 94):
                 if (random() < wetlandsgrass):
                     blockType = 'Grass'
                     placeTree(x, z, elevval, treeProb, 'Shrub')
                 else:
-                    blockType = 'Water'
+                    blockType = 'Water (still)'
                 columns.append([x, z, elevval, crustval, 'Dirt', 1, blockType])
             elif (lcval == 95):
                 if (random() < wetlandsgrass):
                     blockType = 'Grass'
                 else:
-                    blockType = 'Water'
+                    blockType = 'Water (still)'
                 columns.append([x, z, elevval, crustval, 'Dirt', 1, blockType])
             elif (lcval == 96):
-                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water'])
+                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water (still)'])
             elif (lcval == 97):
-                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water'])
+                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water (still)'])
             elif (lcval == 98):
-                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water'])
+                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water (still)'])
             elif (lcval == 99):
-                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water'])
+                columns.append([x, z, elevval, crustval, 'Dirt', 1, 'Water (still)'])
     layers(columns)
