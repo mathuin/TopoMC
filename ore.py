@@ -69,7 +69,7 @@ def placeOre(minX, minZ, maxX, maxZ):
             oYrange = xrange(int(0-clumpX), int(clumpX+1))
             oZrange = xrange(int(0-clumpX), int(clumpX+1))
             # consider air/water/lava exemption here!
-            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x in oXrange for y in oYrange for z in oZrange if ((((x*x)/(clumpX*clumpX))+((y*y)/(clumpY*clumpY))+((z*z)/(clumpZ*clumpZ)))<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in ['Air', 'Water', 'Stationary Water', 'Lava', 'Stationary Lava']]
+            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x in oXrange for y in oYrange for z in oZrange if ((((x*x)/(clumpX*clumpX))+((y*y)/(clumpY*clumpY))+((z*z)/(clumpZ*clumpZ)))<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)']]
             oreBlocks = getBlocksAt(oreCoords)
             # FIXME: this does not exclude air/water/lava
             if ('Stone' in oreBlocks and len(set(oreBlocks).intersection(set(oreDQ))) == 0 and len(set(oreBlocks).intersection(set(oreType.values()))) == 0):
