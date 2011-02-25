@@ -56,7 +56,7 @@ for key in treeType.keys():
 treeHeight = [[3, 3, 3], [5, 7, 2], [9, 11, 2], [7, 9, 2], [1, 3, 0]]
 leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
 
-def printTreeStatistics():
+def printStatistics():
     treeTuples = [(treeType[index], treeCount[index].value) for index in treeCount if treeCount[index].value > 0]
     treeTotal = sum([treeTuple[1] for treeTuple in treeTuples])
     print 'Tree statistics (%d total):' % treeTotal

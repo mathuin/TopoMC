@@ -111,9 +111,9 @@ def main(argv):
     mcmap.saveWorld(peak)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
-    terrain.printLandCoverStatistics()
-    tree.printTreeStatistics()
-    ore.printOreStatistics()
+    terrain.printStatistics()
+    tree.printStatistics()
+    ore.printStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

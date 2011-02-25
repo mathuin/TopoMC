@@ -70,7 +70,7 @@ for key in lcType.keys():
     lcCount[key] = Value('i', 0)
 nodata = 11
 
-def printLandCoverStatistics():
+def printStatistics():
     lcTuples = [(lcType[index], lcCount[index].value) for index in lcCount.keys() if lcCount[index].value > 0]
     lcTotal = sum([lcTuple[1] for lcTuple in lcTuples])
     print 'Land cover statistics (%d total):' % lcTotal

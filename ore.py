@@ -80,7 +80,7 @@ def placeOre(minX, minZ, maxX, maxZ):
         print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
     print "finished in %.2f seconds." % (clock()-placestart)
 
-def printOreStatistics():
+def printStatistics():
     oreTuples = [(oreType[index], oreNodeCount[index].value, oreVeinCount[index].value) for index in oreNodeCount if oreNodeCount[index].value > 0]
     oreNodeTotal = sum([oreTuple[1] for oreTuple in oreTuples])
     oreVeinTotal = sum([oreTuple[2] for oreTuple in oreTuples])
