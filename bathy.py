@@ -10,14 +10,12 @@ useNew = True
 
 def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
-    # FIXME: eventually support ice as well as water here
     bathyMaxRows, bathyMaxCols = lcArray.shape
     bigMaxRows, bigMaxCols = bigArray.shape
     xDiff = baseOffset[1]-bigOffset[1]
     zDiff = baseOffset[0]-bigOffset[0]
     bathyArray = zeros((bathyMaxRows, bathyMaxCols),dtype=uint8)
-    ringrange = xrange(1,maxDepth)
-    # the set of things which require depth processing
+    ringrange = xrange(1,maxDepth+1)
     setWater = set([11, 12])
     if (nodata in setWater):
         setWater.update([127])
@@ -25,17 +23,11 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
         if (lcArray[brow,bcol] in setWater):
             try:
                 for ring in ringrange:
-                    # rbxmin = max(0, (brow-ring+1)+xDiff)
-                    # rbxmax = min(bigMaxRows, (brow+ring+1)+xDiff)
-                    # rbzmin = max(0, (bcol-ring+1)+zDiff)
-                    # rbzmax = min(bigMaxCols, (bcol+ring+1)+zDiff)
                     rbxmin = (brow-ring+1)+xDiff
                     rbxmax = (brow+ring+1)+xDiff
                     rbzmin = (bcol-ring+1)+zDiff
                     rbzmax = (bcol+ring+1)+zDiff
-                    #ringarray = bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()
-                    #if any(ringarray not in setWater):
-                    ringset = set([bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten()])
+                    ringset = set(bigArray[rbxmin:rbxmax,rbzmin:rbzmax].flatten())
                     if len(ringset.difference(setWater)) > 0:
                         raise Exception
             except Exception:
