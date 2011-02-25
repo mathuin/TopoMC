@@ -1,5 +1,7 @@
 To do:
 
+Allow disabling of new features
+ - some folks just want pretty
 Test and drivers for all functions
  - maybe even comments!
 Convert most print output to logging statements
