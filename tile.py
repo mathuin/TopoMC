@@ -95,10 +95,14 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
-    bigImageArray = getImageArray(lcds, (idtUL, idtLR), idtArray, majority=True)
-    bigImageArray.resize(idtShape)
-    # problem: how to know what the real dimensions of the idtShape are!
-    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, idtOffset, maxdepth, slope)
+    depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=maxdepth)
+    depthShape = (depthSize[1], depthSize[0])
+    depthArray = getLatLongArray(lcds, depthOffset, depthSize, mult)
+    depthUL = getLatLong(lcds, int(depthOffset[0]/mult), int(depthOffset[1]/mult))
+    depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
+    bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
+    bigImageArray.resize(depthShape)
+    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope)
 
     # second idea: crust
     crustImageArray = getCrust(bathyImageArray, baseArray)

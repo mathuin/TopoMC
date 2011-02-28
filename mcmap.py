@@ -192,9 +192,13 @@ def populateChunk(key,maxcz):
     myData = arrayData[key].asarray()
     for x, z in product(xrange(chunkWidth), xrange(chunkWidth)):
         chunk.Blocks[x,z] = myBlocks[chunkWidth-1-z,x]
+    arrayBlocks[key] = None
+    myBlocks = None
     if key in arrayData:
         for x, z in product(xrange(chunkWidth), xrange(chunkWidth)):
             chunk.Data[x,z] = myData[chunkWidth-1-z,x]
+    arrayData[key] = None
+    myData = None
     chunk.chunkChanged(False)
     return (clock()-start)
 
