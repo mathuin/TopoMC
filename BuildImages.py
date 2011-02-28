@@ -80,7 +80,7 @@ def main(argv):
 
     default_scale = 6
     default_vscale = 6
-    default_maxdepth = 10
+    default_maxdepth = 48
     default_slope = 1
     default_tile = [256, 256]
     default_start = [0, 0]
