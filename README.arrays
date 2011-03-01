@@ -1,0 +1,16 @@
+The purpose of this code is to change the process from:
+datasets -> images by way of BuildImages
+images -> worlds by way of BuildWorlds
+to:
+datasets -> arrays by way of BuildArrays
+arrays-> worlds by way of BuildWorlds
+
+BuildArrays will do everything BuildImages does plus half of what
+BuildWorlds does -- read in the original data file, break it up in to tiles
+(or chunks), populate the whole shebang including ore, and save it as numpy arrays.
+
+The new BuildWorlds will create an empty world and iterate through each numpy array building the corresponding chunk, then do the saving and lighting and crap.
+
+This has several benefits: one, it keeps the chunks and stuff in memory once instead of saving and loading; and two, the BuildWorlds code can be leveraged as a Bravo terrain generator.  I think.
+
+
