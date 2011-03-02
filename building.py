@@ -1,5 +1,5 @@
 from itertools import product
-from mcmap import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel, fillBlocks
+from mcarray import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel, fillBlocks
 from time import clock
 
 def building(x, z, elevval, length, width, height, side):

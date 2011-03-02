@@ -1,8 +1,7 @@
 # tree module
 from __future__ import division
 from random import random, randint
-from mcmap import sealevel, setBlockAt, setBlockDataAt
-from pymclevel.materials import alphaMaterials
+from mcarray import sealevel, setBlockAt, setBlockDataAt
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
@@ -88,8 +87,7 @@ def makeTree(x, z, elevval, treeNum):
                 setBlockAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, 'Leaves')
                 setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
         for y in xrange(base,base+height):
-            # FIXME: sigh, 'Tree trunk' doesn't work
-            setBlockAt(x, y, z, alphaMaterials.names[17])
+            setBlockAt(x, y, z, 'Wood')
             setBlockDataAt(x, y, z, treeNum-1)
     # increment tree count
     treeCount[treeNum].value += 1

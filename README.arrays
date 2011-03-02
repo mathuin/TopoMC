@@ -1,16 +1,8 @@
-The purpose of this code is to change the process from:
-datasets -> images by way of BuildImages
-images -> worlds by way of BuildWorlds
-to:
-datasets -> arrays by way of BuildArrays
-arrays-> worlds by way of BuildWorlds
+Okay, this is starting to work.
+Problem 1: we do not have a good way to set the spawn point.
+Temporary solution: I suggest one to the user when generating numpy arrays.  I then set it by hand with mce.py afterwards.
+Permanent solution: dunno.  arguments to ./BuildWorlds.py ?
 
-BuildArrays will do everything BuildImages does plus half of what
-BuildWorlds does -- read in the original data file, break it up in to tiles
-(or chunks), populate the whole shebang including ore, and save it as numpy arrays.
+Problem 2: not parallelized yet.
 
-The new BuildWorlds will create an empty world and iterate through each numpy array building the corresponding chunk, then do the saving and lighting and crap.
-
-This has several benefits: one, it keeps the chunks and stuff in memory once instead of saving and loading; and two, the BuildWorlds code can be leveraged as a Bravo terrain generator.  I think.
-
-
+Problem 3: no Bravo version yet.

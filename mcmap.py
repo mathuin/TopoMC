@@ -216,20 +216,6 @@ def checkWorld(string):
             raise IOError, "bad value for world: %s" % string
     return string
 
-def saveWorld(spawn):
-    global world
-    sizeOnDisk = 0
-    # adjust it to sealevel, and then up another two for good measure
-    spawnxyz = (spawn[1], spawn[2]+sealevel+2, (maxX-minX)-spawn[0])
-    world.setPlayerPosition(spawnxyz)
-    world.setPlayerSpawnPosition(spawnxyz)
-    # stolen from pymclevel/mce.py
-    for i, cPos in enumerate(world.allChunks, 1):
-        ch = world.getChunk(*cPos);
-        sizeOnDisk += ch.compressedSize();
-    world.SizeOnDisk = sizeOnDisk
-    world.saveInPlace()
-
 def mysaveWorld():
     global world
     sizeOnDisk = 0
@@ -242,71 +228,4 @@ def mysaveWorld():
     print '%d chunks enumerated' % numchunks
     world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
-
-def createArrays(minX, minZ, maxX, maxZ):
-    "Create shared arrays."
-    global arrayBlocks, arrayData
-    minXchunk = (minX >> chunkWidthPow)
-    minZchunk = (minZ >> chunkWidthPow)
-    maxXchunk = (maxX >> chunkWidthPow)
-    maxZchunk = (maxZ >> chunkWidthPow)
-    chunkX = xrange(minXchunk-1, maxXchunk+2)
-    chunkZ = xrange(minZchunk-1, maxZchunk+2)
-    for x, z in product(chunkX, chunkZ):
-        arrayKey = '%dx%d' % (x, z)
-        arrayBlocks[arrayKey] = SharedMemArray(zeros((chunkWidth,chunkWidth,chunkHeight),dtype=uint8))
-        arrayData[arrayKey] = SharedMemArray(zeros((chunkWidth,chunkWidth,chunkHeight),dtype=uint8))
-
-def saveArrays(arraydir, maxX, minX):
-    "Save shared arrays."
-    maxcz = (maxX-minX) >> chunkWidthPow
-    # make arraydir
-    if os.path.exists(arraydir):
-        [ os.remove(os.path.join(arraydir,name)) for name in os.listdir(arraydir) ]
-    else:
-        os.makedirs(arraydir)
-    # FIXME: not-parallelizable-yet
-    # modularize later
-    # for each pair of shared memory arrays
-    for key in arrayBlocks.keys():
-        ctuple = key.split('x')
-        ocx = int(ctuple[0])
-        ocz = int(ctuple[1])
-        cz = maxcz-ocx
-        cx = ocz
-        myBlocks = arrayBlocks[key].asarray()
-        myData = arrayData[key].asarray()
-        # save them to a file
-        outfile = os.path.join(arraydir, '%dx%d.npz' % (cx, cz))
-        numpy.savez(outfile, blocks=myBlocks, data=myData)
-
-def loadArrays(arraydir):
-    "Load all arrays from array directory."
-    numarrays = 0
-    # FIXME: do in parallel if possible
-    for name in os.listdir(arraydir):
-        numarrays += 1
-        # extract arrays from file
-        arrayData = numpy.load(os.path.join(arraydir,name))
-        myBlocks = arrayData['blocks']
-        myData = arrayData['data']
-        # extract key from filename
-        key = name.split('.')[0]
-        ctuple = key.split('x')
-        cx = int(ctuple[0])
-        cz = int(ctuple[1])
-        try:
-            world.getChunk(cx, cz)
-        except mclevel.ChunkNotPresent:
-            world.createChunk(cx, cz)
-        chunk = world.getChunk(cx, cz)
-        for x, z in product(xrange(chunkWidth), xrange(chunkWidth)):
-            chunk.Blocks[x,z] = myBlocks[chunkWidth-1-z,x]
-            chunk.Data[x,z] = myData[chunkWidth-1-z,x]
-        chunk.chunkChanged()
-    print '%d arrays loaded' % numarrays
-
-# variables
-arrayBlocks = {}
-arrayData = {}
 

@@ -19,6 +19,7 @@ import dataset
 import tile
 import bathy
 import mcmap
+import mcarray
 import crust
 import ore
 import building
@@ -120,10 +121,9 @@ def main(argv):
     minZ = 0
     maxX = int(rows*mult)
     maxZ = int(cols*mult)
-    mcmap.createArrays(minX, minZ, maxX, maxZ)
+    mcarray.createArrays(minX, minZ, maxX, maxZ)
 
     # build crust tree for whole map
-    print "... building crust"
     crust.makeCrustIDT(args)
 
     # process data in 256x256 tiles
@@ -142,20 +142,15 @@ def main(argv):
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # where's that ore?
-    #print "Adding ore... "
-    #ore.placeOre(minX, minZ, maxX, maxZ)
+    ore.placeOre(minX, minZ, maxX, maxZ)
 
     # place the safehouse at the peak (adjust it)
-    #print "Adding safehouse... "
-    #building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
+    building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
+    print "Consider setting spawn point to %d, %d, %d" % (peak[0], peak[2]+1, peak[1])
 
-    # saveArrays should:
-    # 'make arraydir' as above
-    # iterate through all shared memory arrays
-    # save each pair in a file
-    print "Saving arrays"
+    # save arrays
     arraydir = os.path.join("Arrays", args.region)
-    mcmap.saveArrays(arraydir, maxX, minX)
+    mcarray.saveArrays(arraydir, maxX, minX)
 
 if __name__ == '__main__':
     UseExceptions()

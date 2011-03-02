@@ -7,7 +7,7 @@ from dataset import getDatasetDims
 from terrain import nodata
 from math import hypot
 import invdisttree
-from mcmap import sealevel
+from mcarray import sealevel
 
 def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."

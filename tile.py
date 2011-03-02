@@ -90,18 +90,15 @@ def processTile(args, tileRowIndex, tileColIndex):
     idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
 
     # land cover array
-    print "... generating land cover array"
     lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, majority=True)
     lcImageArray.resize(baseShape)
 
     # elevation array
-    print "... generating elevation array"
     elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, vscale)
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
-    print "... preparing to generate bathymetry array"
     depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=maxdepth)
     depthShape = (depthSize[1], depthSize[0])
     depthArray = getLatLongArray(lcds, depthOffset, depthSize, mult)
@@ -109,11 +106,9 @@ def processTile(args, tileRowIndex, tileColIndex):
     depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
     bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
     bigImageArray.resize(depthShape)
-    print "... generating bathymetry array"
     bathyImageArray = bathy.getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope)
 
     # second idea: crust
-    print "... generating crust array"
     crustImageArray = crust.getCrust(bathyImageArray, baseArray)
     crustImageArray.resize(baseShape)
 
@@ -122,7 +117,6 @@ def processTile(args, tileRowIndex, tileColIndex):
     spawnx = 10
     spawnz = 10
 
-    print "... iterate through arrays"
     for tilex, tilez in product(xrange(baseSize[0]), xrange(baseSize[1])):
         lcval = lcImageArray[tilez,tilex]
         elevval = int(elevImageArray[tilez,tilex])

@@ -7,7 +7,7 @@ from multiprocessing import Value
 from time import clock
 from scipy.special import cbrt
 from math import pi
-from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
+from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {

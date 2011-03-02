@@ -1,7 +1,7 @@
 # landcover module
 from __future__ import division
 from random import random, randint
-from mcmap import layers
+from mcarray import layers
 from tree import placeTree, treeProb, forestProb
 from multinumpy import SharedMemArray
 from numpy import zeros, int64
