@@ -61,6 +61,15 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0)
     imageSize = (imageRight-imageLeft, imageLower-imageUpper)
     return imageOffset, imageSize
 
+# FIXME: instead of writing four image tiles,
+# write two 16x128x16 numpy arrays (blocks and data)
+# after doing the following:
+#  - building the layers
+#  - adding trees
+#  - adding buildings (bonus, only one at the real peak)
+#  - adding ore
+# first pass may just be layers
+# because other passes can be other terrain generators
 def processTile(args, imagedir, tileRowIndex, tileColIndex):
     "Actually process a tile."
     tileShape = args.tile
