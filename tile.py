@@ -1,12 +1,14 @@
 # tile module
 import Image
 from time import time
-from dataset import *
 from coords import *
-from invdisttree import *
-from bathy import getBathymetry
-from crust import getCrust
-from dataset import getDatasetDims
+import invdisttree
+from itertools import product
+import dataset
+import bathy
+import crust
+import mcmap
+import terrain
 
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
@@ -23,7 +25,7 @@ def getIDT(ds, offset, size, vScale=1):
     Value = Value / vScale
 
     # build tree
-    IDT = Invdisttree(LatLong, Value)
+    IDT = invdisttree.Invdisttree(LatLong, Value)
 
     return IDT
 
@@ -61,16 +63,8 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0)
     imageSize = (imageRight-imageLeft, imageLower-imageUpper)
     return imageOffset, imageSize
 
-# FIXME: instead of writing four image tiles,
-# write two 16x128x16 numpy arrays (blocks and data)
-# after doing the following:
-#  - building the layers
-#  - adding trees
-#  - adding buildings (bonus, only one at the real peak)
-#  - adding ore
-# first pass may just be layers
-# because other passes can be other terrain generators
-def processTile(args, imagedir, tileRowIndex, tileColIndex):
+# adding processImage code to processTile
+def processTile(args, tileRowIndex, tileColIndex):
     "Actually process a tile."
     tileShape = args.tile
     mult = args.mult
@@ -78,13 +72,13 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     maxdepth = args.maxdepth
     slope = args.slope
     curtime = time()
-    (lcds, elevds) = getDataset(args.region)
-    (rows, cols) = getDatasetDims(args.region)
+    (lcds, elevds) = dataset.getDataset(args.region)
+    (rows, cols) = dataset.getDatasetDims(args.region)
     maxRows = int(rows*mult)
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
     idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
-    print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
+    print "Generating tile (%d, %d) with dimensions (%d, %d) and offset (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1], baseOffset[0], baseOffset[1])
 
     baseShape = (baseSize[1], baseSize[0])
     baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
@@ -95,15 +89,19 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
     idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
 
+    # land cover array
+    print "... generating land cover array"
     lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, majority=True)
     lcImageArray.resize(baseShape)
 
-    # nnear=1 for landcover, 11 for elevation
+    # elevation array
+    print "... generating elevation array"
     elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, vscale)
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
+    print "... preparing to generate bathymetry array"
     depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=maxdepth)
     depthShape = (depthSize[1], depthSize[0])
     depthArray = getLatLongArray(lcds, depthOffset, depthSize, mult)
@@ -111,27 +109,37 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
     bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
     bigImageArray.resize(depthShape)
-    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope)
+    print "... generating bathymetry array"
+    bathyImageArray = bathy.getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope)
 
     # second idea: crust
-    crustImageArray = getCrust(bathyImageArray, baseArray)
+    print "... generating crust array"
+    crustImageArray = crust.getCrust(bathyImageArray, baseArray)
     crustImageArray.resize(baseShape)
-    
-    # save images
-    lcImage = Image.fromarray(lcImageArray)
-    lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    lcImage = None
-    elevImage = Image.fromarray(elevImageArray)
-    elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    elevImage = None
-    bathyImage = Image.fromarray(bathyImageArray)
-    bathyImage.save(os.path.join(imagedir, 'bathy-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    bathyImage = None
-    crustImage = Image.fromarray(crustImageArray)
-    crustImage.save(os.path.join(imagedir, 'crust-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    crustImage = None
 
+    # now we do what we do in processImage
+    localmax = 0
+    spawnx = 10
+    spawnz = 10
+
+    print "... iterate through arrays"
+    for tilex, tilez in product(xrange(baseSize[0]), xrange(baseSize[1])):
+        lcval = lcImageArray[tilez,tilex]
+        elevval = int(elevImageArray[tilez,tilex])
+        bathyval = bathyImageArray[tilez,tilex]
+        crustval = int(crustImageArray[tilez,tilex])
+        real_x = baseOffset[0] + tilex
+        real_z = baseOffset[1] + tilez
+        if (elevval > mcmap.maxelev):
+            print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, mcmap.maxelev)
+            elevval = mcmap.maxelev
+        if (elevval > localmax):
+            localmax = elevval
+            spawnx = real_x
+            spawnz = real_z
+        terrain.processTerrain([(lcval, real_x, real_z, elevval, bathyval, crustval)])
     print '... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime))
+    return (spawnx, spawnz, localmax)
 
 def processTilestar(args):
     return processTile(*args)
@@ -139,7 +147,7 @@ def processTilestar(args):
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
     oldtilex, oldtiley = args.tile
-    rows, cols = getDatasetDims(args.region)
+    rows, cols = dataset.getDatasetDims(args.region)
     maxRows = int(rows * mult)
     maxCols = int(cols * mult)
     tilex = min(oldtilex, maxRows)
@@ -151,7 +159,7 @@ def checkTile(args, mult):
 
 def checkStartEnd(args, mult, tile):
     "Checks to see if start and end values are valid for a region."
-    (rows, cols) = getDatasetDims(args.region)
+    (rows, cols) = dataset.getDatasetDims(args.region)
     (minTileRows, minTileCols) = args.start
     (maxTileRows, maxTileCols) = args.end
     (tileRows, tileCols) = tile

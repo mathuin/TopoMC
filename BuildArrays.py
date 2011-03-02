@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # from datasets to arrays
 # do everything buildimages did
 # plus half of what buildworld did
@@ -7,7 +8,6 @@ import sys
 sys.path.append('..')
 import os
 import numpy
-import Image # may not be needed woo
 import argparse
 from osgeo.gdal import UseExceptions
 from osgeo import osr
@@ -20,6 +20,8 @@ import tile
 import bathy
 import mcmap
 import crust
+import ore
+import building
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -37,7 +39,7 @@ def checkScale(args):
         oldscale = args.scale[0]
     else:
         oldscale = int(args.scale)
-    lcds, elevds = getDataset(args.region)
+    lcds, elevds = dataset.getDataset(args.region)
     elevds = None
     lcperpixel = lcds.transforms[2][1]
     lcds = None
@@ -56,7 +58,7 @@ def checkVScale(args):
         oldvscale = args.vscale[0]
     else:
         oldvscale = int(args.vscale)
-    (lcds, elevds) = getDataset(args.region)
+    (lcds, elevds) = dataset.getDataset(args.region)
     lcds = None
     elevBand = elevds.GetRasterBand(1)
     elevCMinMax = elevBand.ComputeRasterMinMax(False)
@@ -64,7 +66,7 @@ def checkVScale(args):
     elevds = None
     elevMax = elevCMinMax[1]
     vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, (elevMax/maxelev)+1)
+    vscale = max(vscale, (elevMax/mcmap.maxelev)+1)
     if (vscale != oldvscale):
         print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
     args.vscale = vscale
@@ -77,13 +79,13 @@ def main(argv):
     default_vscale = 6
     default_maxdepth = 48
     default_slope = 1
-    default_tile = [16, 16]
+    default_tile = [256, 256]
     default_start = [0, 0]
     default_end = [0, 0]
     default_processes = cpu_count()
 
     parser = argparse.ArgumentParser(description='Generate images for BuildWorld.js from USGS datasets.')
-    parser.add_argument('--region', nargs='?', type=checkDataset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--region', nargs='?', type=dataset.checkDataset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--scale', nargs=1, default=default_scale, type=int, help="horizontal scale factor (default %d)" % default_scale)
     parser.add_argument('--vscale', nargs=1, default=default_vscale, type=int, help="vertical scale factor (default %d)" % default_vscale)
@@ -96,7 +98,7 @@ def main(argv):
 
     # list regions if requested
     if (args.region == None):
-        dataset.listDatasets(dsDict)
+        dataset.listDatasets(dataset.dsDict)
         return 0
 
     # set up all the values
@@ -110,28 +112,50 @@ def main(argv):
     (tileRows, tileCols) = tileShape
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = tile.checkStartEnd(args, mult, tileShape)
 
-    # make arraydir
-    arraydir = os.path.join("Arrays", args.region)
-    if os.path.exists(arraydir):
-        [ os.remove(os.path.join(arraydir,name)) for name in os.listdir(arraydir) ]
-    else:
-        os.makedirs(arraydir)
-
     print "Processing region %s of size (%d, %d) with %d processes..." % (args.region, rows, cols, processes)
 
+    # createArrays should:
+    # create the shared memory arrays like initWorld
+    minX = 0
+    minZ = 0
+    maxX = int(rows*mult)
+    maxZ = int(cols*mult)
+    mcmap.createArrays(minX, minZ, maxX, maxZ)
+
     # build crust tree for whole map
+    print "... building crust"
     crust.makeCrustIDT(args)
 
-    # here is where we do the magic
+    # process data in 256x256 tiles
     if (processes == 1):
-        [processTile(args, arraydir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+        peaks = [tile.processTile(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
     else:
         pool = Pool(processes)
-        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
-        results = pool.imap_unordered(processTilestar, tasks)
-        bleah = [x for x in results]
+        tasks = [(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+        results = pool.imap_unordered(tile.processTilestar, tasks)
+        peaks = [x for x in results]
 
-    print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), int(rows*mult), int(cols*mult))
+    print "... tiles completed: total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), int(rows*mult), int(cols*mult))
+
+    # per-tile peaks here
+    # ... consider doing something nice on all the peaks?
+    peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
+
+    # where's that ore?
+    #print "Adding ore... "
+    #ore.placeOre(minX, minZ, maxX, maxZ)
+
+    # place the safehouse at the peak (adjust it)
+    #print "Adding safehouse... "
+    #building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
+
+    # saveArrays should:
+    # 'make arraydir' as above
+    # iterate through all shared memory arrays
+    # save each pair in a file
+    print "Saving arrays"
+    arraydir = os.path.join("Arrays", args.region)
+    mcmap.saveArrays(arraydir, maxX, minX)
 
 if __name__ == '__main__':
     UseExceptions()

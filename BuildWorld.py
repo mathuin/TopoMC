@@ -17,6 +17,8 @@ import tree
 import mcmap
 import building
 import ore
+import dataset
+import os
 
 # everything an explorer needs, for now
 def equipPlayer(world):
@@ -55,65 +57,26 @@ def main(argv):
     maintime = clock()
     default_processes = cpu_count()
     default_nodata = 11
+    # FIXME
     parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
-    parser.add_argument('--region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
-    parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
-    parser.add_argument('--nodata', nargs=1, default=default_nodata, type=int, help="value to substitute when landcover file has no data (default %d)" % default_nodata)
-    parser.add_argument('--world', type=mcmap.checkWorld, help="name or number of world to generate")
+    parser.add_argument('--region', nargs='?', type=dataset.checkDataset, help='a region to be processed (leave blank for list of regions)')
 
     # this is global
     args = parser.parse_args()
 
-    # list regions if requested
-    if (args.region == None):
-        image.listImagesets()
-        return 0
-
-    # set up all the values
-    processes = checkProcesses(args)
-    # bah
-    if (type(args.nodata)is list):
-        terrain.nodata = args.nodata[0]
-    else:
-        terrain.nodata = args.nodata
-    
-    
     # what are we doing?
     print 'Creating world from region %s' % args.region
 
     # create shared memory for each expected chunk
-    minX = 0
-    minZ = 0
-    maxX, maxZ = image.imageDims[args.region]
-    mcmap.initWorld(args.world, minX, minZ, maxX, maxZ, processes)
+    worlddir = os.path.join("Worlds", args.region)
+    mcmap.myinitWorld(worlddir)
 
-    # iterate over images
-    peaks = image.processImages(args.region, args.processes)
-        
-    # per-tile peaks here
-    # ... consider doing something nice on all the peaks?
-    peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
+    # load arrays
+    arraydir = os.path.join("Arrays", args.region)
+    mcmap.loadArrays(arraydir)
 
-    # where's that ore?
-    ore.placeOre(minX, minZ, maxX, maxZ)
-
-    # place the safehouse at the peak (adjust it)
-    building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
-
-    # write array to level
-    mcmap.populateWorld()
-
-    # maximum elevation
-    print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
-
-    # set player position and spawn point (in this case, equal)
-    equipPlayer(mcmap.world)
-    mcmap.saveWorld(peak)
-
-    print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
-    terrain.printStatistics()
-    tree.printStatistics()
-    ore.printStatistics()
+    # save world
+    mcmap.mysaveWorld()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

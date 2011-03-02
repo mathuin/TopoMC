@@ -30,38 +30,15 @@ processes = 0
 
 makeWorldNow = False
 
-def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wprocesses):
+def myinitWorld(string):
     "Open this world."
-    global world, minX, minZ, maxX, maxZ, processes
-    # set defaults
-    minX = wminX
-    minZ = wminZ
-    maxX = wmaxX
-    maxZ = wmaxZ
-    processes = wprocesses
+    global world
     try:
         worldNum = int(string)
     except ValueError:
         world = mclevel.MCInfdevOldLevel(string, create=True)
     else:
         world = mclevel.loadWorldNumber(worldNum)
-    # for now, assume minX and minZ are zero
-    minXchunk = (minX >> chunkWidthPow)
-    minZchunk = (minZ >> chunkWidthPow)
-    maxXchunk = (maxX >> chunkWidthPow)
-    maxZchunk = (maxZ >> chunkWidthPow)
-    chunkX = xrange(minXchunk-1, maxXchunk+2)
-    chunkZ = xrange(minZchunk-1, maxZchunk+2)
-    for x, z in product(chunkX, chunkZ):
-        arrayKey = '%d,%d' % (x, z)
-        if (makeWorldNow):
-            try:
-                world.getChunk(z, x)
-            except mclevel.ChunkNotPresent:
-                world.createChunk(z, x)
-            world.compressChunk(z, x)
-        arrayBlocks[arrayKey] = SharedMemArray(zeros((chunkWidth,chunkWidth,chunkHeight),dtype=uint8))
-        arrayData[arrayKey] = SharedMemArray(zeros((chunkWidth,chunkWidth,chunkHeight),dtype=uint8))
 
 # each column consists of [x, z, elevval, ...]
 # where ... is a block followed by zero or more number-block pairs
@@ -117,8 +94,17 @@ def fillBlocks(ix, dx, iy, dy, iz, dz, block, data=None):
 # my own setblockat
 def setBlockAt(x, y, z, string):
     global arrayBlocks
-    arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
-    myBlocks = arrayBlocks[arrayKey].asarray()
+    arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
+    try:
+        myBlocks = arrayBlocks[arrayKey].asarray()
+    except KeyError:
+        print "got key error with (%d, %d, %d, %s)" % (x, y, z, string)
+        myBlocks = arrayBlocks[arrayKey].asarray()
+    try:
+        materials.materialNamed(string)
+    except ValueError:
+        print "got value error with (%d, %d, %d, %s)" % (x, y, z, string)
+        materials.materialNamed(string)
     myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materials.materialNamed(string)
 
 # more aggregates
@@ -126,19 +112,12 @@ def setBlocksAt(blocks):
     global arrayBlocks
     for block in blocks:
         (x, y, z, string) = block
-        arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
-        myBlocks = arrayBlocks[arrayKey].asarray()
-	try:
-	    materials.materialNamed(string)
-	except ValueError:
-	    print "block not found: %s" % string
-	else:
-            myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materials.materialNamed(string)
+        setBlockAt(x, y, z, string)
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
     global arrayData
-    arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
+    arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
     myData = arrayData[arrayKey].asarray()
     myData[x & chunkWidth-1, z & chunkWidth-1, y] = data
 
@@ -147,19 +126,17 @@ def setBlocksDataAt(blocks):
     global arrayData
     for block in blocks:
         (x, y, z, data) = block
-        arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
-        myData = arrayData[arrayKey].asarray()
-        myData[x & chunkWidth-1, z & chunkWidth-1, y] = data
+        setBlockDataAt(x, y, z, data)
 
 def getBlockAt(x, y, z):
     "Returns the block ID of the block at this point."
-    arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
+    arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
     myBlocks = arrayBlocks[arrayKey].asarray()
     return materials.names[myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]]
     
 def getBlockDataAt(x, y, z):
     "Returns the data value of the block at this point."
-    arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
+    arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
     myData = arrayData[arrayKey].asarray()
     return myData[x & chunkWidth-1, z & chunkWidth-1, y]
 
@@ -168,14 +145,14 @@ def getBlocksAt(blocks):
     retval = []
     for block in blocks:
         (x, y, z) = block
-        arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
+        arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
         myBlocks = arrayBlocks[arrayKey].asarray()
         retval.append(materials.names[myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]])
     return retval
 
 def populateChunk(key,maxcz):
     #print "key is %s" % (key)
-    global world
+    global world, arrayBlocks, arrayData
     start = clock()
     ctuple = key.split(',')
     ocx = int(ctuple[0])
@@ -252,6 +229,82 @@ def saveWorld(spawn):
         sizeOnDisk += ch.compressedSize();
     world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
+
+def mysaveWorld():
+    global world
+    sizeOnDisk = 0
+    # stolen from pymclevel/mce.py
+    numchunks = 0
+    for i, cPos in enumerate(world.allChunks, 1):
+        ch = world.getChunk(*cPos);
+        numchunks += 1
+        sizeOnDisk += ch.compressedSize();
+    print '%d chunks enumerated' % numchunks
+    world.SizeOnDisk = sizeOnDisk
+    world.saveInPlace()
+
+def createArrays(minX, minZ, maxX, maxZ):
+    "Create shared arrays."
+    global arrayBlocks, arrayData
+    minXchunk = (minX >> chunkWidthPow)
+    minZchunk = (minZ >> chunkWidthPow)
+    maxXchunk = (maxX >> chunkWidthPow)
+    maxZchunk = (maxZ >> chunkWidthPow)
+    chunkX = xrange(minXchunk-1, maxXchunk+2)
+    chunkZ = xrange(minZchunk-1, maxZchunk+2)
+    for x, z in product(chunkX, chunkZ):
+        arrayKey = '%dx%d' % (x, z)
+        arrayBlocks[arrayKey] = SharedMemArray(zeros((chunkWidth,chunkWidth,chunkHeight),dtype=uint8))
+        arrayData[arrayKey] = SharedMemArray(zeros((chunkWidth,chunkWidth,chunkHeight),dtype=uint8))
+
+def saveArrays(arraydir, maxX, minX):
+    "Save shared arrays."
+    maxcz = (maxX-minX) >> chunkWidthPow
+    # make arraydir
+    if os.path.exists(arraydir):
+        [ os.remove(os.path.join(arraydir,name)) for name in os.listdir(arraydir) ]
+    else:
+        os.makedirs(arraydir)
+    # FIXME: not-parallelizable-yet
+    # modularize later
+    # for each pair of shared memory arrays
+    for key in arrayBlocks.keys():
+        ctuple = key.split('x')
+        ocx = int(ctuple[0])
+        ocz = int(ctuple[1])
+        cz = maxcz-ocx
+        cx = ocz
+        myBlocks = arrayBlocks[key].asarray()
+        myData = arrayData[key].asarray()
+        # save them to a file
+        outfile = os.path.join(arraydir, '%dx%d.npz' % (cx, cz))
+        numpy.savez(outfile, blocks=myBlocks, data=myData)
+
+def loadArrays(arraydir):
+    "Load all arrays from array directory."
+    numarrays = 0
+    # FIXME: do in parallel if possible
+    for name in os.listdir(arraydir):
+        numarrays += 1
+        # extract arrays from file
+        arrayData = numpy.load(os.path.join(arraydir,name))
+        myBlocks = arrayData['blocks']
+        myData = arrayData['data']
+        # extract key from filename
+        key = name.split('.')[0]
+        ctuple = key.split('x')
+        cx = int(ctuple[0])
+        cz = int(ctuple[1])
+        try:
+            world.getChunk(cx, cz)
+        except mclevel.ChunkNotPresent:
+            world.createChunk(cx, cz)
+        chunk = world.getChunk(cx, cz)
+        for x, z in product(xrange(chunkWidth), xrange(chunkWidth)):
+            chunk.Blocks[x,z] = myBlocks[chunkWidth-1-z,x]
+            chunk.Data[x,z] = myData[chunkWidth-1-z,x]
+        chunk.chunkChanged()
+    print '%d arrays loaded' % numarrays
 
 # variables
 arrayBlocks = {}
