@@ -21,12 +21,13 @@ def checkProcesses(args):
 
 def main(argv):
     default_processes = cpu_count()
-    # FIXME
     parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
     parser.add_argument('--region', nargs='?', type=dataset.checkDataset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
 
     # this is global
     args = parser.parse_args()
+    processes = checkProcesses(args)
 
     # what are we doing?
     print 'Creating world from region %s' % args.region
@@ -37,7 +38,7 @@ def main(argv):
 
     # load arrays
     arraydir = os.path.join("Arrays", args.region)
-    mcarray.loadArrays(mcmap.world, arraydir)
+    mcarray.loadArrays(mcmap.world, arraydir, processes)
 
     # save world
     mcmap.mysaveWorld()
