@@ -3,6 +3,7 @@ import Image
 from time import time
 from coords import *
 import invdisttree
+from multiprocessing import Pool, cpu_count
 from itertools import product
 import dataset
 import bathy
@@ -69,8 +70,6 @@ def processTile(args, tileRowIndex, tileColIndex):
     tileShape = args.tile
     mult = args.mult
     vscale = args.vscale
-    maxdepth = args.maxdepth
-    slope = args.slope
     curtime = time()
     (lcds, elevds) = dataset.getDataset(args.region)
     (rows, cols) = dataset.getDatasetDims(args.region)
@@ -99,14 +98,14 @@ def processTile(args, tileRowIndex, tileColIndex):
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
-    depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=maxdepth)
+    depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=bathy.maxdepth)
     depthShape = (depthSize[1], depthSize[0])
     depthArray = getLatLongArray(lcds, depthOffset, depthSize, mult)
     depthUL = getLatLong(lcds, int(depthOffset[0]/mult), int(depthOffset[1]/mult))
     depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
     bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
     bigImageArray.resize(depthShape)
-    bathyImageArray = bathy.getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope)
+    bathyImageArray = bathy.getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset)
 
     # second idea: crust
     crustImageArray = crust.getCrust(bathyImageArray, baseArray)
@@ -137,6 +136,19 @@ def processTile(args, tileRowIndex, tileColIndex):
 
 def processTilestar(args):
     return processTile(*args)
+
+def processTiles(args, minTileRows, maxTileRows, minTileCols, maxTileCols, processes):
+    "Process those tiles."
+    # process data in 256x256 tiles
+    if (processes == 1):
+        peaks = [processTile(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+    else:
+        pool = Pool(processes)
+        tasks = [(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+        results = pool.imap_unordered(processTilestar, tasks)
+        peaks = [x for x in results]
+	pool = None
+    return peaks
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
