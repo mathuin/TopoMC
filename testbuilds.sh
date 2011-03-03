@@ -14,7 +14,7 @@
 : ${ARRAYDIR:="Arrays/$DATASET"}
 : ${WORLDDIR:="Worlds/$DATASET"}
 : ${PROFDATESTR:=$(date +"%Y%m%d%H%m")}
-: ${PROFBAFILE:="BI-$PROFDATESTR.prof"}
+: ${PROFBAFILE:="BA-$PROFDATESTR.prof"}
 : ${PROFBWFILE:="BW-$PROFDATESTR.prof"}
 : ${BAOPTS:="--scale 15"}
 : ${BWOPTS:=""}
@@ -23,7 +23,7 @@
 : ${MAPPEROPTS:="-z -w $WORLDDIR -o $IMAGE"}
 
 rm -rf $ARRAYDIR $WORLDDIR $IMAGE && \
-python -m cProfile -o $PROFBAFILE ./BuildArrays.py --region $DATASET --processes 1 $BIOPTS && \
+python -m cProfile -o $PROFBAFILE ./BuildArrays.py --region $DATASET --processes 1 $BAOPTS && \
 python -m cProfile -o $PROFBWFILE ./BuildWorld.py --region $DATASET --processes 1 $BWOPTS && \
 $MAPPER $MAPPEROPTS && \
 display $IMAGE 
