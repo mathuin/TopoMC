@@ -134,6 +134,7 @@ def main(argv):
         tasks = [(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
         results = pool.imap_unordered(tile.processTilestar, tasks)
         peaks = [x for x in results]
+	pool = None
 
     print "... tiles completed: total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), int(rows*mult), int(cols*mult))
 
