@@ -4,6 +4,7 @@ import numpy
 import multinumpy
 from pymclevel import mclevel, materials
 from itertools import product
+from multiprocessing import Pool
 
 # level constants
 chunkWidthPow = 4
@@ -15,9 +16,26 @@ sealevel = 64
 headroom = 10
 maxelev = chunkHeight-headroom-sealevel
 
-def createArrays(minX, minZ, maxX, maxZ):
+# level variables
+minX = 0
+minZ = 0
+maxX = 0
+maxZ = 0
+maxcz = 0
+arrayBlocks = {}
+arrayData = {}
+
+def createArrays(aminX, aminZ, amaxX, amaxZ):
     "Create shared arrays."
-    global arrayBlocks, arrayData
+    global minX, minZ, maxX, maxZ, arrayBlocks, arrayData
+    # assign level variables
+    minX = aminX
+    minZ = aminZ
+    maxX = amaxX
+    maxZ = amaxZ
+    # calculate maxcz for rotation
+    maxcz = (amaxX-aminX) >> chunkWidthPow
+    # start creating arrays
     minXchunk = (minX >> chunkWidthPow)
     minZchunk = (minZ >> chunkWidthPow)
     maxXchunk = (maxX >> chunkWidthPow)
@@ -29,54 +47,80 @@ def createArrays(minX, minZ, maxX, maxZ):
         arrayBlocks[arrayKey] = multinumpy.SharedMemArray(numpy.zeros((chunkWidth,chunkWidth,chunkHeight),dtype=numpy.uint8))
         arrayData[arrayKey] = multinumpy.SharedMemArray(numpy.zeros((chunkWidth,chunkWidth,chunkHeight),dtype=numpy.uint8))
 
-def saveArrays(arraydir, maxX, minX):
+def saveArray(arraydir, key):
+    "Save a particular array based on its key."
+    global arrayBlocks, arrayData
+    ctuple = key.split('x')
+    ocx = int(ctuple[0])
+    ocz = int(ctuple[1])
+    cz = maxcz-ocx
+    cx = ocz
+    myBlocks = arrayBlocks[key].asarray()
+    myData = arrayData[key].asarray()
+    # save them to a file
+    outfile = os.path.join(arraydir, '%dx%d.npz' % (cx, cz))
+    numpy.savez(outfile, blocks=myBlocks, data=myData)
+    arrayBlocks[key] = None
+    arrayData[key] = None
+
+def saveArraystar(args):
+    return saveArray(*args)
+
+def saveArrays(arraydir, processes):
     "Save shared arrays."
-    maxcz = (maxX-minX) >> chunkWidthPow
     # make arraydir
     if os.path.exists(arraydir):
         [ os.remove(os.path.join(arraydir,name)) for name in os.listdir(arraydir) ]
     else:
         os.makedirs(arraydir)
-    # FIXME: not-parallelizable-yet
-    # modularize later
-    # for each pair of shared memory arrays
-    for key in arrayBlocks.keys():
-        ctuple = key.split('x')
-        ocx = int(ctuple[0])
-        ocz = int(ctuple[1])
-        cz = maxcz-ocx
-        cx = ocz
-        myBlocks = arrayBlocks[key].asarray()
-        myData = arrayData[key].asarray()
-        # save them to a file
-        outfile = os.path.join(arraydir, '%dx%d.npz' % (cx, cz))
-        numpy.savez(outfile, blocks=myBlocks, data=myData)
+    # distribute this
+    # FIXME: numpy.savez is not threadsafe, sigh!
+    if (processes == 1 or True):
+        arrays = [saveArray(arraydir, key) for key in arrayBlocks.keys()]
+    else:
+        pool = Pool(processes)
+        tasks = [(arraydir, key) for key in arrayBlocks.keys()]
+        results = pool.imap_unordered(saveArraystar, tasks)
+        arrays = [x for x in results]
+        pool = None
 
-def loadArrays(world, arraydir):
+def loadArray(world, arraydir, name):
+    "Load array from file."
+    # extract arrays from file
+    infile = numpy.load(os.path.join(arraydir,name))
+    myBlocks = infile['blocks']
+    myData = infile['data']
+    infile = None
+    # extract key from filename
+    key = name.split('.')[0]
+    ctuple = key.split('x')
+    cx = int(ctuple[0])
+    cz = int(ctuple[1])
+    try:
+        world.getChunk(cx, cz)
+    except mclevel.ChunkNotPresent:
+        world.createChunk(cx, cz)
+    chunk = world.getChunk(cx, cz)
+    for x, z in product(xrange(chunkWidth), xrange(chunkWidth)):
+        chunk.Blocks[x,z] = myBlocks[chunkWidth-1-z,x]
+        chunk.Data[x,z] = myData[chunkWidth-1-z,x]
+    chunk.chunkChanged()
+
+def loadArraystar(args):
+    return loadArray(*args)
+
+def loadArrays(world, arraydir, processes):
     "Load all arrays from array directory."
-    numarrays = 0
-    # FIXME: do in parallel if possible
-    for name in os.listdir(arraydir):
-        numarrays += 1
-        # extract arrays from file
-        arrayData = numpy.load(os.path.join(arraydir,name))
-        myBlocks = arrayData['blocks']
-        myData = arrayData['data']
-        # extract key from filename
-        key = name.split('.')[0]
-        ctuple = key.split('x')
-        cx = int(ctuple[0])
-        cz = int(ctuple[1])
-        try:
-            world.getChunk(cx, cz)
-        except mclevel.ChunkNotPresent:
-            world.createChunk(cx, cz)
-        chunk = world.getChunk(cx, cz)
-        for x, z in product(xrange(chunkWidth), xrange(chunkWidth)):
-            chunk.Blocks[x,z] = myBlocks[chunkWidth-1-z,x]
-            chunk.Data[x,z] = myData[chunkWidth-1-z,x]
-        chunk.chunkChanged()
-    print '%d arrays loaded' % numarrays
+    # FIXME: something about getChunk and friends isn't parallel-friendly
+    if (processes == 1 or True):
+        arrays = [loadArray(world, arraydir, name) for name in os.listdir(arraydir)]
+    else:
+        pool = Pool(processes)
+        tasks = [(world, arraydir, name) for name in os.listdir(arraydir)]
+        results = pool.imap_unordered(loadArraystar, tasks)
+        arrays = [x for x in results]
+        pool = None
+    print '%d arrays loaded' % len(arrays)
 
 # each column consists of [x, z, elevval, ...]
 # where ... is a block followed by zero or more number-block pairs
@@ -187,7 +231,3 @@ def getBlocksAt(blocks):
         myBlocks = arrayBlocks[arrayKey].asarray()
         retval.append(materials.names[myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]])
     return retval
-
-# variables
-arrayBlocks = {}
-arrayData = {}
