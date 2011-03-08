@@ -2,13 +2,15 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
 
+Recent changes include:
+ * There is now a hard floor of bedrock so no more falling through.
+ * All created worlds are now stored in Worlds/ by default.
+ * Fixed ore generation bug which made the ellipsoid a spheroid.
+
 Features include:
- * There's ore in them there hills.  Well, in the ground anyway!
- * Datasets can now be downloaded directly from the USGS!
- * The project is now pure Python.  The speed is worth it.
- * Both single-player and multi-player worlds can be generated.
- * North is now north!  That math was more annoying than I expected. :-)
+ * Ore (including dirt and gravel) is generated properly.
  * Simulated bathymetric data based on local terrain.
+ * Datasets can now be downloaded directly from the USGS!
 
 This project includes one small dataset for testing.  It was generated with the following commands:
      ./GetDataset.py --region BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
@@ -30,6 +32,6 @@ Next, here's what to do!
     jmt@belle:~/TopoMC$ ./BuildImages.py --region Provincetown
 
 4.  Build a new world! 
-    jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown --world Worlds/Provincetown
+    jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown
 
 Both BuildImages.py and BuildWorld.py have lots of options for the curious.
