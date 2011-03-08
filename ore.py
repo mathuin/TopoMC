@@ -7,6 +7,8 @@ from time import clock
 from scipy.special import cbrt
 from math import pi
 from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
+# for minX, minZ, maxX, and maxZ
+import mcmap
 from itertools import product
 
 # http://www.minecraftwiki.net/wiki/Ore
@@ -38,9 +40,8 @@ for key in oreType.keys():
 # any ore that tries to replace these blocks is hereby disqualified
 oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)'])
 
-
 # whole-world approach
-def placeOre(minX, minZ, maxX, maxZ):
+def placeOre():
     placestart = clock()
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
@@ -60,9 +61,9 @@ def placeOre(minX, minZ, maxX, maxZ):
             clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
             clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
             clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
-            oreX = randint(int(minX+clumpX),int(maxX-clumpX))
+            oreX = randint(int(mcmap.minX+clumpX),int(mcmap.maxX-clumpX))
             oreY = randint(int(minY+clumpY),int(maxY-clumpY))
-            oreZ = randint(int(minZ+clumpZ),int(maxZ-clumpZ))
+            oreZ = randint(int(mcmap.minZ+clumpZ),int(mcmap.maxZ-clumpZ))
             oXrange = xrange(int(0-clumpX), int(clumpX+1))
             oYrange = xrange(int(0-clumpY), int(clumpY+1))
             oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
