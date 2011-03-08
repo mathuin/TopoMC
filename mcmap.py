@@ -44,7 +44,7 @@ def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wprocesses):
     if not os.path.exists(worlddir):
         os.mkdir(worlddir)
     if not os.path.isdir(worlddir):
-        raise IOError, "%s already exists" % worlddir)
+        raise IOError, "%s already exists" % worlddir
     world = mclevel.MCInfdevOldLevel(worlddir, create=True)
     minXchunk = (minX >> chunkWidthPow)
     minZchunk = (minZ >> chunkWidthPow)
