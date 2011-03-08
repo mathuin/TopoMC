@@ -2,7 +2,6 @@
 from __future__ import division
 from random import random, randint
 from mcmap import sealevel, setBlockAt, setBlockDataAt
-from pymclevel.materials import alphaMaterials
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
@@ -15,7 +14,7 @@ treeProb = 0.001
 forestProb = 0.03
 
 # maximum distance from the trunk
-treeWidth = 3
+treeWidth = 2
 leafDistance = fromfunction(lambda i, j: sqrt((i-treeWidth)*(i-treeWidth)+(j-treeWidth)*(j-treeWidth)), (treeWidth*2+1, treeWidth*2+1), dtype=float32)
 # [[ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24],
 #  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],
@@ -71,7 +70,6 @@ def placeTree(x, z, elevval, probFactor, treeName):
         makeTree(x, z, elevval, treeNum)
 
 def makeTree(x, z, elevval, treeNum):
-    testMonkey = True
     base = sealevel+elevval
     height = randint(treeHeight[treeNum][0], treeHeight[treeNum][1])
     leafbottom = base+treeHeight[treeNum][2]
@@ -89,7 +87,7 @@ def makeTree(x, z, elevval, treeNum):
                 setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
         for y in xrange(base,base+height):
             # FIXME: sigh, 'Tree trunk' doesn't work
-            setBlockAt(x, y, z, alphaMaterials.names[17])
+            setBlockAt(x, y, z, 'Wood')
             setBlockDataAt(x, y, z, treeNum-1)
     # increment tree count
     treeCount[treeNum].value += 1
