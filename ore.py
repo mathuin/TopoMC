@@ -50,7 +50,7 @@ def placeOre(minX, minZ, maxX, maxZ):
         # only doing common pass here
         minY = 0
         maxY = pow(2,oreDepth[ore])
-        maxExtent = cbrt(oreSize[ore])/2
+        maxExtent = cbrt(oreSize[ore])
         numRounds = int(oreRounds[ore]*numChunks)
         for round in xrange(numRounds):
             clumpX = randint(int(maxExtent*100),int(maxExtent*900))/1000
