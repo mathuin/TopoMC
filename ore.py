@@ -38,7 +38,7 @@ for key in oreType.keys():
     oreNodeCount[key] = Value('i', 0)
     oreVeinCount[key] = Value('i', 0)
 # any ore that tries to replace these blocks is hereby disqualified
-oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)'])
+oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)', 'Bedrock'])
 
 # whole-world approach
 def placeOre():

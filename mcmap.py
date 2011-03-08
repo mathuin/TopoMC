@@ -66,12 +66,12 @@ def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wprocesses):
 # each column consists of [x, z, elevval, ...]
 # where ... is a block followed by zero or more number-block pairs
 # examples:
-# [x, y, elevval, 'Stone']
-#  - fill everything from 0 to elevval with stone
-# [x, y, elevval, 'Dirt', 2, 'Water']
-#  - elevval down two levels of water, rest dirt
-# [x, y, elevval, 'Stone', 1, 'Dirt', 1, 'Water']
-#  - elevval down one level of water, then one level of dirt, then stone
+# [x, y, elevval]
+#  - From sealevel+elevval to 1 with Stone, then Bedrock at 0
+# [x, y, elevval, 2, 'Water']
+#  - From sealevel+elevval down two levels of Water, then Stone as above
+# [x, y, elevval, 1, 'Dirt', 1, 'Water']
+#  - From sealevel+elevval down one level each of Water and Dirt, then as above
 # We add the final values here so the hard floor is 'Bedrock'.
 def layers(columns):
     blocks = []
@@ -80,11 +80,10 @@ def layers(columns):
         z = column.pop(0)
         elevval = column.pop(0)
         top = sealevel+elevval
-        # overstone = sum([elem for elem in column if type(elem) == int])
-        # column.insert(0, 'Bedrock')
-        # column.insert(1, top-overstone-1)
-        # column.insert(2, 'Stone')
-        column.insert(0, 'Stone')
+        overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
+        column.insert(0, 'Bedrock')
+        column.insert(1, top-overstone-1)
+        column.insert(2, 'Stone')
         while (len(column) > 0 or top > 0):
             # better be a block
             block = column.pop()
