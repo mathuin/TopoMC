@@ -64,8 +64,8 @@ def placeOre(minX, minZ, maxX, maxZ):
             oreY = randint(int(minY+clumpY),int(maxY-clumpY))
             oreZ = randint(int(minZ+clumpZ),int(maxZ-clumpZ))
             oXrange = xrange(int(0-clumpX), int(clumpX+1))
-            oYrange = xrange(int(0-clumpX), int(clumpX+1))
-            oZrange = xrange(int(0-clumpX), int(clumpX+1))
+            oYrange = xrange(int(0-clumpY), int(clumpY+1))
+            oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
             # consider air/water/lava exemption here!
             oreCoords = [[oreX+x, oreY+y, oreZ+z] for x in oXrange for y in oYrange for z in oZrange if ((((x*x)/(clumpX*clumpX))+((y*y)/(clumpY*clumpY))+((z*z)/(clumpZ*clumpZ)))<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
             oreBlocks = getBlocksAt(oreCoords)
