@@ -39,13 +39,13 @@ def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wprocesses):
     maxX = wmaxX
     maxZ = wmaxZ
     processes = wprocesses
-    try:
-        worldNum = int(string)
-    except ValueError:
-        world = mclevel.MCInfdevOldLevel(string, create=True)
-    else:
-        world = mclevel.loadWorldNumber(worldNum)
-    # for now, assume minX and minZ are zero
+    # it's a simpler universe now
+    worlddir = os.path.join("Worlds", string)
+    if not os.path.exists(worlddir):
+        os.mkdir(worlddir)
+    if not os.path.isdir(worlddir):
+        raise IOError, "%s already exists" % worlddir)
+    world = mclevel.MCInfdevOldLevel(worlddir, create=True)
     minXchunk = (minX >> chunkWidthPow)
     minZchunk = (minZ >> chunkWidthPow)
     maxXchunk = (maxX >> chunkWidthPow)
@@ -217,27 +217,6 @@ def populateWorld():
         times = [x for x in results]
     count = len(times)
     print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
-
-def checkWorld(string):
-    if (string == None):
-        argparse.error("a world must be defined")
-    try:
-        worldNum = int(string)
-    except ValueError:
-        if not os.path.exists(string):
-            os.mkdir(string)
-        if not os.path.isdir(string):
-            raise IOError, "%s already exists" % string
-        level = mclevel.MCInfdevOldLevel(string, create=True)
-        level.saveInPlace()
-        level = None
-        return string
-    else:
-        if 1 < worldNum <= 5:
-            string = worldNum
-        else:
-            raise IOError, "bad value for world: %s" % string
-    return string
 
 def saveWorld(spawn):
     global world
