@@ -9,18 +9,23 @@ from coords import getTransforms
 # paths for datasets
 dsPaths = ['Datasets', '../TopoMC-Datasets']
 
+# product types
+landcoverIDs = ['L01']
+elevationIDs = ['ND3', 'NED']
+
 # functions
 def decodeLayerID(layerID):
     "Given a layer ID, return the product type, image type, metadata type, and compression type."
     productID = layerID[0]+layerID[1]+layerID[2]
-    if (productID == "L01"):
+    if (productID in landcoverIDs):
         pType = "landcover"
-    elif (productID == "NED" or productID == "ND3"):
+    elif (productID in elevationIDs):
         pType = "elevation"
     else:
         print "Invalid product ID %s" % productID
         return -1
 
+    # FIXME: handle more image types
     imagetype = layerID[3]+layerID[4]
     if (imagetype == "02"):
         iType = "tif"

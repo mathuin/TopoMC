@@ -1,27 +1,28 @@
 # it is time to place some ore
 
 from __future__ import division
-from pymclevel import materials
 from random import randint
 from multiprocessing import Value
 from time import clock
 from scipy.special import cbrt
 from math import pi
 from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
+# for minX, minZ, maxX, and maxZ
+import mcmap
+from itertools import product
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {
     0: 'Dirt',
     1: 'Gravel',
-    2: 'Coal',
-    3: 'Iron',
-    4: 'Gold', 
-    5: 'Diamond',
-    6: 'Redstone',
-    7: 'Lapis Lazuli'
+    2: 'Coal Ore',
+    3: 'Iron Ore',
+    4: 'Gold Ore', 
+    5: 'Diamond Ore',
+    6: 'Redstone Ore',
+    7: 'Lapis Lazuli Ore'
 }
 oreDepth = [7, 7, 7, 6, 5, 4, 4, 4]
-oreValue = [3, 13, 16, 15, 14, 56, 73, 21]
 # http://www.minecraftforum.net/viewtopic.php?f=35&t=28299
 # "rounds" is how many times per chunk a deposit is generated
 # "size" is the rough max size of a deposit
@@ -37,10 +38,10 @@ for key in oreType.keys():
     oreNodeCount[key] = Value('i', 0)
     oreVeinCount[key] = Value('i', 0)
 # any ore that tries to replace these blocks is hereby disqualified
-oreDQ = ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)']
+oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)', 'Bedrock'])
 
 # whole-world approach
-def placeOre(minX, minZ, maxX, maxZ):
+def placeOre():
     placestart = clock()
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
@@ -60,21 +61,24 @@ def placeOre(minX, minZ, maxX, maxZ):
             clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
             clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
             clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
-            oreX = randint(int(minX+clumpX),int(maxX-clumpX))
+            oreX = randint(int(mcmap.minX+clumpX),int(mcmap.maxX-clumpX))
             oreY = randint(int(minY+clumpY),int(maxY-clumpY))
-            oreZ = randint(int(minZ+clumpZ),int(maxZ-clumpZ))
+            oreZ = randint(int(mcmap.minZ+clumpZ),int(mcmap.maxZ-clumpZ))
             oXrange = xrange(int(0-clumpX), int(clumpX+1))
-            oYrange = xrange(int(0-clumpX), int(clumpX+1))
-            oZrange = xrange(int(0-clumpX), int(clumpX+1))
-            # consider air/water/lava exemption here!
-            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x in oXrange for y in oYrange for z in oZrange if ((((x*x)/(clumpX*clumpX))+((y*y)/(clumpY*clumpY))+((z*z)/(clumpZ*clumpZ)))<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
+            oYrange = xrange(int(0-clumpY), int(clumpY+1))
+            oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
+            clumpX2 = clumpX*clumpX
+            clumpY2 = clumpY*clumpY
+            clumpZ2 = clumpZ*clumpZ
+            # anything in the ellipsoid except air/water/lava and other ores
+            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x,y,z in product(oXrange, oYrange, oZrange) if ((x*x)/clumpX2+(y*y)/clumpY2+(z*z)/clumpZ2<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
             oreBlocks = getBlocksAt(oreCoords)
-            # FIXME: this does not exclude air/water/lava
-            if ('Stone' in oreBlocks and len(set(oreBlocks).intersection(set(oreDQ))) == 0 and len(set(oreBlocks).intersection(set(oreType.values()))) == 0):
-                #print "    success!"
+            # all it takes is one Stone and we're in
+            # FIXME: should start over if oreCoords has a len of 0
+            if ('Stone' in oreBlocks):
                 oreNodeCount[ore].value += len(oreCoords)
                 oreVeinCount[ore].value += 1
-                setBlocksAt([x, y, z, materials.names[oreValue[ore]]] for x, y, z in oreCoords)
+                setBlocksAt([x, y, z, oreType[ore]] for x, y, z in oreCoords)
         print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
     print "finished in %.2f seconds." % (clock()-placestart)
 

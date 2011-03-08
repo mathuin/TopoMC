@@ -59,7 +59,6 @@ def main(argv):
     parser.add_argument('--region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--nodata', nargs=1, default=default_nodata, type=int, help="value to substitute when landcover file has no data (default %d)" % default_nodata)
-    parser.add_argument('--world', type=mcmap.checkWorld, help="name or number of world to generate")
 
     # this is global
     args = parser.parse_args()
@@ -85,7 +84,7 @@ def main(argv):
     minX = 0
     minZ = 0
     maxX, maxZ = image.imageDims[args.region]
-    mcmap.initWorld(args.world, minX, minZ, maxX, maxZ, processes)
+    mcmap.initWorld(args.region, minX, minZ, maxX, maxZ, processes)
 
     # iterate over images
     peaks = image.processImages(args.region, args.processes)
@@ -95,7 +94,7 @@ def main(argv):
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # where's that ore?
-    ore.placeOre(minX, minZ, maxX, maxZ)
+    ore.placeOre()
 
     # place the safehouse at the peak (adjust it)
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
