@@ -7,6 +7,7 @@ from invdisttree import *
 from bathy import getBathymetry
 from crust import getCrust
 from dataset import getDatasetDims
+from multiprocessing import Pool
 
 def getIDT(ds, offset, size, vScale=1):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
@@ -126,6 +127,17 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
 
 def processTilestar(args):
     return processTile(*args)
+
+def processTiles(args, imagedir, minTileRows, maxTileRows, minTileCols, maxTileCols):
+    "Process tiles."
+    if (args.processes == 1):
+        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+    else:
+        pool = Pool(args.processes)
+        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+        results = pool.imap_unordered(processTilestar, tasks)
+        bleah = [x for x in results]
+        pool = None
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
