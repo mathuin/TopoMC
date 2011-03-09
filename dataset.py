@@ -9,7 +9,7 @@ from coords import getTransforms
 # paths for datasets
 dsPaths = ['Datasets', '../TopoMC-Datasets']
 
-# product types
+# product types in order of preference
 landcoverIDs = ['L01']
 elevationIDs = ['ND3', 'NED']
 
