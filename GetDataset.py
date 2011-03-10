@@ -155,7 +155,6 @@ def requestValidation(layerIDs):
 
         retval[Tag] = downloadURLs
 
-    print retval
     return retval
 
 # stupid redirect handling craziness
