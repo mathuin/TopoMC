@@ -1,5 +1,7 @@
 To do:
 
+Handle file-supplied "no data" value (what about 255?)
+ - San Francisco dataset has this problem
 Allow disabling of new features
  - some folks just want pretty
 Test and drivers for all functions
