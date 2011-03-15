@@ -40,12 +40,16 @@ def checkInventory(args):
     elevymin = centery-halfelevside
     elevymax = centery+halfelevside
 
+    #print "lc xmin %.2f, xmax %.2f, ymin %.2f, ymax %.2f" % (args.xmin, args.xmax, args.ymin, args.ymax)
+    #print "elev xmin %.2f, xmax %.2f, ymin %.2f, ymax %.2f" % (elevxmin, elevxmax, elevymin, elevymax)
+
     # check availability
-    lcProductID = checkAvail(args.xmax, args.xmin, args.ymax, args.ymin, landcoverIDs)
-    elevProductID = checkAvail(elevxmax, elevxmin, elevymax, elevymin, elevationIDs)
+    lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
+    #elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+    elevProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, elevationIDs)
 
     # return product ID and edges
-    return ([lcProductID, args.xmax, args.xmin, args.ymax, args.ymin], [elevProductID, elevxmax, elevxmin, elevymax, elevymin])
+    return (lcProduct, elevProduct)
 
 def checkAvail(xmin, xmax, ymin, ymax, productlist):
     "Check inventory service for coverage."
@@ -80,7 +84,7 @@ def checkAvail(xmin, xmax, ymin, ymax, productlist):
     # this should extract the first
     for ID in productlist:
         if (ID in offered):
-            return ID
+            return [ID, xmin, xmax, ymin, ymax]
     return None
 
 def checkDownloadOptions(productIDs):
@@ -94,10 +98,10 @@ def checkDownloadOptions(productIDs):
         productID = products[0]
         for ID in productIDs:
             if (productID == ID[0]):
-                XMax = ID[1]
-                XMin = ID[2]
-                YMax = ID[3]
-                YMin = ID[4]
+                XMin = ID[1]
+                XMax = ID[2]
+                YMin = ID[3]
+                YMax = ID[4]
         layerID = productID
         outputformats = {}
         compressionformats = {}
@@ -128,7 +132,7 @@ def checkDownloadOptions(productIDs):
         else:
             print "oh no ZIP not available"
             return -1
-        layerIDs.append([layerID, XMax, XMin, YMax, YMin])
+        layerIDs.append([layerID, XMin, XMax, YMin, YMax])
 
     return layerIDs
 
@@ -142,7 +146,7 @@ def requestValidation(layerIDs):
 
     # we now iterate through layerIDs
     for layerID in layerIDs:
-        (Tag, XMax, XMin, YMax, YMin) = layerID
+        (Tag, XMin, XMax, YMin, YMax) = layerID
         xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (YMax, YMin, XMin, XMax, Tag, 250)
 
         response = clientRequest.service.processAOI(xmlString)
@@ -155,7 +159,6 @@ def requestValidation(layerIDs):
 
         retval[Tag] = downloadURLs
 
-    print retval
     return retval
 
 # stupid redirect handling craziness

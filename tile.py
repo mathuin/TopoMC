@@ -38,14 +38,14 @@ def getOffsetSize(ds, corners, mult=1):
     farcorner_y = min(fcy, ds.RasterYSize)
     offset = (int(offset_x*mult), int(offset_y*mult))
     size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
+    #print "offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1])
     return offset, size
 
 def getImageArray(ds, idtCorners, baseArray, vScale=1, majority=False):
     "Given the relevant information, builds the image array."
-
     Offset, Size = getOffsetSize(ds, idtCorners)
     IDT = getIDT(ds, Offset, Size, vScale)
-    ImageArray = IDT(baseArray, eps=0.1, majority=majority)
+    ImageArray = IDT(baseArray, nnear=11, eps=0.1, majority=majority)
 
     return ImageArray
 
@@ -74,13 +74,13 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     maxRows = int(rows*mult)
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
-    idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
+    idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=tileShape[0]+tileShape[1])
     print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
 
     baseShape = (baseSize[1], baseSize[0])
     baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
-    idtShape = (idtSize[1], idtSize[0])
-    idtArray = getLatLongArray(lcds, idtOffset, idtSize, mult)
+    #idtShape = (idtSize[1], idtSize[0])
+    #idtArray = getLatLongArray(lcds, idtOffset, idtSize, mult)
 
     # these points are scaled coordinates
     idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
@@ -89,7 +89,6 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, majority=True)
     lcImageArray.resize(baseShape)
 
-    # nnear=1 for landcover, 11 for elevation
     elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, vscale)
     elevImageArray.resize(baseShape)
 
