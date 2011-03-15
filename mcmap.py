@@ -2,7 +2,7 @@
 import os
 import numpy
 from pymclevel import mclevel
-from pymclevel.materials import materials
+from pymclevel.materials import alphaMaterials
 from pymclevel.box import BoundingBox
 from time import clock
 from multiprocessing import Pool
@@ -29,6 +29,15 @@ maxZ = 0
 processes = 0
 
 makeWorldNow = False
+
+# helper functions for pymclevel
+def materialNamed(string):
+    "Returns block ID for block with name given in string."
+    return [v.ID for v in alphaMaterials.allBlocks if v.name==string][0]
+
+def names(blockID):
+    "Returns block name for given block ID."
+    return alphaMaterials.names[blockID][0]
 
 def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wprocesses):
     "Open this world."
@@ -118,7 +127,12 @@ def setBlockAt(x, y, z, string):
     global arrayBlocks
     arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
     myBlocks = arrayBlocks[arrayKey].asarray()
-    myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materials.materialNamed(string)
+    try:
+        materialNamed(string)
+    except IndexError:
+        print "block not found: %s" % string
+    else:
+        myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materialNamed(string)
 
 # more aggregates
 def setBlocksAt(blocks):
@@ -128,11 +142,11 @@ def setBlocksAt(blocks):
         arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
         myBlocks = arrayBlocks[arrayKey].asarray()
 	try:
-	    materials.materialNamed(string)
-	except ValueError:
+	    materialNamed(string)
+	except IndexError:
 	    print "block not found: %s" % string
 	else:
-            myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materials.materialNamed(string)
+            myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materialNamed(string)
 
 # my own setblockdataat
 def setBlockDataAt(x, y, z, data):
@@ -154,7 +168,13 @@ def getBlockAt(x, y, z):
     "Returns the block ID of the block at this point."
     arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
     myBlocks = arrayBlocks[arrayKey].asarray()
-    return materials.names[myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]]
+    myBlock = myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]
+    try:
+        names(myBlock)
+    except IndexError:
+        print "name not found: %s" % myBlock
+    else:
+        return names(myBlock)
     
 def getBlockDataAt(x, y, z):
     "Returns the data value of the block at this point."
@@ -169,7 +189,13 @@ def getBlocksAt(blocks):
         (x, y, z) = block
         arrayKey = '%d,%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
         myBlocks = arrayBlocks[arrayKey].asarray()
-        retval.append(materials.names[myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]])
+        myBlock = myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]
+        try:
+            names(myBlock)
+        except IndexError:
+            print "name not found: %s" % myBlock
+        else:
+            retval.append(names(myBlock))
     return retval
 
 def populateChunk(key,maxcz):
