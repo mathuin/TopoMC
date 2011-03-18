@@ -12,9 +12,7 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1, n
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
     # what is water?
     setWater = set([11, 12])
-    print "nodata is %d", nodata
     setWater.add(nodata)
-    print "setWater is ", setWater
     # build an lc invdisttree *without* setWater values
     bathyMaxRows, bathyMaxCols = lcArray.shape
     bigMaxRows, bigMaxCols = bigArray.shape
