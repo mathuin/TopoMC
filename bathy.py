@@ -4,17 +4,17 @@ from numpy import zeros, uint8
 from itertools import product
 from random import random
 from dataset import getDatasetDims
-from terrain import nodata
 from math import hypot
 import invdisttree
 from mcmap import sealevel
 
-def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
+def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1, nodata=255):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
     # what is water?
     setWater = set([11, 12])
-    if (nodata in setWater):
-        setWater.update([127])
+    print "nodata is %d", nodata
+    setWater.add(nodata)
+    print "setWater is ", setWater
     # build an lc invdisttree *without* setWater values
     bathyMaxRows, bathyMaxCols = lcArray.shape
     bigMaxRows, bigMaxCols = bigArray.shape

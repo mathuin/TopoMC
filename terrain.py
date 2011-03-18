@@ -62,12 +62,12 @@ lcType = {
 	96 : "Palustrine Emergent Wetlands",
 	97 : "Estuarine Emergent Wetlands",
 	98 : "Palustrine Aquatic Bed",
-	99 : "Estuarine Aquatic Bed",
-        127 : "No Data"
+	99 : "Estuarine Aquatic Bed"
         }
 lcCount = {}
 for key in lcType.keys():
     lcCount[key] = Value('i', 0)
+# what value represents no data
 nodata = 11
 
 def printStatistics():
@@ -83,14 +83,14 @@ def processTerrain(terrains):
     columns = []
     for terrain in terrains:
         (lcval, x, z, elevval, bathyval, crustval) = terrain
+        # all "nodata" space is considered water for our purposes
+        if (lcval == nodata):
+            lcval = 11
         if (lcval not in lcType):
             print('unexpected value for land cover: %d' % lcval)
             lcCount[0].value += 1
             columns.append([x, z, elevval, crustval, 'Dirt'])
         else:
-            if (lcval == 127):
-                # the "no data" value
-                lcval = nodata
             lcCount[lcval].value += 1
             # http://www.mrlc.gov/nlcd_definitions.php
             if (lcval == 11):

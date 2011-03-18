@@ -114,6 +114,7 @@ def main(argv):
     tileShape = checkTile(args, mult)
     (tileRows, tileCols) = tileShape
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
+    args.nodata = getDatasetNodata(args.region)
 
     # make imagedir
     imagedir = os.path.join("Images", args.region)

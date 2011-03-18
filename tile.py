@@ -68,6 +68,7 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     vscale = args.vscale
     maxdepth = args.maxdepth
     slope = args.slope
+    nodata = args.nodata
     curtime = time()
     (lcds, elevds) = getDataset(args.region)
     (rows, cols) = getDatasetDims(args.region)
@@ -101,7 +102,7 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
     bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
     bigImageArray.resize(depthShape)
-    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope)
+    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope, nodata)
 
     # second idea: crust
     crustImageArray = getCrust(bathyImageArray, baseArray)

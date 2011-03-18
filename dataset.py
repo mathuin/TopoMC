@@ -106,10 +106,12 @@ def getDatasetDict(dspaths):
                 # calculate rows and columns
                 rows = lcds.RasterXSize
                 cols = lcds.RasterYSize
+                # now get nodata value
+                nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
                 # clean up
                 lcds = None
                 elevds = None
-                retval[region] = [lcfile, elevfile, rows, cols]
+                retval[region] = [lcfile, elevfile, rows, cols, nodata]
     return retval
 
 def getDataset(region):
@@ -129,6 +131,14 @@ def getDatasetDims(region):
     if (region in dsDict):
         dsList = dsDict[region]
         return (dsList[2], dsList[3])
+    else:
+        return None
+
+def getDatasetNodata(region):
+    "Given a region name, return dataset nodata value."
+    if (region in dsDict):
+        dsList = dsDict[region]
+        return dsList[4]
     else:
         return None
 
