@@ -26,32 +26,94 @@ def cleanDatasetDir(args):
     return datasetDir
 
 def checkInventory(args):
-    # elevation extents are based on landcover extents
-    # each side of elevation is equal to sum of landcover edges
+    "Check the USGS inventory for the desired landcover and elevation data."
+    useNew = True
+    if (useNew):
+        # Deb from the USGS recommended I do this:
+        #  - convert desired extents from WGS84 to Albers
+        #  - take the max in each direction to form a rectangle
+        #    (new landcover extents)
+        #  - convert these corners to WGS84 from Albers
+        #    (new elevation extents)
+        wgs84 = 4326
+        albers = 102039
 
-    # first calculate center of region
-    centerx = (args.xmin+args.xmax)/2
-    centery = (args.ymin+args.ymax)/2
-    halfelevside = ((args.xmax-args.xmin)+(args.ymax-args.ymin))/2
+        wsdlConv = "http://extract.cr.usgs.gov/XMLWebServices/Coordinate_Conversion_Service.asmx?WSDL"
+        clientConv = suds.client.Client(wsdlConv)
+        # This web service returns suds.sax.text.Text not XML sigh
+        Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
 
-    # now calculate elevation extents
-    elevxmin = centerx-halfelevside
-    elevxmax = centerx+halfelevside
-    elevymin = centery-halfelevside
-    elevymax = centery+halfelevside
+        # step one: convert from WGS84 to Albers
+        # UL: xmin, ymin
+        ULdict = {'X_Value': args.xmin, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+        (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+        # UR: xmax, ymin
+        URdict = {'X_Value': args.xmax, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+        (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+        # LL: xmin, ymax
+        LLdict = {'X_Value': args.xmin, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+        (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+        # LR: xmax, ymax
+        LRdict = {'X_Value': args.xmax, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+        (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
-    #print "lc xmin %.2f, xmax %.2f, ymin %.2f, ymax %.2f" % (args.xmin, args.xmax, args.ymin, args.ymax)
-    #print "elev xmin %.2f, xmax %.2f, ymin %.2f, ymax %.2f" % (elevxmin, elevxmax, elevymin, elevymax)
+        # step two: select maximum values for landcover extents
+        lcxmax = max(ULx, URx, LLx, LRx)
+        lcxmin = min(ULx, URx, LLx, LRx)
+        lcymax = max(ULy, URy, LLy, LRy)
+        lcymin = min(ULy, URy, LLy, LRy)
 
-    # check availability
-    lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
-    #elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
-    elevProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, elevationIDs)
+        # step three: convert to WGS84 from Albers
+        # UL: xmin, ymin
+        ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+        (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+        # UR: xmax, ymin
+        URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+        (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+        # LL: xmin, ymax
+        LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+        (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+        # LR: xmax, ymax
+        LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+        (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
+
+        # step two: select maximum values for landcover extents
+        xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
+        yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
+        elevxmax = max(xfloat)
+        elevxmin = min(xfloat)
+        elevymax = max(yfloat)
+        elevymin = min(yfloat)
+
+        # check availability
+        #lcProduct = checkAvail(lcxmin, lcxmax, lcymin, lcymax, landcoverIDs, albers)
+        lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
+        elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+    else:
+    
+        # elevation extents are based on landcover extents
+        # each side of elevation is equal to sum of landcover edges
+
+        # first calculate center of region
+        centerx = (args.xmin+args.xmax)/2
+        centery = (args.ymin+args.ymax)/2
+        halfelevside = ((args.xmax-args.xmin)+(args.ymax-args.ymin))/2
+
+        # now calculate elevation extents
+        elevxmin = centerx-halfelevside
+        elevxmax = centerx+halfelevside
+        elevymin = centery-halfelevside
+        elevymax = centery+halfelevside
+
+        # check availability
+        lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
+        # elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+        elevProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, elevationIDs)
 
     # return product ID and edges
     return (lcProduct, elevProduct)
 
-def checkAvail(xmin, xmax, ymin, ymax, productlist):
+def checkAvail(xmin, xmax, ymin, ymax, productlist, epsg=4326):
     "Check inventory service for coverage."
     wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
     clientInv = suds.client.Client(wsdlInv)
@@ -68,8 +130,7 @@ def checkAvail(xmin, xmax, ymin, ymax, productlist):
         return -1
     
     # return_attributes arguments dictionary
-    # EPSG is always 4326
-    rAdict = {'Attribs': ','.join(attributes), 'XMin': xmin, 'XMax': xmax, 'YMin': ymin, 'YMax': ymax, 'EPSG': 4326}
+    rAdict = {'Attribs': ','.join(attributes), 'XMin': xmin, 'XMax': xmax, 'YMin': ymin, 'YMax': ymax, 'EPSG': epsg}
     rAatts = clientInv.service.return_Attributes(**rAdict)
     # store offered products in a list
     offered = []
@@ -98,10 +159,10 @@ def checkDownloadOptions(productIDs):
         productID = products[0]
         for ID in productIDs:
             if (productID == ID[0]):
-                XMin = ID[1]
-                XMax = ID[2]
-                YMin = ID[3]
-                YMax = ID[4]
+                xmin = ID[1]
+                xmax = ID[2]
+                ymin = ID[3]
+                ymax = ID[4]
         layerID = productID
         outputformats = {}
         compressionformats = {}
@@ -132,7 +193,7 @@ def checkDownloadOptions(productIDs):
         else:
             print "oh no ZIP not available"
             return -1
-        layerIDs.append([layerID, XMin, XMax, YMin, YMax])
+        layerIDs.append([layerID, xmin, xmax, ymin, ymax])
 
     return layerIDs
 
@@ -146,18 +207,18 @@ def requestValidation(layerIDs):
 
     # we now iterate through layerIDs
     for layerID in layerIDs:
-        (Tag, XMin, XMax, YMin, YMax) = layerID
-        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (YMax, YMin, XMin, XMax, Tag, 250)
+        (tag, xmin, xmax, ymin, ymax) = layerID
+        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250)
 
         response = clientRequest.service.processAOI(xmlString)
 
-        print "Requested URLs for layer ID %s..." % Tag
+        print "Requested URLs for layer ID %s..." % tag
 
         # I am a bad man.
         downloadURLre = "<DOWNLOAD_URL>(.*?)</DOWNLOAD_URL>"
         downloadURLs = [m.group(1) for m in re.finditer(downloadURLre, response)]
 
-        retval[Tag] = downloadURLs
+        retval[tag] = downloadURLs
 
     return retval
 
