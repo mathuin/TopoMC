@@ -24,6 +24,7 @@ from tile import *
 from bathy import *
 from mcmap import maxelev
 from crust import makeCrustIDT
+import terrain as terrain
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -114,6 +115,7 @@ def main(argv):
     tileShape = checkTile(args, mult)
     (tileRows, tileCols) = tileShape
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
+    args.nodata = getDatasetNodata(args.region)
 
     # make imagedir
     imagedir = os.path.join("Images", args.region)
