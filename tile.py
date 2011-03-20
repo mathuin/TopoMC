@@ -7,12 +7,18 @@ from invdisttree import *
 from bathy import getBathymetry
 from crust import getCrust
 from dataset import getDatasetDims
+from multiprocessing import Pool
 
-def getIDT(ds, offset, size, vScale=1):
+def getIDT(ds, offset, size, vScale=1, nodata=None):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
     # retrieve data from dataset
     Band = ds.GetRasterBand(1)
     Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
+
+    # set nodata if it exists
+    if (nodata != None):
+        fromnodata = Band.GetNoDataValue()
+        Data[Data == fromnodata] = nodata
     Band = None
 
     # build initial arrays
@@ -41,10 +47,10 @@ def getOffsetSize(ds, corners, mult=1):
     #print "offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1])
     return offset, size
 
-def getImageArray(ds, idtCorners, baseArray, vScale=1, majority=False):
+def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False):
     "Given the relevant information, builds the image array."
     Offset, Size = getOffsetSize(ds, idtCorners)
-    IDT = getIDT(ds, Offset, Size, vScale)
+    IDT = getIDT(ds, Offset, Size, vScale, nodata)
     ImageArray = IDT(baseArray, nnear=11, eps=0.1, majority=majority)
 
     return ImageArray
@@ -65,10 +71,6 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     "Actually process a tile."
     tileShape = args.tile
     mult = args.mult
-    vscale = args.vscale
-    maxdepth = args.maxdepth
-    slope = args.slope
-    nodata = args.nodata
     curtime = time()
     (lcds, elevds) = getDataset(args.region)
     (rows, cols) = getDatasetDims(args.region)
@@ -87,22 +89,23 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
     idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
 
-    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, majority=True)
+    # nodata for landcover is equal to 11
+    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, nodata=11, majority=True)
     lcImageArray.resize(baseShape)
 
-    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, vscale)
+    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale)
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification
     # first idea: bathymetry
-    depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=maxdepth)
+    depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=args.maxdepth)
     depthShape = (depthSize[1], depthSize[0])
     depthArray = getLatLongArray(lcds, depthOffset, depthSize, mult)
     depthUL = getLatLong(lcds, int(depthOffset[0]/mult), int(depthOffset[1]/mult))
     depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
     bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
     bigImageArray.resize(depthShape)
-    bathyImageArray = getBathymetry(lcImageArray, bigImageArray, baseOffset, depthOffset, maxdepth, slope, nodata)
+    bathyImageArray = getBathymetry(args, lcImageArray, bigImageArray, baseOffset, depthOffset)
 
     # second idea: crust
     crustImageArray = getCrust(bathyImageArray, baseArray)
@@ -126,6 +129,17 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
 
 def processTilestar(args):
     return processTile(*args)
+
+def processTiles(args, imagedir, minTileRows, maxTileRows, minTileCols, maxTileCols):
+    "Process tiles."
+    if (args.processes == 1):
+        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+    else:
+        pool = Pool(args.processes)
+        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+        results = pool.imap_unordered(processTilestar, tasks)
+        bleah = [x for x in results]
+        pool = None
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."

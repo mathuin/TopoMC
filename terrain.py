@@ -67,8 +67,6 @@ lcType = {
 lcCount = {}
 for key in lcType.keys():
     lcCount[key] = Value('i', 0)
-# what value represents no data
-nodata = 11
 
 def printStatistics():
     lcTuples = [(lcType[index], lcCount[index].value) for index in lcCount.keys() if lcCount[index].value > 0]
