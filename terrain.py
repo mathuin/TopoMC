@@ -81,9 +81,6 @@ def processTerrain(terrains):
     columns = []
     for terrain in terrains:
         (lcval, x, z, elevval, bathyval, crustval) = terrain
-        # all "nodata" space is considered water for our purposes
-        if (lcval == nodata):
-            lcval = 11
         if (lcval not in lcType):
             print('unexpected value for land cover: %d' % lcval)
             lcCount[0].value += 1
