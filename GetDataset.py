@@ -27,89 +27,67 @@ def cleanDatasetDir(args):
 
 def checkInventory(args):
     "Check the USGS inventory for the desired landcover and elevation data."
-    useNew = True
-    if (useNew):
-        # Deb from the USGS recommended I do this:
-        #  - convert desired extents from WGS84 to Albers
-        #  - take the max in each direction to form a rectangle
-        #    (new landcover extents)
-        #  - convert these corners to WGS84 from Albers
-        #    (new elevation extents)
-        wgs84 = 4326
-        albers = 102039
+    # Deb from the USGS recommended I do this:
+    #  - convert desired extents from WGS84 to Albers
+    #  - take the max in each direction to form a rectangle
+    #    (new landcover extents)
+    #  - convert these corners to WGS84 from Albers
+    #    (new elevation extents)
+    wgs84 = 4326
+    albers = 102039
 
-        wsdlConv = "http://extract.cr.usgs.gov/XMLWebServices/Coordinate_Conversion_Service.asmx?WSDL"
-        clientConv = suds.client.Client(wsdlConv)
-        # This web service returns suds.sax.text.Text not XML sigh
-        Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
+    wsdlConv = "http://extract.cr.usgs.gov/XMLWebServices/Coordinate_Conversion_Service.asmx?WSDL"
+    clientConv = suds.client.Client(wsdlConv)
+    # This web service returns suds.sax.text.Text not XML sigh
+    Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
 
-        # step one: convert from WGS84 to Albers
-        # UL: xmin, ymin
-        ULdict = {'X_Value': args.xmin, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
-        (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        # UR: xmax, ymin
-        URdict = {'X_Value': args.xmax, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
-        (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        # LL: xmin, ymax
-        LLdict = {'X_Value': args.xmin, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
-        (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        # LR: xmax, ymax
-        LRdict = {'X_Value': args.xmax, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
-        (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
+    # step one: convert from WGS84 to Albers
+    # UL: xmin, ymin
+    ULdict = {'X_Value': args.xmin, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+    # UR: xmax, ymin
+    URdict = {'X_Value': args.xmax, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+    # LL: xmin, ymax
+    LLdict = {'X_Value': args.xmin, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+    # LR: xmax, ymax
+    LRdict = {'X_Value': args.xmax, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
-        # step two: select maximum values for landcover extents
-        lcxmax = max(ULx, URx, LLx, LRx)
-        lcxmin = min(ULx, URx, LLx, LRx)
-        lcymax = max(ULy, URy, LLy, LRy)
-        lcymin = min(ULy, URy, LLy, LRy)
+    # step two: select maximum values for landcover extents
+    xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
+    yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
+    lcxmax = max(xfloat)
+    lcxmin = min(xfloat)
+    lcymax = max(yfloat)
+    lcymin = min(yfloat)
 
-        # step three: convert to WGS84 from Albers
-        # UL: xmin, ymin
-        ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
-        (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        # UR: xmax, ymin
-        URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
-        (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        # LL: xmin, ymax
-        LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
-        (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        # LR: xmax, ymax
-        LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
-        (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
+    # step three: convert to WGS84 from Albers
+    # UL: xmin, ymin
+    ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+    # UR: xmax, ymin
+    URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+    # LL: xmin, ymax
+    LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+    # LR: xmax, ymax
+    LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
-        # step two: select maximum values for landcover extents
-        xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
-        yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
-        elevxmax = max(xfloat)
-        elevxmin = min(xfloat)
-        elevymax = max(yfloat)
-        elevymin = min(yfloat)
+    # step two: select maximum values for landcover extents
+    xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
+    yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
+    elevxmax = max(xfloat)
+    elevxmin = min(xfloat)
+    elevymax = max(yfloat)
+    elevymin = min(yfloat)
 
-        # check availability
-        #lcProduct = checkAvail(lcxmin, lcxmax, lcymin, lcymax, landcoverIDs, albers)
-        lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
-        elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
-    else:
-    
-        # elevation extents are based on landcover extents
-        # each side of elevation is equal to sum of landcover edges
-
-        # first calculate center of region
-        centerx = (args.xmin+args.xmax)/2
-        centery = (args.ymin+args.ymax)/2
-        halfelevside = ((args.xmax-args.xmin)+(args.ymax-args.ymin))/2
-
-        # now calculate elevation extents
-        elevxmin = centerx-halfelevside
-        elevxmax = centerx+halfelevside
-        elevymin = centery-halfelevside
-        elevymax = centery+halfelevside
-
-        # check availability
-        lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
-        # elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
-        elevProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, elevationIDs)
-
+    # check availability
+    lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
+    elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
     # return product ID and edges
     return (lcProduct, elevProduct)
 
