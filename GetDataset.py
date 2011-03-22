@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 import suds
 import re
 import urllib2
@@ -9,6 +10,7 @@ import shutil
 import argparse
 from lxml import etree
 from time import sleep
+from dataset import landcoverIDs, elevationIDs
 #import logging
 #logging.basicConfig(level=logging.INFO)
 #logging.getLogger('suds.client').setLevel(logging.DEBUG)
@@ -23,11 +25,73 @@ def cleanDatasetDir(args):
 
     return datasetDir
 
-def checkInventory(args, EPSG):
-    XMin = args.xmin
-    XMax = args.xmax
-    YMin = args.ymin
-    YMax = args.ymax
+def checkInventory(args):
+    "Check the USGS inventory for the desired landcover and elevation data."
+    # Deb from the USGS recommended I do this:
+    #  - convert desired extents from WGS84 to Albers
+    #  - take the max in each direction to form a rectangle
+    #    (new landcover extents)
+    #  - convert these corners to WGS84 from Albers
+    #    (new elevation extents)
+    wgs84 = 4326
+    albers = 102039
+
+    wsdlConv = "http://extract.cr.usgs.gov/XMLWebServices/Coordinate_Conversion_Service.asmx?WSDL"
+    clientConv = suds.client.Client(wsdlConv)
+    # This web service returns suds.sax.text.Text not XML sigh
+    Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
+
+    # step one: convert from WGS84 to Albers
+    # UL: xmin, ymin
+    ULdict = {'X_Value': args.xmin, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+    # UR: xmax, ymin
+    URdict = {'X_Value': args.xmax, 'Y_Value': args.ymin, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+    # LL: xmin, ymax
+    LLdict = {'X_Value': args.xmin, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+    # LR: xmax, ymax
+    LRdict = {'X_Value': args.xmax, 'Y_Value': args.ymax, 'Current_Coordinate_System': wgs84, 'Target_Coordinate_System': albers}
+    (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
+
+    # step two: select maximum values for landcover extents
+    xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
+    yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
+    lcxmax = max(xfloat)
+    lcxmin = min(xfloat)
+    lcymax = max(yfloat)
+    lcymin = min(yfloat)
+
+    # step three: convert to WGS84 from Albers
+    # UL: xmin, ymin
+    ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+    # UR: xmax, ymin
+    URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+    # LL: xmin, ymax
+    LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+    # LR: xmax, ymax
+    LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': albers, 'Target_Coordinate_System': wgs84}
+    (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
+
+    # step two: select maximum values for landcover extents
+    xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
+    yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
+    elevxmax = max(xfloat)
+    elevxmin = min(xfloat)
+    elevymax = max(yfloat)
+    elevymin = min(yfloat)
+
+    # check availability
+    lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
+    elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+    # return product ID and edges
+    return (lcProduct, elevProduct)
+
+def checkAvail(xmin, xmax, ymin, ymax, productlist, epsg=4326):
     "Check inventory service for coverage."
     wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
     clientInv = suds.client.Client(wsdlInv)
@@ -42,45 +106,41 @@ def checkInventory(args, EPSG):
     if len(attributes) == 0:
         print "no attributes found"
         return -1
-
+    
     # return_attributes arguments dictionary
-    rAdict = {'Attribs': ','.join(attributes), 'XMin': XMin, 'XMax': XMax, 'YMin': YMin, 'YMax': YMax, 'EPSG': EPSG}
+    rAdict = {'Attribs': ','.join(attributes), 'XMin': xmin, 'XMax': xmax, 'YMin': ymin, 'YMax': ymax, 'EPSG': epsg}
     rAatts = clientInv.service.return_Attributes(**rAdict)
-    # iterate through the results
-    # we are only interested in the following product keys:
-    # L01: 2001 land cover (30 meters)
-    # NED: elevation (1 arc second, about 30 meters)
-    # ND3: elevation (1/3 arc second, about 10 meters)
-    # (where are roads and crap? not here yet)
-    # other possibly desirable datasets:
-    # LIS: 2001 land cover impervious surface (stone coverage?)
-    # LCY: 2001 land cover canopy (more trees)
-    # L92: 1992 land cover (uses different definitions)
-    # ND9: elevation (1/9 arc second, about 3 meters)
-    desiredProductIDs = ['L01','NED','ND3']
-    productIDs = []
+    # store offered products in a list
+    offered = []
     # this returns an array of custom attributes
     # each element of the array has a key-value pair
     # in our case, there's only one key: PRODUCTKEY
     for elem in rAatts.ArrayOfCustomAttributes:
         for each in elem[0]:
             if (each[0] == 'PRODUCTKEY'):
-                if (each[1] in desiredProductIDs):
-                    productIDs.append(each[1])
-    # if ND3 and NED in productIDs, remove NED
-    if 'ND3' in productIDs and 'NED' in productIDs:
-        productIDs.remove('NED')
-    return productIDs
+                if (each[1] in productlist):
+                    offered.append(each[1])
+    # this should extract the first
+    for ID in productlist:
+        if (ID in offered):
+            return [ID, xmin, xmax, ymin, ymax]
+    return None
 
 def checkDownloadOptions(productIDs):
     "Check download options for product IDs."
     wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
     clientInv = suds.client.Client(wsdlInv)
-    productdict = {'ProductIDs': ','.join(productIDs)}
+    productdict = {'ProductIDs': ','.join([elem[0] for elem in productIDs])}
     doproducts = clientInv.service.return_Download_Options(**productdict)
     layerIDs = []
     for products in doproducts[0]:
         productID = products[0]
+        for ID in productIDs:
+            if (productID == ID[0]):
+                xmin = ID[1]
+                xmax = ID[2]
+                ymin = ID[3]
+                ymax = ID[4]
         layerID = productID
         outputformats = {}
         compressionformats = {}
@@ -95,6 +155,7 @@ def checkDownloadOptions(productIDs):
             (v, k) = pair.split('-')
             metadataformats[k] = v
         # I want GeoTIFF, HTML and ZIP here
+        # should use list in order of preference like landcoverIDs etc
         if u'GeoTIFF' in outputformats:
             layerID += outputformats['GeoTIFF']
         else:
@@ -110,17 +171,12 @@ def checkDownloadOptions(productIDs):
         else:
             print "oh no ZIP not available"
             return -1
-        layerIDs.append(layerID)
+        layerIDs.append([layerID, xmin, xmax, ymin, ymax])
 
     return layerIDs
 
-def requestValidation(args, layerIDs, ChunkSize):
+def requestValidation(layerIDs):
     "Generates download URLs from layer IDs." 
-    XMin = args.xmin
-    XMax = args.xmax
-    YMin = args.ymin
-    YMax = args.ymax
-
     retval = {}
 
     # request validation
@@ -129,17 +185,18 @@ def requestValidation(args, layerIDs, ChunkSize):
 
     # we now iterate through layerIDs
     for layerID in layerIDs:
-        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (YMax, YMin, XMin, XMax, layerID, ChunkSize)
+        (tag, xmin, xmax, ymin, ymax) = layerID
+        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250)
 
         response = clientRequest.service.processAOI(xmlString)
 
-        print "Requested URLs for layer ID %s..." % layerID
+        print "Requested URLs for layer ID %s..." % tag
 
         # I am a bad man.
         downloadURLre = "<DOWNLOAD_URL>(.*?)</DOWNLOAD_URL>"
         downloadURLs = [m.group(1) for m in re.finditer(downloadURLre, response)]
 
-        retval[layerID] = downloadURLs
+        retval[tag] = downloadURLs
 
     return retval
 
@@ -268,9 +325,6 @@ def main(argv):
     # args.xmax = -71.529
     # args.ymin = 41.138
     # args.ymax = 41.24
-    # static values
-    EPSG = 4326
-    ChunkSize = 250
 
     # tell the user what's going on
     print "Retrieving new dataset %s..." % args.region
@@ -280,16 +334,15 @@ def main(argv):
 
     print "Checking inventory service for coverage."
 
-    productIDs = checkInventory(args, EPSG)
-    print "Inventory service has the following product IDs: %s" % ','.join(productIDs)
+    productIDs = checkInventory(args)
+    print "Inventory service has the following product IDs: %s" % ','.join([elem[0] for elem in productIDs])
 
     layerIDs = checkDownloadOptions(productIDs)
-    print "Configured the following layer IDs: %s" % ','.join(layerIDs)
+    print "Configured the following layer IDs: %s" % ','.join([elem[0] for elem in layerIDs])
 
     # this is now a dict
-    downloadURLs = requestValidation(args, layerIDs, ChunkSize)
+    downloadURLs = requestValidation(layerIDs)
     print "Received download URLs, downloading now!"
-    # FIXME: iterate through layerIDs here
     for layerID in downloadURLs.keys():
         for downloadURL in downloadURLs[layerID]:
             downloadFile(layerID, downloadURL, datasetDir)

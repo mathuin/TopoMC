@@ -14,7 +14,7 @@ treeProb = 0.001
 forestProb = 0.03
 
 # maximum distance from the trunk
-treeWidth = 3
+treeWidth = 2
 leafDistance = fromfunction(lambda i, j: sqrt((i-treeWidth)*(i-treeWidth)+(j-treeWidth)*(j-treeWidth)), (treeWidth*2+1, treeWidth*2+1), dtype=float32)
 # [[ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24],
 #  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],

@@ -7,21 +7,22 @@ from time import clock
 from scipy.special import cbrt
 from math import pi
 from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
-import mcarray # minX, minZ, maxX, maxZ
+# for minX, minZ, maxX, and maxZ
+import mcarray
+from itertools import product
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {
     0: 'Dirt',
     1: 'Gravel',
-    2: 'Coal',
-    3: 'Iron',
-    4: 'Gold', 
-    5: 'Diamond',
-    6: 'Redstone',
-    7: 'Lapis Lazuli'
+    2: 'Coal Ore',
+    3: 'Iron Ore',
+    4: 'Gold Ore', 
+    5: 'Diamond Ore',
+    6: 'Redstone Ore',
+    7: 'Lapis Lazuli Ore'
 }
 oreDepth = [7, 7, 7, 6, 5, 4, 4, 4]
-oreValue = ['Dirt', 'Gravel', 'Coal Ore', 'Iron Ore', 'Gold Ore', 'Diamond Ore', 'Redstone Ore', 'Lapis Lazuli Ore']
 # http://www.minecraftforum.net/viewtopic.php?f=35&t=28299
 # "rounds" is how many times per chunk a deposit is generated
 # "size" is the rough max size of a deposit
@@ -37,7 +38,7 @@ for key in oreType.keys():
     oreNodeCount[key] = Value('i', 0)
     oreVeinCount[key] = Value('i', 0)
 # any ore that tries to replace these blocks is hereby disqualified
-oreDQ = ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)']
+oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)', 'Bedrock'])
 
 # whole-world approach
 def placeOre():
@@ -66,15 +67,18 @@ def placeOre():
             oXrange = xrange(int(0-clumpX), int(clumpX+1))
             oYrange = xrange(int(0-clumpY), int(clumpY+1))
             oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
-            # consider air/water/lava exemption here!
-            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x in oXrange for y in oYrange for z in oZrange if ((((x*x)/(clumpX*clumpX))+((y*y)/(clumpY*clumpY))+((z*z)/(clumpZ*clumpZ)))<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
+            clumpX2 = clumpX*clumpX
+            clumpY2 = clumpY*clumpY
+            clumpZ2 = clumpZ*clumpZ
+            # anything in the ellipsoid except air/water/lava and other ores
+            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x,y,z in product(oXrange, oYrange, oZrange) if ((x*x)/clumpX2+(y*y)/clumpY2+(z*z)/clumpZ2<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
             oreBlocks = getBlocksAt(oreCoords)
-            # FIXME: this does not exclude air/water/lava
-            if ('Stone' in oreBlocks and len(set(oreBlocks).intersection(set(oreDQ))) == 0 and len(set(oreBlocks).intersection(set(oreType.values()))) == 0):
-                #print "    success!"
+            # all it takes is one Stone and we're in
+            # FIXME: should start over if oreCoords has a len of 0
+            if ('Stone' in oreBlocks):
                 oreNodeCount[ore].value += len(oreCoords)
                 oreVeinCount[ore].value += 1
-                setBlocksAt([x, y, z, oreValue[ore]] for x, y, z in oreCoords)
+                setBlocksAt([x, y, z, oreType[ore]] for x, y, z in oreCoords)
         print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
     print "finished in %.2f seconds." % (clock()-placestart)
 

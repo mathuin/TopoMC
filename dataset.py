@@ -9,18 +9,23 @@ from coords import getTransforms
 # paths for datasets
 dsPaths = ['Datasets', '../TopoMC-Datasets']
 
+# product types in order of preference
+landcoverIDs = ['L01']
+elevationIDs = ['ND3', 'NED']
+
 # functions
 def decodeLayerID(layerID):
     "Given a layer ID, return the product type, image type, metadata type, and compression type."
     productID = layerID[0]+layerID[1]+layerID[2]
-    if (productID == "L01"):
+    if (productID in landcoverIDs):
         pType = "landcover"
-    elif (productID == "NED" or productID == "ND3"):
+    elif (productID in elevationIDs):
         pType = "elevation"
     else:
         print "Invalid product ID %s" % productID
         return -1
 
+    # FIXME: handle more image types
     imagetype = layerID[3]+layerID[4]
     if (imagetype == "02"):
         iType = "tif"
@@ -101,10 +106,12 @@ def getDatasetDict(dspaths):
                 # calculate rows and columns
                 rows = lcds.RasterXSize
                 cols = lcds.RasterYSize
+                # nodata - just lc here
+                nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
                 # clean up
                 lcds = None
                 elevds = None
-                retval[region] = [lcfile, elevfile, rows, cols]
+                retval[region] = [lcfile, elevfile, rows, cols, nodata]
     return retval
 
 def getDataset(region):
@@ -124,6 +131,14 @@ def getDatasetDims(region):
     if (region in dsDict):
         dsList = dsDict[region]
         return (dsList[2], dsList[3])
+    else:
+        return None
+
+def getDatasetNodata(region):
+    "Given a region name, return the nodata value."
+    if (region in dsDict):
+        dsList = dsDict[region]
+        return dsList[4]
     else:
         return None
 
