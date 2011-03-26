@@ -16,7 +16,7 @@ chunkWidthPow = 4
 chunkWidth = pow(2,chunkWidthPow)
 chunkHeight = 128
 # constants
-sealevel = 64
+sealevel = 32
 # headroom is the room between the tallest peak and the ceiling
 headroom = 10
 maxelev = chunkHeight-headroom-sealevel
