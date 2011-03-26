@@ -9,6 +9,7 @@ from math import pi
 from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 # for minX, minZ, maxX, and maxZ
 import mcmap
+from multiprocessing import Pool
 from itertools import product
 
 # http://www.minecraftwiki.net/wiki/Ore
@@ -46,7 +47,7 @@ def processOre(oreName, minY, maxY, maxExtent):
     clumpX = randint(int(maxExtent*100),int(maxExtent*900))/1000
     clumpY = randint(int(maxExtent*100),int(maxExtent*900))/1000
     clumpZ = randint(int(maxExtent*100),int(maxExtent*900))/1000
-    clumpScale = ((4/3)*pi*clumpX*clumpY*clumpZ)/oreSize[ore]
+    clumpScale = ((4/3)*pi*clumpX*clumpY*clumpZ)/oreSize[oreName]
     # dunno about these boundaries
     clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
     clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
@@ -66,26 +67,25 @@ def processOre(oreName, minY, maxY, maxExtent):
     # all it takes is one Stone and we're in
     # FIXME: should start over if oreCoords has a len of 0
     if ('Stone' in oreBlocks):
-        oreNodeCount[ore].value += len(oreCoords)
-        oreVeinCount[ore].value += 1
-        setBlocksAt([x, y, z, oreType[ore]] for x, y, z in oreCoords)
+        oreNodeCount[oreName].value += len(oreCoords)
+        oreVeinCount[oreName].value += 1
+        setBlocksAt([x, y, z, oreType[oreName]] for x, y, z in oreCoords)
 
 def processOrestar(args):
     return processOre(*args)
 
-def processOres(ore, minY, maxY, maxExtent, numRounds):
+def processOres(oreName, minY, maxY, maxExtent, numRounds, processes):
     if (processes == 1):
         bleah = [processOre(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
     else:
         pool = Pool(processes)
-        tasks = [(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
-        bleah = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
+        tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
         results = pool.imap_unordered(processOrestar, tasks)
         bleah = [x for x in results]
     return None
 
 # whole-world approach
-def placeOre():
+def placeOre(processes):
     placestart = clock()
     # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
@@ -97,7 +97,7 @@ def placeOre():
         maxY = pow(2,oreDepth[ore])
         maxExtent = cbrt(oreSize[ore])/2
         numRounds = int(oreRounds[ore]*numChunks)
-        processOres(ore, minY, maxY, maxExtent, numRounds)
+        processOres(ore, minY, maxY, maxExtent, numRounds, processes)
         print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
     print "finished in %.2f seconds." % (clock()-placestart)
 
