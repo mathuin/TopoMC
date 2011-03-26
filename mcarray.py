@@ -2,6 +2,7 @@
 import os
 import numpy
 import multinumpy
+import cPickle as pickle
 from pymclevel import mclevel
 from pymclevel.materials import alphaMaterials
 from itertools import product
@@ -68,8 +69,14 @@ def saveArray(arraydir, key):
     myBlocks = arrayBlocks[key].asarray()
     myData = arrayData[key].asarray()
     # save them to a file
-    outfile = os.path.join(arraydir, '%dx%d.npz' % (cx, cz))
-    numpy.savez(outfile, blocks=myBlocks, data=myData)
+    outfile = os.path.join(arraydir, '%dx%d' % (cx, cz))
+    if (True):
+        numpy.savez(outfile, blocks=myBlocks, data=myData)
+    else:
+        myCuke = {'blocks': myBlocks, 'data': myData}
+        fd = open(outfile, 'wb')
+        pickle.dump(myCuke, fd)
+        fd.close()
     arrayBlocks[key] = None
     arrayData[key] = None
 
@@ -85,7 +92,7 @@ def saveArrays(arraydir, processes):
         os.makedirs(arraydir)
     # distribute this
     # FIXME: numpy.savez is not threadsafe, sigh!
-    if (processes == 1 or True):
+    if (processes == 1):
         arrays = [saveArray(arraydir, key) for key in arrayBlocks.keys()]
     else:
         pool = Pool(processes)
@@ -97,10 +104,17 @@ def saveArrays(arraydir, processes):
 def loadArray(world, arraydir, name):
     "Load array from file."
     # extract arrays from file
-    infile = numpy.load(os.path.join(arraydir,name))
-    myBlocks = infile['blocks']
-    myData = infile['data']
-    infile = None
+    if (True):
+        infile = numpy.load(os.path.join(arraydir,name),mmap_mode=None)
+        myBlocks = infile['blocks']
+        myData = infile['data']
+        infile = None
+    else:
+        fd = open(os.path.join(arraydir,name), 'rb')
+        myCuke = pickle.load(fd)
+        myBlocks = myCuke['blocks']
+        myData = myCuke['data']
+        fd.close()
     # extract key from filename
     key = name.split('.')[0]
     ctuple = key.split('x')
