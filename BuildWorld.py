@@ -87,7 +87,7 @@ def main(argv):
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # where's that ore?
-    ore.placeOre()
+    ore.placeOre(args.processes)
 
     # place the safehouse at the peak (adjust it)
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
