@@ -11,6 +11,7 @@ from numpy import zeros, uint8
 from pymclevel import mclevel
 from pymclevel.nbt import TAG_List, TAG_Compound, TAG_Short, TAG_Byte
 #
+import dataset
 import image
 import terrain
 import tree
@@ -86,7 +87,7 @@ def main(argv):
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # where's that ore?
-    ore.placeOre()
+    ore.placeOre(args.processes)
 
     # place the safehouse at the peak (adjust it)
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)

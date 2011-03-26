@@ -62,8 +62,7 @@ lcType = {
 	96 : "Palustrine Emergent Wetlands",
 	97 : "Estuarine Emergent Wetlands",
 	98 : "Palustrine Aquatic Bed",
-	99 : "Estuarine Aquatic Bed",
-        127 : "No Data"
+	99 : "Estuarine Aquatic Bed"
         }
 lcCount = {}
 for key in lcType.keys():
