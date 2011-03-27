@@ -61,6 +61,7 @@ def main(argv):
     parser.add_argument('--region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--sealevel', nargs=1, default=default_sealevel, type=int, help="number of sealevel to spawn (default %d)" % default_sealevel)
+    parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help="disables ore generation when not necessary")
 
     # this is global
     args = parser.parse_args()
@@ -91,7 +92,8 @@ def main(argv):
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # where's that ore?
-    ore.placeOre(args.processes)
+    if (args.doOre):
+        ore.placeOre(args.processes)
 
     # place the safehouse at the peak (adjust it)
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
@@ -109,7 +111,8 @@ def main(argv):
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
     terrain.printStatistics()
     tree.printStatistics()
-    ore.printStatistics()
+    if (args.doOre):
+        ore.printStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
