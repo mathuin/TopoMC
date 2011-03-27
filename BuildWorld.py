@@ -55,9 +55,12 @@ def checkProcesses(args):
 def main(argv):
     maintime = clock()
     default_processes = cpu_count()
+    default_sealevel = 32
+
     parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
     parser.add_argument('--region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
+    parser.add_argument('--sealevel', nargs=1, default=default_sealevel, type=int, help="number of sealevel to spawn (default %d)" % default_sealevel)
 
     # this is global
     args = parser.parse_args()
@@ -69,6 +72,7 @@ def main(argv):
 
     # set up all the values
     processes = checkProcesses(args)
+    sealevel = mcmap.checkSealevel(args)
     
     # what are we doing?
     print 'Creating world from region %s' % args.region
@@ -77,7 +81,7 @@ def main(argv):
     minX = 0
     minZ = 0
     maxX, maxZ = image.imageDims[args.region]
-    mcmap.initWorld(args.region, minX, minZ, maxX, maxZ, processes)
+    mcmap.initWorld(args.region, minX, minZ, maxX, maxZ, sealevel, processes)
 
     # iterate over images
     peaks = image.processImages(args.region, args.processes)

@@ -16,10 +16,8 @@ chunkWidthPow = 4
 chunkWidth = pow(2,chunkWidthPow)
 chunkHeight = 128
 # constants
-sealevel = 32
 # headroom is the room between the tallest peak and the ceiling
 headroom = 10
-maxelev = chunkHeight-headroom-sealevel
 
 # variables
 minX = 0
@@ -27,8 +25,26 @@ minZ = 0
 maxX = 0
 maxZ = 0
 processes = 0
+sealevel = 32 # this is now changed in BuildWorld.py
+# this needs to be recalculated in initWorld
+maxelev = chunkHeight-headroom-sealevel
 
 makeWorldNow = False
+
+# check function
+def checkSealevel(args):
+    "Checks to see if the given sealevel is valid."
+    if (isinstance(args.sealevel, list)):
+        oldsealevel = args.sealevel[0]
+    else:
+        oldsealevel = int(args.sealevel)
+    # sea level can be between 2 and 100 (arbitrary, but so what)
+    sealevel = max(2, oldsealevel)
+    sealevel = min(sealevel, 100)
+    if (sealevel != oldsealevel):
+        print "Warning: sealevel of %d for region %s is invalid -- changed to %d" % (oldsealevel, args.region, sealevel)
+    args.sealevel = sealevel
+    return sealevel
 
 # helper functions for pymclevel
 def materialNamed(string):
@@ -39,15 +55,18 @@ def names(blockID):
     "Returns block name for given block ID."
     return alphaMaterials.names[blockID][0]
 
-def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wprocesses):
+def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wsealevel, wprocesses):
     "Open this world."
-    global world, minX, minZ, maxX, maxZ, processes
+    global world, minX, minZ, maxX, maxZ, sealevel, processes, maxelev
     # set defaults
     minX = wminX
     minZ = wminZ
     maxX = wmaxX
     maxZ = wmaxZ
+    sealevel = wsealevel
     processes = wprocesses
+    # recalculate this based on new sealevel
+    maxelev = chunkHeight-headroom-sealevel
     # it's a simpler universe now
     worlddir = os.path.join("Worlds", string)
     if not os.path.exists(worlddir):
