@@ -57,6 +57,7 @@ treeHeight = [[3, 3, 3], [5, 7, 2], [9, 11, 2], [7, 9, 2], [1, 3, 0]]
 leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
 
 def printStatistics():
+    # NB: do not convert to logger
     treeTuples = [(treeType[index], treeCount[index].value) for index in treeCount if treeCount[index].value > 0]
     treeTotal = sum([treeTuple[1] for treeTuple in treeTuples])
     print 'Tree statistics (%d total):' % treeTotal
@@ -83,9 +84,9 @@ def makeTree(x, z, elevval, treeNum):
         lxzrange = xrange(leafDistance.shape[0])
         lyrange = xrange(leafheight)
         for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
-            myleafx = max(min(x+leafx-treeWidth, mcmap.minX), mcmap.maxX)
+            myleafx = max(min(x+leafx-treeWidth, mcmap.maxX), mcmap.minX)
             myleafy = leafbottom+leafy
-            myleafz = max(min(z+leafz-treeWidth, mcmap.minZ), mcmap.maxZ)
+            myleafz = max(min(z+leafz-treeWidth, mcmap.maxZ), mcmap.minZ)
             if leafPattern[treeNum](leafx, leafz, leafy, leafheight-1):
                 setBlockAt(myleafx, myleafy, myleafz, 'Leaves')
                 setBlockDataAt(myleafx, myleafy, myleafz, treeNum-1)

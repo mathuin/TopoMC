@@ -9,6 +9,9 @@ from terrain import processTerrain
 import mcmap
 from multiprocessing import Pool
 from itertools import product
+import logging
+logging.basicConfig(level=logging.WARNING)
+imagelogger = logging.getLogger('image')
 
 # paths for images
 imagesPaths = ['Images']
@@ -59,6 +62,7 @@ def getImagesDict(imagepaths):
 
 def listImagesets():
     "List all the available imagesets, including dimensions."
+    # NB: do not change to logger
     print 'Valid imagesets detected:'
     print "\n".join(["\t%s:\n\t\t%d tiles (%d, %d)" % (region, len(imageSets[region]), imageDims[region][0], imageDims[region][1]) for region in imageDirs])
 
@@ -94,7 +98,7 @@ def processImage(region, offset_x, offset_z):
     spawnz = 10
 
     # inform the user
-    print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
+    imagelogger.info('Processing tile at position (%d, %d)...' % (offset_x, offset_z))
     (size_z, size_x) = lcarray.shape
     lcvals = []
     
@@ -110,7 +114,7 @@ def processImage(region, offset_x, offset_z):
         real_x = offset_x + x
         real_z = offset_z + z
         if (elevval > mcmap.maxelev):
-            print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, mcmap.maxelev)
+            imagelogger.warning('Elevation %d exceeds maximum elevation (%d)' % (elevval, mcmap.maxelev))
             elevval = mcmap.maxelev
         if (elevval > localmax):
             localmax = elevval
@@ -129,7 +133,7 @@ def processImage(region, offset_x, offset_z):
     bathyarray = None
 
     # print out status
-    print '... finished with (%d, %d) in %.2f seconds.' % (offset_x, offset_z, clock()-imagetime)
+    imagelogger.info('... finished with (%d, %d) in %.2f seconds.' % (offset_x, offset_z, clock()-imagetime))
 
     return (spawnx, spawnz, localmax)
 

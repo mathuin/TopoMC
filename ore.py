@@ -11,6 +11,9 @@ from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 import mcmap
 from multiprocessing import Pool
 from itertools import product
+import logging
+logging.basicConfig(level=logging.WARNING)
+orelogger = logging.getLogger('ore')
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {
@@ -90,7 +93,7 @@ def placeOre():
     # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
-        print "Adding %s now..." % (oreType[ore])
+        orelogger.info("Adding %s now..." % (oreType[ore]))
         # everything starts on the bottom
         # only doing common pass here
         minY = 0
@@ -98,10 +101,11 @@ def placeOre():
         maxExtent = cbrt(oreSize[ore])/2
         numRounds = int(oreRounds[ore]*numChunks)
         processOres(ore, minY, maxY, maxExtent, numRounds)
-        print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
-    print "finished in %.2f seconds." % (clock()-placestart)
+        orelogger.info("... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value))
+    orelogger.info("finished in %.2f seconds." % (clock()-placestart))
 
 def printStatistics():
+    # NB: do not change to logger
     oreTuples = [(oreType[index], oreNodeCount[index].value, oreVeinCount[index].value) for index in oreNodeCount if oreNodeCount[index].value > 0]
     oreNodeTotal = sum([oreTuple[1] for oreTuple in oreTuples])
     oreVeinTotal = sum([oreTuple[2] for oreTuple in oreTuples])

@@ -10,6 +10,9 @@ from multinumpy import SharedMemArray
 from numpy import zeros, uint8
 from itertools import product
 from random import randint
+import logging
+logging.basicConfig(level=logging.WARNING)
+mcmaplogger = logging.getLogger('mcmap')
 
 # level constants
 chunkWidthPow = 4
@@ -42,7 +45,7 @@ def checkSealevel(args):
     sealevel = max(2, oldsealevel)
     sealevel = min(sealevel, 100)
     if (sealevel != oldsealevel):
-        print "Warning: sealevel of %d for region %s is invalid -- changed to %d" % (oldsealevel, args.region, sealevel)
+        mcmaplogger.warning("Sealevel of %d for region %s is invalid -- changed to %d" % (oldsealevel, args.region, sealevel))
     args.sealevel = sealevel
     return sealevel
 
@@ -149,7 +152,7 @@ def setBlockAt(x, y, z, string):
     try:
         materialNamed(string)
     except IndexError:
-        print "block not found: %s" % string
+        mcmaplogger.error("block not found: %s" % string)
     else:
         myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materialNamed(string)
 
@@ -163,7 +166,7 @@ def setBlocksAt(blocks):
 	try:
 	    materialNamed(string)
 	except IndexError:
-	    print "block not found: %s" % string
+	    mcmaplogger.error("block not found: %s" % string)
 	else:
             myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materialNamed(string)
 
@@ -191,7 +194,7 @@ def getBlockAt(x, y, z):
     try:
         names(myBlock)
     except IndexError:
-        print "name not found: %s" % myBlock
+        mcmaplogger.error("name not found: %s" % myBlock)
     else:
         return names(myBlock)
     
@@ -212,13 +215,13 @@ def getBlocksAt(blocks):
         try:
             names(myBlock)
         except IndexError:
-            print "name not found: %s" % myBlock
+            mcmaplogger.error("name not found: %s" % myBlock)
         else:
             retval.append(names(myBlock))
     return retval
 
 def populateChunk(key,maxcz):
-    #print "key is %s" % (key)
+    mcmaplogger.debug("key is %s" % (key))
     global world
     start = clock()
     ctuple = key.split(',')
@@ -260,7 +263,7 @@ def populateWorld():
         results = pool.imap_unordered(populateChunkstar, tasks)
         times = [x for x in results]
     count = len(times)
-    print '%d chunks written (average time %.2f seconds)' % (count, sum(times)/count)
+    mcmaplogger.info('%d chunks written (average time %.2f seconds)' % (count, sum(times)/count))
 
 def saveWorld(spawn):
     global world

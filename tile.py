@@ -8,6 +8,9 @@ from bathy import getBathymetry
 from crust import getCrust
 from dataset import getDatasetDims
 from multiprocessing import Pool
+import logging
+logging.basicConfig(level=logging.WARNING)
+tilelogger = logging.getLogger('tile')
 
 def getIDT(ds, offset, size, vScale=1, nodata=None):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
@@ -44,7 +47,7 @@ def getOffsetSize(ds, corners, mult=1):
     farcorner_y = min(fcy, ds.RasterYSize)
     offset = (int(offset_x*mult), int(offset_y*mult))
     size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
-    #print "offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1])
+    tilelogger.debug("offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1]))
     return offset, size
 
 def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False):
@@ -78,7 +81,7 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
     idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=tileShape[0]+tileShape[1])
-    print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
+    tilelogger.info("Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1]))
 
     baseShape = (baseSize[1], baseSize[0])
     baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
@@ -125,7 +128,7 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     crustImage.save(os.path.join(imagedir, 'crust-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
     crustImage = None
 
-    print '... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime))
+    tilelogger.info('... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime)))
 
 def processTilestar(args):
     return processTile(*args)
@@ -150,7 +153,7 @@ def checkTile(args, mult):
     tilex = min(oldtilex, maxRows)
     tiley = min(oldtiley, maxCols)
     if (tilex != oldtilex or tiley != oldtiley):
-        print "Warning: tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley)
+        tilelogger.warning("Tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley))
     args.tile = (tilex, tiley)
     return (tilex, tiley)
 
@@ -166,17 +169,17 @@ def checkStartEnd(args, mult, tile):
     # maxTileRows and maxTileCols default to 0 meaning do everything
     if (maxTileRows == 0 or maxTileRows > numRowTiles):
         if (maxTileRows > numRowTiles):
-            print "Warning: maxTileRows greater than numRowTiles, setting to %d" % numRowTiles
+            tilelogger.warning("maxTileRows greater than numRowTiles, setting to %d" % numRowTiles)
         maxTileRows = numRowTiles
     if (minTileRows > maxTileRows):
-        print "Warning: minTileRows less than maxTileRows, setting to %d" % maxTileRows
+        tilelogger.warning("minTileRows less than maxTileRows, setting to %d" % maxTileRows)
         minTileRows = maxTileRows
     if (maxTileCols == 0 or maxTileCols > numColTiles):
         if (maxTileCols > numColTiles):
-            print "Warning: maxTileCols greater than numColTiles, setting to %d" % numColTiles
+            tilelogger.warning("maxTileCols greater than numColTiles, setting to %d" % numColTiles)
         maxTileCols = numColTiles
     if (minTileCols > maxTileCols):
-        print "Warning: minTileCols less than maxTileCols, setting to %d" % maxTileCols
+        tilelogger.warning("minTileCols less than maxTileCols, setting to %d" % maxTileCols)
         minTileCols = maxTileCols
     return (minTileRows, minTileCols, maxTileRows, maxTileCols)
 
