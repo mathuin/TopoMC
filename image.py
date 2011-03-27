@@ -6,7 +6,7 @@ import Image
 from numpy import asarray
 from time import clock
 from terrain import processTerrain
-from mcmap import maxelev
+import mcmap
 from multiprocessing import Pool
 from itertools import product
 
@@ -109,9 +109,9 @@ def processImage(region, offset_x, offset_z):
         crustval = crustarray[z,x]
         real_x = offset_x + x
         real_z = offset_z + z
-        if (elevval > maxelev):
-            print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev)
-            elevval = maxelev
+        if (elevval > mcmap.maxelev):
+            print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, mcmap.maxelev)
+            elevval = mcmap.maxelev
         if (elevval > localmax):
             localmax = elevval
             spawnx = real_x
@@ -137,11 +137,11 @@ def processImage(region, offset_x, offset_z):
 def processImagestar(args):
     return processImage(*args)
 
-def processImages(region, processes):
-    if (processes == 1):
+def processImages(region):
+    if (mcmap.processes == 1):
         peaks = [processImage(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
     else:
-        pool = Pool(processes)
+        pool = Pool(mcmap.processes)
         tasks = [(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
         results = pool.imap_unordered(processImagestar, tasks)
         peaks = [x for x in results]

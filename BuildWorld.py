@@ -61,6 +61,7 @@ def main(argv):
     parser.add_argument('--region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--sealevel', nargs=1, default=default_sealevel, type=int, help="number of sealevel to spawn (default %d)" % default_sealevel)
+    parser.add_argument('--disable-stats', action='store_false', dest='doStats', default=True, help="disables statistics display when not necessary")
     parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help="disables ore generation when not necessary")
 
     # this is global
@@ -85,7 +86,7 @@ def main(argv):
     mcmap.initWorld(args.region, minX, minZ, maxX, maxZ, sealevel, processes)
 
     # iterate over images
-    peaks = image.processImages(args.region, args.processes)
+    peaks = image.processImages(args.region)
         
     # per-tile peaks here
     # ... consider doing something nice on all the peaks?
@@ -93,7 +94,7 @@ def main(argv):
 
     # where's that ore?
     if (args.doOre):
-        ore.placeOre(args.processes)
+        ore.placeOre()
 
     # place the safehouse at the peak (adjust it)
     building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
@@ -109,10 +110,11 @@ def main(argv):
     mcmap.saveWorld(peak)
 
     print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
-    terrain.printStatistics()
-    tree.printStatistics()
-    if (args.doOre):
-        ore.printStatistics()
+    if (args.doStats):
+        terrain.printStatistics()
+        tree.printStatistics()
+        if (args.doOre):
+            ore.printStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

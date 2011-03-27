@@ -74,18 +74,18 @@ def processOre(oreName, minY, maxY, maxExtent):
 def processOrestar(args):
     return processOre(*args)
 
-def processOres(oreName, minY, maxY, maxExtent, numRounds, processes):
-    if (processes == 1):
+def processOres(oreName, minY, maxY, maxExtent, numRounds):
+    if (mcmap.processes == 1):
         bleah = [processOre(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
     else:
-        pool = Pool(processes)
+        pool = Pool(mcmap.processes)
         tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
         results = pool.imap_unordered(processOrestar, tasks)
         bleah = [x for x in results]
     return None
 
 # whole-world approach
-def placeOre(processes):
+def placeOre():
     placestart = clock()
     # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
@@ -97,7 +97,7 @@ def placeOre(processes):
         maxY = pow(2,oreDepth[ore])
         maxExtent = cbrt(oreSize[ore])/2
         numRounds = int(oreRounds[ore]*numChunks)
-        processOres(ore, minY, maxY, maxExtent, numRounds, processes)
+        processOres(ore, minY, maxY, maxExtent, numRounds)
         print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
     print "finished in %.2f seconds." % (clock()-placestart)
 
