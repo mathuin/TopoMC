@@ -1,14 +1,8 @@
 A rough to-do list, mostly in the desired order:
 
-Permit disabling of various features in ./BuildWorld.py
- - sometimes the surface is all we need
-Trees aren't quite right
- - no more edge cases!
- - place all leaves before all trunks
-Convert module print output to logging statements
- - what we have now is pretty spammy
- - keep the stuff in ./Build*.py the way it is
-
+Use decorators for timed code
+ - this is harder than it looks
+ - using loggers *and* arguments from function sigh
 Use decorators for parallel code
  - gotta learn how first
  - must account for temporarily-disabled parallelism
@@ -25,6 +19,9 @@ Move from zero-based coordinates to "real" coordinates
 Move sealevel and maxdepth code
  - options belong in ./BuildArrays.py
  - variables and check code belong in mcarray
+Move option-disabling code
+ - right now ore and stats is in ./BuildWorld.py
+ - use it as a template for bathy and possibly crust
 
 Move crust code to ./WarpElev.sh
  - will generate a new crust dataset once I learn how
@@ -35,6 +32,8 @@ Support additional datasets
 Support additional file types
  - NED 1/9 arc seconds and older landcover types top of list
 
+Trees aren't quite right
+ - place all leaves before all trunks, but this is too hard for now
 Test and drivers for all functions
  - maybe even comments!
 Schematics and equipping the player
