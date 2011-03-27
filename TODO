@@ -1,27 +1,45 @@
-To do:
+A rough to-do list, mostly in the desired order:
 
-Handle file-supplied "no data" value (what about 255?)
- - San Francisco dataset has this problem
-Allow disabling of new features
- - some folks just want pretty
+Permit disabling of various features in ./BuildWorld.py
+ - sometimes the surface is all we need
+Trees aren't quite right
+ - no more edge cases!
+ - place all leaves before all trunks
+Convert module print output to logging statements
+ - what we have now is pretty spammy
+ - keep the stuff in ./Build*.py the way it is
+
+Use decorators for parallel code
+ - gotta learn how first
+ - must account for temporarily-disabled parallelism
+Make more code parallel-friendly code
+ - not all numpy code is parallel-friendly
+ - ditto for pymclevel
+
+Move from images to arrays
+ - permits eventual bravo support
+ - can generate larger maps too
+Move from zero-based coordinates to "real" coordinates
+ - permits eventual *multi-server* bravo support
+ - allows multiple maps to be merged easily
+Move sealevel and maxdepth code
+ - options belong in ./BuildArrays.py
+ - variables and check code belong in mcarray
+
+Move crust code to ./WarpElev.sh
+ - will generate a new crust dataset once I learn how
+Refactor terrain code to not be L01-specific
+ - will reduce duplication of code
+Support additional datasets
+ - ./WarpElev.sh will have to warp/merge all downloaded files
+Support additional file types
+ - NED 1/9 arc seconds and older landcover types top of list
+
 Test and drivers for all functions
  - maybe even comments!
-Convert most print output to logging statements
- - boy this is spammy
 Schematics and equipping the player
  - in progress
-Support multiple USGS chunks per dataset
- - ./image.py needs to be redesigned
-Normal stuff underground!
- - ore done, what about caves?
-Full multiprocessing support
- - everything works except turning chunks into worlds
-Clean up WarpElev.sh
- - only unzip the files we want
-Clean up terrain.py
- - move terrain types into abstract routines to support more land cover types
-Support NED 1/9 arc seconds
- - is this anything more than downloading?
- - multiple chunks come first!
+Underground caves
+ - no idea how to do this, need suggestions
 Put buildings in developed areas
  - need to do this without interfering with roads in the future?
