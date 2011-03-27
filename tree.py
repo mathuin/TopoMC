@@ -2,6 +2,7 @@
 from __future__ import division
 from random import random, randint
 from mcmap import sealevel, setBlockAt, setBlockDataAt
+import mcmap # for minX, minZ, maxX, maxZ
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
@@ -82,9 +83,12 @@ def makeTree(x, z, elevval, treeNum):
         lxzrange = xrange(leafDistance.shape[0])
         lyrange = xrange(leafheight)
         for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
+            myleafx = max(min(x+leafx-treeWidth, mcmap.minX), mcmap.maxX)
+            myleafy = leafbottom+leafy
+            myleafz = max(min(z+leafz-treeWidth, mcmap.minZ), mcmap.maxZ)
             if leafPattern[treeNum](leafx, leafz, leafy, leafheight-1):
-                setBlockAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, 'Leaves')
-                setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
+                setBlockAt(myleafx, myleafy, myleafz, 'Leaves')
+                setBlockDataAt(myleafx, myleafy, myleafz, treeNum-1)
         for y in xrange(base,base+height):
             # FIXME: sigh, 'Tree trunk' doesn't work
             setBlockAt(x, y, z, 'Wood')

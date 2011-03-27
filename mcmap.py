@@ -78,8 +78,8 @@ def initWorld(string, wminX, wminZ, wmaxX, wmaxZ, wsealevel, wprocesses):
     minZchunk = (minZ >> chunkWidthPow)
     maxXchunk = (maxX >> chunkWidthPow)
     maxZchunk = (maxZ >> chunkWidthPow)
-    chunkX = xrange(minXchunk-1, maxXchunk+2)
-    chunkZ = xrange(minZchunk-1, maxZchunk+2)
+    chunkX = xrange(minXchunk, maxXchunk+1)
+    chunkZ = xrange(minZchunk, maxZchunk+1)
     for x, z in product(chunkX, chunkZ):
         arrayKey = '%d,%d' % (x, z)
         if (makeWorldNow):
