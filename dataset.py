@@ -5,6 +5,9 @@ import re
 from osgeo import gdal, osr
 from osgeo.gdalconst import *
 from coords import getTransforms
+import logging
+logging.basicConfig(level=logging.WARNING)
+datasetlogger = logging.getLogger('dataset')
 
 # paths for datasets
 dsPaths = ['Datasets', '../TopoMC-Datasets']
@@ -22,7 +25,7 @@ def decodeLayerID(layerID):
     elif (productID in elevationIDs):
         pType = "elevation"
     else:
-        print "Invalid product ID %s" % productID
+        datasetlogger.error("Invalid product ID %s" % productID)
         return -1
 
     # FIXME: handle more image types
@@ -30,7 +33,7 @@ def decodeLayerID(layerID):
     if (imagetype == "02"):
         iType = "tif"
     else:
-        print "Invalid image type %s" % imagetype
+        datasetlogger.error("Invalid image type %s" % imagetype)
         return -1
         
     metatype = layerID[5]
@@ -41,7 +44,7 @@ def decodeLayerID(layerID):
     elif (metatype == "X"):
         mType = "XML"
     else:
-        print "Invalid metadata type %s" % metatype
+        datasetlogger.error("Invalid metadata type %s" % metatype)
         return -1
 
     compressiontype = layerID[6]
@@ -50,7 +53,7 @@ def decodeLayerID(layerID):
     elif (compressiontype == "T"):
         cType = "TGZ"
     else:
-        print "Invalid compression type %s" % compressiontype
+        datasetlogger.error("Invalid compression type %s" % compressiontype)
         return -1
 
     return (pType, iType, mType, cType)
@@ -91,17 +94,17 @@ def getDatasetDict(dspaths):
                 # check that both datasets open read-only without errors
                 lcds = gdal.Open(lcfile)
                 if (lcds == None):
-                    print "%s: lc dataset didn't open" % region
+                    datasetlogger.error("%s: lc dataset didn't open" % region)
                     break
                 elevds = gdal.Open(elevfile)
                 if (elevds == None):
-                    print "%s: elev dataset didn't open" % region
+                    datasetlogger.error( "%s: elev dataset didn't open" % region)
                     break
                 # check that both datasets have the same projection
                 lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
                 elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
                 if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
-                    print "%s: lc and elevation maps do not have the same projection" % region
+                    datasetlogger.error("%s: lc and elevation maps do not have the same projection" % region)
                     break
                 # calculate rows and columns
                 rows = lcds.RasterXSize
@@ -144,6 +147,7 @@ def getDatasetNodata(region):
 
 def listDatasets(dsdict):
     "Given a dataset dict, list the datasets and their dimensions."
+    # NB: do not change to logger
     print 'Valid datasets detected:'
     dsDimsDict = dict((region, getDatasetDims(region)) for region in dsDict.keys())
     print "\n".join(["\t%s (%d, %d)" % (region, dsDimsDict[region][0], dsDimsDict[region][1]) for region in sorted(dsDict.keys())])

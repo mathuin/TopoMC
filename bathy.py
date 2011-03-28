@@ -7,6 +7,9 @@ from dataset import getDatasetDims
 from math import hypot
 import invdisttree
 from mcarray import sealevel
+import logging
+logging.basicConfig(level=logging.WARNING)
+bathylogger = logging.getLogger('bathy')
 
 def getBathymetry(args, lcArray, bigArray, baseOffset, bigOffset):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
@@ -50,13 +53,10 @@ def checkMaxDepth(args):
     else:
         oldmaxdepth = int(args.maxdepth)
     (rows, cols) = getDatasetDims(args.region)
-    # okay, 1 is a minimum
-    # rows/cols is a max
-    # actually sealevel-1 is a real max! :-)
-    maxdepth = max(1, oldmaxdepth)
-    maxdepth = min(maxdepth, min(rows, cols, sealevel-1))
+    # okay, 1 is a minimum and sealevel-1 is a maximum
+    maxdepth = max(min(oldmaxdepth, sealevel-1), 1)
     if (maxdepth != oldmaxdepth):
-        print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth)
+        bathylogger.warning("Maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth))
     args.maxdepth = maxdepth
     return maxdepth
 
@@ -68,10 +68,9 @@ def checkSlope(args):
         oldslope = int(args.slope)
     # FIXME: need better answers here, right now guessing
     extreme = 4
-    slope = min(oldslope, extreme)
-    slope = max(slope, 1/extreme)
+    slope = max(min(oldslope, extreme), 1/extreme)
     if (slope != oldslope):
-        print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope)
+        bathylogger.warning("Slope of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope))
     args.slope = slope
     return slope
 

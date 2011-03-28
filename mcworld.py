@@ -1,7 +1,9 @@
 # minecraft world
-
 import os
 from pymclevel import mclevel
+import logging
+logging.basicConfig(level=logging.WARNING)
+mcworldlogger = logging.getLogger('mcworld')
 
 world = None
 
@@ -25,7 +27,7 @@ def mysaveWorld():
         ch = world.getChunk(*cPos);
         numchunks += 1
         sizeOnDisk += ch.compressedSize();
-    print '%d chunks enumerated' % numchunks
+    mcworldlogger.info('%d chunks enumerated' % numchunks)
     world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
 

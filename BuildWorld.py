@@ -5,8 +5,8 @@ sys.path.append('..')
 import argparse
 from multiprocessing import cpu_count
 #
-import mcmap
 import mcarray
+import mcworld
 import dataset
 import os
 
@@ -33,15 +33,14 @@ def main(argv):
     print 'Creating world from region %s' % args.region
 
     # create shared memory for each expected chunk
-    worlddir = os.path.join("Worlds", args.region)
-    mcmap.myinitWorld(worlddir)
+    mcworld.myinitWorld(args.region)
 
     # load arrays
     arraydir = os.path.join("Arrays", args.region)
-    mcarray.loadArrays(mcmap.world, arraydir, processes)
+    mcarray.loadArrays(mcworld.world, arraydir, processes)
 
     # save world
-    mcmap.mysaveWorld()
+    mcworld.mysaveWorld()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

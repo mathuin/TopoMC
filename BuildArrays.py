@@ -11,12 +11,13 @@ from argparse import ArgumentParser
 from multiprocessing import cpu_count
 from dataset import getDataset, checkDataset, listDatasets, dsDict, getDatasetDims, getDatasetNodata
 from tile import checkTile, checkStartEnd, processTiles
-from bathy import checkMaxDepth, checkSlope
-# write checkMaxelev, checkSealevel etc?
-from mcarray import maxelev, createArrays, saveArrays
-from crust import makeCrustIDT
-from ore import placeOre
-from building import building
+import bathy
+import mcarray
+import crust
+import building
+import ore
+import terrain
+import tree
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -61,7 +62,7 @@ def checkVScale(args):
     elevds = None
     elevMax = elevCMinMax[1]
     vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, (elevMax/maxelev)+1)
+    vscale = max(vscale, (elevMax/mcarray.maxelev)+1)
     if (vscale != oldvscale):
         print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
     args.vscale = vscale
@@ -72,6 +73,7 @@ def main(argv):
 
     default_scale = 6
     default_vscale = 6
+    default_sealevel = 32
     default_maxdepth = 16
     default_slope = 1
     default_tile = [256, 256]
@@ -84,11 +86,14 @@ def main(argv):
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
     parser.add_argument('--scale', nargs=1, default=default_scale, type=int, help="horizontal scale factor (default %d)" % default_scale)
     parser.add_argument('--vscale', nargs=1, default=default_vscale, type=int, help="vertical scale factor (default %d)" % default_vscale)
-    parser.add_argument('--maxdepth', nargs=1, default=default_maxdepth, type=checkMaxDepth, help="maximum depth (default %d)" % default_maxdepth)
-    parser.add_argument('--slope', nargs=1, default=default_slope, type=checkSlope, help="underwater slope factor (default %d)" % default_slope)
+    parser.add_argument('--sealevel', nargs=1, default=default_sealevel, type=mcarray.checkSealevel, help="maximum depth (default %d)" % default_sealevel)
+    parser.add_argument('--maxdepth', nargs=1, default=default_maxdepth, type=bathy.checkMaxDepth, help="maximum depth (default %d)" % default_maxdepth)
+    parser.add_argument('--slope', nargs=1, default=default_slope, type=bathy.checkSlope, help="underwater slope factor (default %d)" % default_slope)
     parser.add_argument('--tile', nargs=2, default=default_tile, type=int, help="tile size in tuple form (default %s)" % (default_tile,))
     parser.add_argument('--start', nargs=2, default=default_start, type=int, help="start tile in tuple form (default %s)" % (default_start,))
     parser.add_argument('--end', nargs=2, default=default_end, type=int, help="end tile in tuple form (default %s)" % (default_end,))
+    parser.add_argument('--disable-stats', action='store_false', dest='doStats', default=True, help="disables stats generation when not necessary")
+    parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help="disables ore generation when not necessary")
     args = parser.parse_args()
 
     # list regions if requested
@@ -101,8 +106,6 @@ def main(argv):
     processes = checkProcesses(args)
     (scale, mult) = checkScale(args)
     vscale = checkVScale(args)
-    maxdepth = checkMaxDepth(args)
-    slope = checkSlope(args)
     tileShape = checkTile(args, mult)
     (tileRows, tileCols) = tileShape
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
@@ -116,10 +119,10 @@ def main(argv):
     minZ = 0
     maxX = int(rows*mult)
     maxZ = int(cols*mult)
-    createArrays(minX, minZ, maxX, maxZ)
+    mcarray.createArrays(minX, minZ, maxX, maxZ, args.sealevel, args.processes)
 
     # build crust tree for whole map
-    makeCrustIDT(args)
+    crust.makeCrustIDT(args)
 
     # process those tiles
     peaks = processTiles(args, minTileRows, maxTileRows, minTileCols, maxTileCols, processes)
@@ -131,15 +134,23 @@ def main(argv):
     peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
 
     # where's that ore?
-    placeOre()
+    if (args.doOre):
+        ore.placeOre()
 
     # place the safehouse at the peak (adjust it)
-    building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
+    building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
     print "Consider setting spawn point to %d, %d, %d" % (peak[0], peak[2]+1, peak[1])
 
     # save arrays
     arraydir = os.path.join("Arrays", args.region)
-    saveArrays(arraydir, processes)
+    mcarray.saveArrays(arraydir, processes)
+
+    # print statistics
+    if (args.doStats):
+        terrain.printStatistics()
+        tree.printStatistics()
+        if (args.doOre):
+            ore.printStatistics()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

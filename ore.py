@@ -9,7 +9,11 @@ from math import pi
 from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 # for minX, minZ, maxX, and maxZ
 import mcarray
+from multiprocessing import Pool
 from itertools import product
+import logging
+logging.basicConfig(level=logging.WARNING)
+orelogger = logging.getLogger('ore')
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {
@@ -40,49 +44,68 @@ for key in oreType.keys():
 # any ore that tries to replace these blocks is hereby disqualified
 oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)', 'Bedrock'])
 
+# actually deposits the ore
+def processOre(oreName, minY, maxY, maxExtent):
+    "Deposits ore in a random part of the ground."
+    clumpX = randint(int(maxExtent*100),int(maxExtent*900))/1000
+    clumpY = randint(int(maxExtent*100),int(maxExtent*900))/1000
+    clumpZ = randint(int(maxExtent*100),int(maxExtent*900))/1000
+    clumpScale = ((4/3)*pi*clumpX*clumpY*clumpZ)/oreSize[oreName]
+    # dunno about these boundaries
+    clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
+    clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
+    clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
+    oreX = randint(int(mcarray.minX+clumpX),int(mcarray.maxX-clumpX))
+    oreY = randint(int(minY+clumpY),int(maxY-clumpY))
+    oreZ = randint(int(mcarray.minZ+clumpZ),int(mcarray.maxZ-clumpZ))
+    oXrange = xrange(int(0-clumpX), int(clumpX+1))
+    oYrange = xrange(int(0-clumpY), int(clumpY+1))
+    oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
+    clumpX2 = clumpX*clumpX
+    clumpY2 = clumpY*clumpY
+    clumpZ2 = clumpZ*clumpZ
+    # anything in the ellipsoid except air/water/lava and other ores
+    oreCoords = [[oreX+x, oreY+y, oreZ+z] for x,y,z in product(oXrange, oYrange, oZrange) if ((x*x)/clumpX2+(y*y)/clumpY2+(z*z)/clumpZ2<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
+    oreBlocks = getBlocksAt(oreCoords)
+    # all it takes is one Stone and we're in
+    # FIXME: should start over if oreCoords has a len of 0
+    if ('Stone' in oreBlocks):
+        oreNodeCount[oreName].value += len(oreCoords)
+        oreVeinCount[oreName].value += 1
+        setBlocksAt([x, y, z, oreType[oreName]] for x, y, z in oreCoords)
+
+def processOrestar(args):
+    return processOre(*args)
+
+def processOres(oreName, minY, maxY, maxExtent, numRounds):
+    if (mcarray.processes == 1):
+        bleah = [processOre(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
+    else:
+        pool = Pool(mcarray.processes)
+        tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
+        results = pool.imap_unordered(processOrestar, tasks)
+        bleah = [x for x in results]
+    return None
+
 # whole-world approach
 def placeOre():
     placestart = clock()
+    # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
-        print "Adding %s now..." % (oreType[ore])
+        orelogger.info("Adding %s now..." % (oreType[ore]))
         # everything starts on the bottom
         # only doing common pass here
         minY = 0
         maxY = pow(2,oreDepth[ore])
         maxExtent = cbrt(oreSize[ore])/2
         numRounds = int(oreRounds[ore]*numChunks)
-        for round in xrange(numRounds):
-            clumpX = randint(int(maxExtent*100),int(maxExtent*900))/1000
-            clumpY = randint(int(maxExtent*100),int(maxExtent*900))/1000
-            clumpZ = randint(int(maxExtent*100),int(maxExtent*900))/1000
-            clumpScale = ((4/3)*pi*clumpX*clumpY*clumpZ)/oreSize[ore]
-            # dunno about these boundaries
-            clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
-            clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
-            clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
-            oreX = randint(int(mcarray.minX+clumpX),int(mcarray.maxX-clumpX))
-            oreY = randint(int(minY+clumpY),int(maxY-clumpY))
-            oreZ = randint(int(mcarray.minZ+clumpZ),int(mcarray.maxZ-clumpZ))
-            oXrange = xrange(int(0-clumpX), int(clumpX+1))
-            oYrange = xrange(int(0-clumpY), int(clumpY+1))
-            oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
-            clumpX2 = clumpX*clumpX
-            clumpY2 = clumpY*clumpY
-            clumpZ2 = clumpZ*clumpZ
-            # anything in the ellipsoid except air/water/lava and other ores
-            oreCoords = [[oreX+x, oreY+y, oreZ+z] for x,y,z in product(oXrange, oYrange, oZrange) if ((x*x)/clumpX2+(y*y)/clumpY2+(z*z)/clumpZ2<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
-            oreBlocks = getBlocksAt(oreCoords)
-            # all it takes is one Stone and we're in
-            # FIXME: should start over if oreCoords has a len of 0
-            if ('Stone' in oreBlocks):
-                oreNodeCount[ore].value += len(oreCoords)
-                oreVeinCount[ore].value += 1
-                setBlocksAt([x, y, z, oreType[ore]] for x, y, z in oreCoords)
-        print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
-    print "finished in %.2f seconds." % (clock()-placestart)
+        processOres(ore, minY, maxY, maxExtent, numRounds)
+        orelogger.info("... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value))
+    orelogger.info("finished in %.2f seconds." % (clock()-placestart))
 
 def printStatistics():
+    # NB: do not change to logger
     oreTuples = [(oreType[index], oreNodeCount[index].value, oreVeinCount[index].value) for index in oreNodeCount if oreNodeCount[index].value > 0]
     oreNodeTotal = sum([oreTuple[1] for oreTuple in oreTuples])
     oreVeinTotal = sum([oreTuple[2] for oreTuple in oreTuples])

@@ -6,9 +6,12 @@ import Image
 from numpy import asarray
 from time import clock
 from terrain import processTerrain
-from mcmap import maxelev
+import mcarray
 from multiprocessing import Pool
 from itertools import product
+import logging
+logging.basicConfig(level=logging.WARNING)
+imagelogger = logging.getLogger('image')
 
 # paths for images
 imagesPaths = ['Images']
@@ -59,6 +62,7 @@ def getImagesDict(imagepaths):
 
 def listImagesets():
     "List all the available imagesets, including dimensions."
+    # NB: do not change to logger
     print 'Valid imagesets detected:'
     print "\n".join(["\t%s:\n\t\t%d tiles (%d, %d)" % (region, len(imageSets[region]), imageDims[region][0], imageDims[region][1]) for region in imageDirs])
 
@@ -94,7 +98,7 @@ def processImage(region, offset_x, offset_z):
     spawnz = 10
 
     # inform the user
-    print 'Processing tile at position (%d, %d)...' % (offset_x, offset_z)
+    imagelogger.info('Processing tile at position (%d, %d)...' % (offset_x, offset_z))
     (size_z, size_x) = lcarray.shape
     lcvals = []
     
@@ -109,9 +113,9 @@ def processImage(region, offset_x, offset_z):
         crustval = crustarray[z,x]
         real_x = offset_x + x
         real_z = offset_z + z
-        if (elevval > maxelev):
-            print 'warning: elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev)
-            elevval = maxelev
+        if (elevval > mcarray.maxelev):
+            imagelogger.warning('Elevation %d exceeds maximum elevation (%d)' % (elevval, mcarray.maxelev))
+            elevval = mcarray.maxelev
         if (elevval > localmax):
             localmax = elevval
             spawnx = real_x
@@ -129,7 +133,7 @@ def processImage(region, offset_x, offset_z):
     bathyarray = None
 
     # print out status
-    print '... finished with (%d, %d) in %.2f seconds.' % (offset_x, offset_z, clock()-imagetime)
+    imagelogger.info('... finished with (%d, %d) in %.2f seconds.' % (offset_x, offset_z, clock()-imagetime))
 
     return (spawnx, spawnz, localmax)
 
@@ -137,11 +141,11 @@ def processImage(region, offset_x, offset_z):
 def processImagestar(args):
     return processImage(*args)
 
-def processImages(region, processes):
-    if (processes == 1):
+def processImages(region):
+    if (mcarray.processes == 1):
         peaks = [processImage(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
     else:
-        pool = Pool(processes)
+        pool = Pool(mcarray.processes)
         tasks = [(imageDirs[region], offset[0], offset[1]) for (offset, size) in imageSets[region]]
         results = pool.imap_unordered(processImagestar, tasks)
         peaks = [x for x in results]

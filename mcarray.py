@@ -7,27 +7,47 @@ from pymclevel import mclevel
 from pymclevel.materials import alphaMaterials
 from itertools import product
 from multiprocessing import Pool
+from random import randint
+import logging
+logging.basicConfig(level=logging.WARNING)
+mcarraylogger = logging.getLogger('mcarray')
 
 # level constants
 chunkWidthPow = 4
 chunkWidth = pow(2,chunkWidthPow)
 chunkHeight = 128
 # constants
-sealevel = 32
 # headroom is the room between the tallest peak and the ceiling
 headroom = 10
-maxelev = chunkHeight-headroom-sealevel
 
 # level variables
 minX = 0
 minZ = 0
 maxX = 0
 maxZ = 0
-maxcz = 0
+maxcz = 0 # rotation
+processes = 0
+sealevel = 32 # this is now changed in BuildWorld.py
+maxelev = chunkHeight-headroom-sealevel
 arrayBlocks = {}
 arrayData = {}
 
-# helper functions
+# check function
+def checkSealevel(args):
+    "Checks to see if the given sealevel is valid."
+    if (isinstance(args.sealevel, list)):
+        oldsealevel = args.sealevel[0]
+    else:
+        oldsealevel = int(args.sealevel)
+    # sea level can be between 2 and 100 (arbitrary, but so what)
+    sealevel = max(2, oldsealevel)
+    sealevel = min(sealevel, 100)
+    if (sealevel != oldsealevel):
+        mcarraylogger.warning("Sealevel of %d for region %s is invalid -- changed to %d" % (oldsealevel, args.region, sealevel))
+    args.sealevel = sealevel
+    return sealevel
+
+# helper functions for pymclevel
 def materialNamed(string):
     "Returns block ID for block with name given in string."
     return [v.ID for v in alphaMaterials.allBlocks if v.name==string][0]
@@ -36,14 +56,18 @@ def names(blockID):
     "Returns block name for given block ID."
     return alphaMaterials.names[blockID][0]
 
-def createArrays(aminX, aminZ, amaxX, amaxZ):
+def createArrays(aminX, aminZ, amaxX, amaxZ, asealevel, aprocesses):
     "Create shared arrays."
-    global minX, minZ, maxX, maxZ, arrayBlocks, arrayData
+    global minX, minZ, maxX, maxZ, sealevel, processes, maxelev, maxcz, arrayBlocks, arrayData
     # assign level variables
     minX = aminX
     minZ = aminZ
     maxX = amaxX
     maxZ = amaxZ
+    sealevel = asealevel
+    processes = aprocesses
+    # recalculate this based on new sealevel
+    maxelev = chunkHeight-headroom-sealevel
     # calculate maxcz for rotation
     maxcz = (amaxX-aminX) >> chunkWidthPow
     # start creating arrays
@@ -51,8 +75,8 @@ def createArrays(aminX, aminZ, amaxX, amaxZ):
     minZchunk = (minZ >> chunkWidthPow)
     maxXchunk = (maxX >> chunkWidthPow)
     maxZchunk = (maxZ >> chunkWidthPow)
-    chunkX = xrange(minXchunk-1, maxXchunk+2)
-    chunkZ = xrange(minZchunk-1, maxZchunk+2)
+    chunkX = xrange(minXchunk, maxXchunk+1)
+    chunkZ = xrange(minZchunk, maxZchunk+1)
     for x, z in product(chunkX, chunkZ):
         arrayKey = '%dx%d' % (x, z)
         arrayBlocks[arrayKey] = multinumpy.SharedMemArray(numpy.zeros((chunkWidth,chunkWidth,chunkHeight),dtype=numpy.uint8))
@@ -144,7 +168,7 @@ def loadArrays(world, arraydir, processes):
         results = pool.imap_unordered(loadArraystar, tasks)
         arrays = [x for x in results]
         pool = None
-    print '%d arrays loaded' % len(arrays)
+    mcarraylogger.info('%d arrays loaded' % len(arrays))
 
 # each column consists of [x, z, elevval, ...]
 # where ... is a block followed by zero or more number-block pairs
@@ -163,11 +187,10 @@ def layers(columns):
         z = column.pop(0)
         elevval = column.pop(0)
         top = sealevel+elevval
-        # overstone = sum([elem for elem in column if type(elem) == int])
-        # column.insert(0, 'Bedrock')
-        # column.insert(1, top-overstone-1)
-        # column.insert(2, 'Stone')
-        column.insert(0, 'Stone')
+        overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
+        column.insert(0, 'Bedrock')
+        column.insert(1, top-overstone-1)
+        column.insert(2, 'Stone')
         while (len(column) > 0 or top > 0):
             # better be a block
             block = column.pop()
@@ -204,12 +227,12 @@ def setBlockAt(x, y, z, string):
     try:
         myBlocks = arrayBlocks[arrayKey].asarray()
     except KeyError:
-        print "got key error with (%d, %d, %d, %s)" % (x, y, z, string)
+        mcarraylogger.error("got key error with (%d, %d, %d, %s)" % (x, y, z, string))
         myBlocks = arrayBlocks[arrayKey].asarray()
     try:
         materialNamed(string)
     except IndexError:
-        print "got value error with (%d, %d, %d, %s)" % (x, y, z, string)
+        mcarraylogger.error("got value error with (%d, %d, %d, %s)" % (x, y, z, string))
         materialNamed(string)
     else:
         myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materialNamed(string)
@@ -243,7 +266,7 @@ def getBlockAt(x, y, z):
     try:
         names(myBlock)
     except IndexError:
-        print "name not found: %s" % myBlock
+        mcarraylogger.error("name not found: %s" % myBlock)
     else:
         return names(myBlock)
     

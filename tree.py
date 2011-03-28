@@ -2,6 +2,7 @@
 from __future__ import division
 from random import random, randint
 from mcarray import sealevel, setBlockAt, setBlockDataAt
+import mcarray # for minX, minZ, maxX, maxZ
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
@@ -56,6 +57,7 @@ treeHeight = [[3, 3, 3], [5, 7, 2], [9, 11, 2], [7, 9, 2], [1, 3, 0]]
 leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
 
 def printStatistics():
+    # NB: do not convert to logger
     treeTuples = [(treeType[index], treeCount[index].value) for index in treeCount if treeCount[index].value > 0]
     treeTotal = sum([treeTuple[1] for treeTuple in treeTuples])
     print 'Tree statistics (%d total):' % treeTotal
@@ -70,7 +72,6 @@ def placeTree(x, z, elevval, probFactor, treeName):
         makeTree(x, z, elevval, treeNum)
 
 def makeTree(x, z, elevval, treeNum):
-    testMonkey = True
     base = sealevel+elevval
     height = randint(treeHeight[treeNum][0], treeHeight[treeNum][1])
     leafbottom = base+treeHeight[treeNum][2]
@@ -83,10 +84,15 @@ def makeTree(x, z, elevval, treeNum):
         lxzrange = xrange(leafDistance.shape[0])
         lyrange = xrange(leafheight)
         for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
+            # NB: the maxmin may go to setBlockAt and friends
+            myleafx = max(min(x+leafx-treeWidth, mcarray.maxX), mcarray.minX)
+            myleafy = leafbottom+leafy
+            myleafz = max(min(z+leafz-treeWidth, mcarray.maxZ), mcarray.minZ)
             if leafPattern[treeNum](leafx, leafz, leafy, leafheight-1):
-                setBlockAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, 'Leaves')
-                setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
+                setBlockAt(myleafx, myleafy, myleafz, 'Leaves')
+                setBlockDataAt(myleafx, myleafy, myleafz, treeNum-1)
         for y in xrange(base,base+height):
+            # FIXME: sigh, 'Tree trunk' doesn't work
             setBlockAt(x, y, z, 'Wood')
             setBlockDataAt(x, y, z, treeNum-1)
     # increment tree count

@@ -8,6 +8,9 @@ from itertools import product
 from numpy import array, int32, fromfunction, uint8, max, min
 from random import randint, uniform
 from time import clock
+import logging
+logging.basicConfig(level=logging.WARNING)
+crustlogger = logging.getLogger('crust')
 
 crustIDT = None
 
@@ -19,13 +22,13 @@ def makeCrustIDT(args):
     start = clock()
     crustCoordsList = []
     crustValuesList = []
-    print "making Crust IDT"
+    crustlogger.info("making Crust IDT")
     # trying ten percent since one seemed too lame
     worldLatLong = getLatLongArray(lcds, (0, 0), (rows, cols), 1)
     crustCoordsList = [worldLatLong[randint(0,rows-1)*cols+randint(0,cols-1)] for elem in xrange(int(rows*cols*0.01))]
     crustValuesList = [uniform(1,5) for elem in crustCoordsList]
     crustIDT = Invdisttree(array(crustCoordsList), array(crustValuesList))
-    print "... done in %.2f seconds" % (clock()-start)
+    crustlogger.info("... done in %.2f seconds" % (clock()-start))
 
 # construct the crust array for the tile
 def getCrust(bathyArray, baseArray):
