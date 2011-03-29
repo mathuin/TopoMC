@@ -2,6 +2,7 @@
 
 import os
 import re
+from argparse import ArgumentError
 from osgeo import gdal, osr
 from osgeo.gdalconst import *
 from coords import getTransforms
@@ -156,7 +157,7 @@ def checkDataset(string):
     "Checks to see if the supplied string is a dataset."
     if (string != None and not string in dsDict):
         listDatasets(dsDict)
-        argparse.error("%s is not a valid dataset" % string)
+        raise ArgumentError("%s is not a valid dataset" % string)
     return string
 
 # initialize
