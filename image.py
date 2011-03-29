@@ -3,6 +3,7 @@ import re
 import os
 import operator
 import Image
+from argparse import ArgumentError
 from numpy import asarray
 from time import clock
 from terrain import processTerrain
@@ -66,7 +67,7 @@ def checkImageset(string):
     "Checks to see if there are images for this imageset."
     if (string != None and not string in imageDirs):
         listImagesets(imageDirs)
-        argparse.error("%s is not a valid imageset" % string)
+        raise ArgumentError("%s is not a valid imageset" % string)
     return string
 
 def processImage(region, offset_x, offset_z):

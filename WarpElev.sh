@@ -31,14 +31,14 @@ function processLayerID() {
 	foundned=$origstring
     else
 	echo "Unknown product ID found!"
-	exit
+	exit -1
     fi
     imagetype=$2
     if [ "$imagetype" = "02" ]; then
 	imagesuffix=tif
     else
 	echo "Unknown image format found!"
-	exit
+	exit -1
     fi
     metatype=$3
     if [ "$metatype" = "H" ]; then
@@ -49,7 +49,7 @@ function processLayerID() {
 	foundxml=true
     else
 	echo "Unknown metadata format found!"
-	exit
+	exit -1
     fi
     compresstype=$4
     if [ "$compresstype" = "Z" ]; then
@@ -60,7 +60,7 @@ function processLayerID() {
 	compresssuffix=tgz
     else
 	echo "Unknown compression format found!"
-	exit
+	exit -1
     fi
 }
 
@@ -69,7 +69,7 @@ if [ -d $regiondir ]; then
     regionfilelist=`ls $regiondir | xargs echo`
 else
     echo "There is no region directory for $region."
-    exit
+    exit -1
 fi
 
 # extract the images 
@@ -90,7 +90,7 @@ for regionfile in $regionfilelist; do
 		imagename=$fullname/$basename/$basename.$imagesuffix
 		if [ ! -f $imagename ]; then
 		    echo "Image name $imagename not found!"
-		    exit
+		    exit -1
 		fi
 	    else
 		echo "$datafile is not of the correct type"
@@ -104,13 +104,14 @@ done
 # did we find what we needed
 if [ "x${foundl01}" = "x" ]; then
     echo "No landcover directory found!"
-    exit
+    exit -1
 else
     foundlc=$foundl01
 fi
 if [ "x${foundnd3}" = "x" ]; then
     if [ "x${foundned}" = "x" ]; then
 	echo "No elevation directory found!"
+	exit -1
     else
 	foundelev=$foundned
     fi
@@ -132,6 +133,7 @@ if [ ! -f ${elevorig} ]; then
     cp ${elevimage} ${elevorig}
 fi
 # populate PRF with SRS
+# FIXME: use known value for SRS
 gdalinfo ${lcimage} | sed -e "1,/Coordinate System is:/d" -e "/Origin =/,\$d" | xargs echo > /tmp/crazy.prf
 
 # now warp the elevation image
