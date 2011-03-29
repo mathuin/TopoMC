@@ -33,18 +33,12 @@ arrayBlocks = {}
 arrayData = {}
 
 # check function
-def checkSealevel(args):
+def checkSealevel(string):
     "Checks to see if the given sealevel is valid."
-    if (isinstance(args.sealevel, list)):
-        oldsealevel = args.sealevel[0]
-    else:
-        oldsealevel = int(args.sealevel)
     # sea level can be between 2 and 100 (arbitrary, but so what)
-    sealevel = max(2, oldsealevel)
-    sealevel = min(sealevel, 100)
-    if (sealevel != oldsealevel):
-        mcarraylogger.warning("Sealevel of %d for region %s is invalid -- changed to %d" % (oldsealevel, args.region, sealevel))
-    args.sealevel = sealevel
+    sealevel = max(min(string, 100), 1)
+    if (sealevel != string):
+        mcarraylogger.warning("Sealevel of %d is invalid -- changed to %d" % (string, sealevel))
     return sealevel
 
 # helper functions for pymclevel
