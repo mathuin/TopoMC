@@ -2,9 +2,11 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
 
-Version 0.5.1 includes changes to support the most up-to-date version of pymclevel (as of 2011 Mar 14).
+Version 0.6 includes changes to support the most up-to-date version of pymclevel (as of 2011 Mar 14).
 
 Recent changes include:
+ * The rotated-rectangle problem is fixed!
+ * All "nodata" values are now treated as water.
  * There is now a hard floor of bedrock so no more falling through.
  * All created worlds are now stored in Worlds/ by default.
  * Fixed ore generation bug which made the ellipsoid a spheroid.

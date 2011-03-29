@@ -4,17 +4,17 @@ from numpy import zeros, uint8
 from itertools import product
 from random import random
 from dataset import getDatasetDims
-from terrain import nodata
 from math import hypot
 import invdisttree
 from mcmap import sealevel
 
-def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
+def getBathymetry(args, lcArray, bigArray, baseOffset, bigOffset):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
+    # NB: slope not currently implemented
     # what is water?
     setWater = set([11, 12])
-    if (nodata in setWater):
-        setWater.update([127])
+    # FIXME: nodata always considered water
+    setWater.add(args.nodata)
     # build an lc invdisttree *without* setWater values
     bathyMaxRows, bathyMaxCols = lcArray.shape
     bigMaxRows, bigMaxCols = bigArray.shape
@@ -24,7 +24,7 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
     bigDry = [[x,z] for x,z in product(xrange(bigMaxRows), xrange(bigMaxCols)) if bigArray[x,z] not in setWater]
     # if there's no land at all... 
     if (len(bigDry) == 0):
-        bathyArray += maxDepth
+        bathyArray += args.maxdepth
         return bathyArray
     bigXValues = [x for x,z in bigDry]
     bigZValues = [z for x,z in bigDry]
@@ -40,7 +40,7 @@ def getBathymetry(lcArray, bigArray, baseOffset, bigOffset, maxDepth, slope=1):
         if lcArray[x-xDiff, z-zDiff] in setWater:
             bigX = bigXNear[x, z]
             bigZ = bigZNear[x, z]
-            bathyArray[x-xDiff, z-zDiff] = min(maxDepth,hypot((bigX-x), (bigZ-z)))
+            bathyArray[x-xDiff, z-zDiff] = min(args.maxdepth,hypot((bigX-x), (bigZ-z)))
     return bathyArray
 
 def checkMaxDepth(args):

@@ -13,7 +13,7 @@ import Image
 import argparse
 from osgeo.gdal import UseExceptions
 from osgeo import osr
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count
 from time import time
 from random import random
 from itertools import product
@@ -24,6 +24,7 @@ from tile import *
 from bathy import *
 from mcmap import maxelev
 from crust import makeCrustIDT
+import terrain as terrain
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -114,6 +115,7 @@ def main(argv):
     tileShape = checkTile(args, mult)
     (tileRows, tileCols) = tileShape
     (minTileRows, minTileCols, maxTileRows, maxTileCols) = checkStartEnd(args, mult, tileShape)
+    args.nodata = getDatasetNodata(args.region)
 
     # make imagedir
     imagedir = os.path.join("Images", args.region)
@@ -128,14 +130,9 @@ def main(argv):
     # build crust tree for the whole map
     makeCrustIDT(args)
 
-    if (processes == 1):
-        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
-    else:
-        pool = Pool(processes)
-        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
-        results = pool.imap_unordered(processTilestar, tasks)
-        bleah = [x for x in results]
-            
+    # process tiles
+    processTiles(args, imagedir, minTileRows, maxTileRows, minTileCols, maxTileCols)
+
     print "Render complete -- total array of %d tiles was %d x %d" % ((maxTileRows-minTileRows)*(maxTileCols-minTileCols), int(rows*mult), int(cols*mult))
 
 if __name__ == '__main__':
