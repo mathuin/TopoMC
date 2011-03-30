@@ -19,6 +19,8 @@ chunkHeight = 128
 # constants
 # headroom is the room between the tallest peak and the ceiling
 headroom = 10
+# use numpy savez/load routines
+useNumpy = False
 
 # level variables
 minX = 0
@@ -88,7 +90,7 @@ def saveArray(arraydir, key):
     myData = arrayData[key].asarray()
     # save them to a file
     outfile = os.path.join(arraydir, '%dx%d' % (cx, cz))
-    if (True):
+    if (useNumpy):
         numpy.savez(outfile, blocks=myBlocks, data=myData)
     else:
         myCuke = {'blocks': myBlocks, 'data': myData}
@@ -122,16 +124,17 @@ def saveArrays(arraydir, processes):
 def loadArray(world, arraydir, name):
     "Load array from file."
     # extract arrays from file
-    if (True):
+    if (useNumpy):
         infile = numpy.load(os.path.join(arraydir,name),mmap_mode=None)
-        myBlocks = infile['blocks']
-        myData = infile['data']
+        myBlocks = numpy.copy(infile['blocks'])
+        myData = numpy.copy(infile['data'])
         infile = None
     else:
         fd = open(os.path.join(arraydir,name), 'rb')
         myCuke = pickle.load(fd)
-        myBlocks = myCuke['blocks']
-        myData = myCuke['data']
+        myBlocks = numpy.copy(myCuke['blocks'])
+        myData = numpy.copy(myCuke['data'])
+        myCuke = None
         fd.close()
     # extract key from filename
     key = name.split('.')[0]
