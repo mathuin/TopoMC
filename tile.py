@@ -84,7 +84,7 @@ def processTile(args, tileRowIndex, tileColIndex):
     maxRows = int(rows*mult)
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
-    idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=16)
+    idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=tileShape[0]+tileShape[1])
     tilelogger.info("Generating tile (%d, %d) with dimensions (%d, %d) and offset (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1], baseOffset[0], baseOffset[1]))
 
     baseShape = (baseSize[1], baseSize[0])
