@@ -222,17 +222,17 @@ def setBlockAt(x, y, z, string):
     global arrayBlocks
     arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
     try:
+        value = materialNamed(string)
+    except IndexError:
+        mcarraylogger.warning("unknown block value: %s" % string)
+        # set value to air
+        value = 0
+    try:
         myBlocks = arrayBlocks[arrayKey].asarray()
     except KeyError:
-        mcarraylogger.error("got key error with (%d, %d, %d, %s)" % (x, y, z, string))
-        myBlocks = arrayBlocks[arrayKey].asarray()
-    try:
-        materialNamed(string)
-    except IndexError:
-        mcarraylogger.error("got value error with (%d, %d, %d, %s)" % (x, y, z, string))
-        materialNamed(string)
+        mcarraylogger.warning("attempted to set block out of range: (%d, %d, %d, %s)" % (x, y, z, string))
     else:
-        myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = materialNamed(string)
+        myBlocks[x & chunkWidth-1, z & chunkWidth-1, y] = value
 
 # more aggregates
 def setBlocksAt(blocks):
@@ -245,8 +245,12 @@ def setBlocksAt(blocks):
 def setBlockDataAt(x, y, z, data):
     global arrayData
     arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
-    myData = arrayData[arrayKey].asarray()
-    myData[x & chunkWidth-1, z & chunkWidth-1, y] = data
+    try:
+        myData = arrayData[arrayKey].asarray()
+    except KeyError:
+        mcarraylogger.warning("attempted to set block out of range: (%d, %d, %d, %d)" % (x, y, z, data))
+    else:
+        myData[x & chunkWidth-1, z & chunkWidth-1, y] = data
 
 # my own setblocksdataat
 def setBlocksDataAt(blocks):
@@ -258,20 +262,31 @@ def setBlocksDataAt(blocks):
 def getBlockAt(x, y, z):
     "Returns the block ID of the block at this point."
     arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
-    myBlocks = arrayBlocks[arrayKey].asarray()
-    myBlock = myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]
+    try:
+        myBlocks = arrayBlocks[arrayKey].asarray()
+    except KeyError:
+        mcarraylogger.warning("attempted to get block out of range: (%d, %d, %d, %s)" % (x, y, z, string))
+        return names(0)
+    else:
+        myBlock = myBlocks[x & chunkWidth-1, z & chunkWidth-1, y]
     try:
         names(myBlock)
     except IndexError:
-        mcarraylogger.error("name not found: %s" % myBlock)
+        mcarraylogger.warning("unknown block value: %s" % myBlock)
+        return 0
     else:
         return names(myBlock)
     
 def getBlockDataAt(x, y, z):
     "Returns the data value of the block at this point."
     arrayKey = '%dx%d' % (x >> chunkWidthPow, z >> chunkWidthPow)
-    myData = arrayData[arrayKey].asarray()
-    return myData[x & chunkWidth-1, z & chunkWidth-1, y]
+    try:
+        myData = arrayData[arrayKey].asarray()
+    except KeyError:
+        mcarraylogger.warning("attempted to get block out of range: (%d, %d, %d, %d)" % (x, y, z, data))
+        return 0
+    else:
+        return myData[x & chunkWidth-1, z & chunkWidth-1, y]
 
 def getBlocksAt(blocks):
     "Returns the block names of the blocks in the list."
