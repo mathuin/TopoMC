@@ -1,11 +1,14 @@
 # landcover module
 from __future__ import division
 from random import random, randint
-from mcmap import layers
+from mcarray import layers
 from tree import placeTree, treeProb, forestProb
 from multinumpy import SharedMemArray
 from numpy import zeros, int64
 from multiprocessing import Value
+import logging
+logging.basicConfig(level=logging.WARNING)
+terrainlogger = logging.getLogger('terrain')
 
 # land cover constants
 # (see http://www.epa.gov/mrlc/definitions.html among others)
@@ -69,6 +72,7 @@ for key in lcType.keys():
     lcCount[key] = Value('i', 0)
 
 def printStatistics():
+    # NB: do not change to logger
     lcTuples = [(lcType[index], lcCount[index].value) for index in lcCount.keys() if lcCount[index].value > 0]
     lcTotal = sum([lcTuple[1] for lcTuple in lcTuples])
     print 'Land cover statistics (%d total):' % lcTotal
@@ -82,7 +86,7 @@ def processTerrain(terrains):
     for terrain in terrains:
         (lcval, x, z, elevval, bathyval, crustval) = terrain
         if (lcval not in lcType):
-            print('unexpected value for land cover: %d' % lcval)
+            terrainlogger.warning('Unexpected value for land cover: %d' % lcval)
             lcCount[0].value += 1
             columns.append([x, z, elevval, crustval, 'Dirt'])
         else:

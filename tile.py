@@ -8,6 +8,12 @@ from bathy import getBathymetry
 from crust import getCrust
 from dataset import getDatasetDims
 from multiprocessing import Pool
+from itertools import product
+from mcarray import maxelev
+from terrain import processTerrain
+import logging
+logging.basicConfig(level=logging.WARNING)
+tilelogger = logging.getLogger('tile')
 
 def getIDT(ds, offset, size, vScale=1, nodata=None):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
@@ -44,7 +50,7 @@ def getOffsetSize(ds, corners, mult=1):
     farcorner_y = min(fcy, ds.RasterYSize)
     offset = (int(offset_x*mult), int(offset_y*mult))
     size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
-    #print "offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1])
+    tilelogger.debug("offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1]))
     return offset, size
 
 def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False):
@@ -67,7 +73,8 @@ def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0)
     imageSize = (imageRight-imageLeft, imageLower-imageUpper)
     return imageOffset, imageSize
 
-def processTile(args, imagedir, tileRowIndex, tileColIndex):
+# adding processImage code to processTile
+def processTile(args, tileRowIndex, tileColIndex):
     "Actually process a tile."
     tileShape = args.tile
     mult = args.mult
@@ -78,7 +85,7 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
     idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=tileShape[0]+tileShape[1])
-    print "Generating tile (%d, %d) with dimensions (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1])
+    tilelogger.info("Generating tile (%d, %d) with dimensions (%d, %d) and offset (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1], baseOffset[0], baseOffset[1]))
 
     baseShape = (baseSize[1], baseSize[0])
     baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
@@ -93,6 +100,7 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, nodata=11, majority=True)
     lcImageArray.resize(baseShape)
 
+    # elevation array
     elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale)
     elevImageArray.resize(baseShape)
 
@@ -110,36 +118,45 @@ def processTile(args, imagedir, tileRowIndex, tileColIndex):
     # second idea: crust
     crustImageArray = getCrust(bathyImageArray, baseArray)
     crustImageArray.resize(baseShape)
-    
-    # save images
-    lcImage = Image.fromarray(lcImageArray)
-    lcImage.save(os.path.join(imagedir, 'lc-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    lcImage = None
-    elevImage = Image.fromarray(elevImageArray)
-    elevImage.save(os.path.join(imagedir, 'elev-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    elevImage = None
-    bathyImage = Image.fromarray(bathyImageArray)
-    bathyImage.save(os.path.join(imagedir, 'bathy-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    bathyImage = None
-    crustImage = Image.fromarray(crustImageArray)
-    crustImage.save(os.path.join(imagedir, 'crust-%d-%d.gif' % (baseOffset[0], baseOffset[1])))
-    crustImage = None
 
-    print '... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime))
+    # now we do what we do in processImage
+    localmax = 0
+    spawnx = 10
+    spawnz = 10
+
+    for tilex, tilez in product(xrange(baseSize[0]), xrange(baseSize[1])):
+        lcval = int(lcImageArray[tilez,tilex])
+        elevval = int(elevImageArray[tilez,tilex])
+        bathyval = int(bathyImageArray[tilez,tilex])
+        crustval = int(crustImageArray[tilez,tilex])
+        real_x = baseOffset[0] + tilex
+        real_z = baseOffset[1] + tilez
+        if (elevval > maxelev):
+            tilelogger.warning('Elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev))
+            elevval = maxelev
+        if (elevval > localmax):
+            localmax = elevval
+            spawnx = real_x
+            spawnz = real_z
+        processTerrain([(lcval, real_x, real_z, elevval, bathyval, crustval)])
+    tilelogger.info('... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime)))
+    return (spawnx, spawnz, localmax)
 
 def processTilestar(args):
     return processTile(*args)
 
-def processTiles(args, imagedir, minTileRows, maxTileRows, minTileCols, maxTileCols):
-    "Process tiles."
-    if (args.processes == 1):
-        [processTile(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+def processTiles(args, minTileRows, maxTileRows, minTileCols, maxTileCols, processes):
+    "Process those tiles."
+    # process data in 256x256 tiles
+    if (processes == 1):
+        peaks = [processTile(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
     else:
-        pool = Pool(args.processes)
-        tasks = [(args, imagedir, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
+        pool = Pool(processes)
+        tasks = [(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
         results = pool.imap_unordered(processTilestar, tasks)
-        bleah = [x for x in results]
-        pool = None
+        peaks = [x for x in results]
+	pool = None
+    return peaks
 
 def checkTile(args, mult):
     "Checks to see if a tile dimension is too big for a region."
@@ -150,7 +167,7 @@ def checkTile(args, mult):
     tilex = min(oldtilex, maxRows)
     tiley = min(oldtiley, maxCols)
     if (tilex != oldtilex or tiley != oldtiley):
-        print "Warning: tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley)
+        tilelogger.warning("Tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley))
     args.tile = (tilex, tiley)
     return (tilex, tiley)
 
@@ -166,17 +183,17 @@ def checkStartEnd(args, mult, tile):
     # maxTileRows and maxTileCols default to 0 meaning do everything
     if (maxTileRows == 0 or maxTileRows > numRowTiles):
         if (maxTileRows > numRowTiles):
-            print "Warning: maxTileRows greater than numRowTiles, setting to %d" % numRowTiles
+            tilelogger.warning("maxTileRows greater than numRowTiles, setting to %d" % numRowTiles)
         maxTileRows = numRowTiles
     if (minTileRows > maxTileRows):
-        print "Warning: minTileRows less than maxTileRows, setting to %d" % maxTileRows
+        tilelogger.warning("minTileRows less than maxTileRows, setting to %d" % maxTileRows)
         minTileRows = maxTileRows
     if (maxTileCols == 0 or maxTileCols > numColTiles):
         if (maxTileCols > numColTiles):
-            print "Warning: maxTileCols greater than numColTiles, setting to %d" % numColTiles
+            tilelogger.warning("maxTileCols greater than numColTiles, setting to %d" % numColTiles)
         maxTileCols = numColTiles
     if (minTileCols > maxTileCols):
-        print "Warning: minTileCols less than maxTileCols, setting to %d" % maxTileCols
+        tilelogger.warning("minTileCols less than maxTileCols, setting to %d" % maxTileCols)
         minTileCols = maxTileCols
     return (minTileRows, minTileCols, maxTileRows, maxTileCols)
 

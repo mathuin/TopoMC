@@ -6,11 +6,14 @@ from multiprocessing import Value
 from time import clock
 from scipy.special import cbrt
 from math import pi
-from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
+from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 # for minX, minZ, maxX, and maxZ
-import mcmap
+import mcarray
 from multiprocessing import Pool
 from itertools import product
+import logging
+logging.basicConfig(level=logging.WARNING)
+orelogger = logging.getLogger('ore')
 
 # http://www.minecraftwiki.net/wiki/Ore
 oreType = {
@@ -52,9 +55,9 @@ def processOre(oreName, minY, maxY, maxExtent):
     clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
     clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
     clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
-    oreX = randint(int(mcmap.minX+clumpX),int(mcmap.maxX-clumpX))
+    oreX = randint(int(mcarray.minX+clumpX),int(mcarray.maxX-clumpX))
     oreY = randint(int(minY+clumpY),int(maxY-clumpY))
-    oreZ = randint(int(mcmap.minZ+clumpZ),int(mcmap.maxZ-clumpZ))
+    oreZ = randint(int(mcarray.minZ+clumpZ),int(mcarray.maxZ-clumpZ))
     oXrange = xrange(int(0-clumpX), int(clumpX+1))
     oYrange = xrange(int(0-clumpY), int(clumpY+1))
     oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
@@ -74,34 +77,35 @@ def processOre(oreName, minY, maxY, maxExtent):
 def processOrestar(args):
     return processOre(*args)
 
-def processOres(oreName, minY, maxY, maxExtent, numRounds, processes):
-    if (processes == 1):
+def processOres(oreName, minY, maxY, maxExtent, numRounds):
+    if (mcarray.processes == 1):
         bleah = [processOre(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
     else:
-        pool = Pool(processes)
+        pool = Pool(mcarray.processes)
         tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
         results = pool.imap_unordered(processOrestar, tasks)
         bleah = [x for x in results]
     return None
 
 # whole-world approach
-def placeOre(processes):
+def placeOre():
     placestart = clock()
     # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
-        print "Adding %s now..." % (oreType[ore])
+        orelogger.info("Adding %s now..." % (oreType[ore]))
         # everything starts on the bottom
         # only doing common pass here
         minY = 0
         maxY = pow(2,oreDepth[ore])
         maxExtent = cbrt(oreSize[ore])/2
         numRounds = int(oreRounds[ore]*numChunks)
-        processOres(ore, minY, maxY, maxExtent, numRounds, processes)
-        print "... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value)
-    print "finished in %.2f seconds." % (clock()-placestart)
+        processOres(ore, minY, maxY, maxExtent, numRounds)
+        orelogger.info("... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value))
+    orelogger.info("finished in %.2f seconds." % (clock()-placestart))
 
 def printStatistics():
+    # NB: do not change to logger
     oreTuples = [(oreType[index], oreNodeCount[index].value, oreVeinCount[index].value) for index in oreNodeCount if oreNodeCount[index].value > 0]
     oreNodeTotal = sum([oreTuple[1] for oreTuple in oreTuples])
     oreVeinTotal = sum([oreTuple[2] for oreTuple in oreTuples])

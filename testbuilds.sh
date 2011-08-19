@@ -10,20 +10,20 @@
 # This script requires c10t to render a map of the world.
 # c10t can be found at git://github.com/udoprog/c10t.git
 
-: ${REGION:="BlockIsland"}
-: ${IMAGEDIR:="Images/$REGION"}
+: ${DATASET:="BlockIsland"}
+: ${ARRAYDIR:="Arrays/$DATASET"}
+: ${WORLDDIR:="Worlds/$DATASET"}
 : ${PROFDATESTR:=$(date +"%Y%m%d%H%m")}
-: ${PROFBIFILE:="BI-$PROFDATESTR.prof"}
+: ${PROFBAFILE:="BA-$PROFDATESTR.prof"}
 : ${PROFBWFILE:="BW-$PROFDATESTR.prof"}
-: ${BIOPTS:="--scale 15"}
-: ${WORLDDIR:="Worlds/$REGION"}
+: ${BAOPTS:="--scale 15"}
 : ${BWOPTS:=""}
-: ${IMAGE:="$REGION.png"}
+: ${IMAGE:="$DATASET.png"}
 : ${MAPPER:="../c10t/build/c10t"}
 : ${MAPPEROPTS:="-z -w $WORLDDIR -o $IMAGE"}
 
-rm -rf $IMAGEDIR $WORLDDIR $IMAGE && \
-python -m cProfile -o $PROFBIFILE ./BuildImages.py --region $REGION --processes 1 $BIOPTS && \
-python -m cProfile -o $PROFBWFILE ./BuildWorld.py --region $REGION --processes 1 $BWOPTS && \
+rm -rf $ARRAYDIR $WORLDDIR $IMAGE && \
+python -m cProfile -o $PROFBAFILE ./BuildArrays.py --region $DATASET --processes 1 $BAOPTS && \
+python -m cProfile -o $PROFBWFILE ./BuildWorld.py --region $DATASET --processes 1 $BWOPTS && \
 $MAPPER $MAPPEROPTS && \
 display $IMAGE 
