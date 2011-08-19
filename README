@@ -26,10 +26,10 @@ Next, here's what to do!
 2.  Extract the data files and warp the elevation file.
     jmt@belle:~/TopoMC$ ./WarpElev.sh --region Provincetown
 
-3.  Build the elevation and land cover images.
-    jmt@belle:~/TopoMC$ ./BuildImages.py --region Provincetown
+3.  Build the arrays.
+    jmt@belle:~/TopoMC$ ./BuildArrays.py --region Provincetown
 
 4.  Build a new world! 
-    jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown --world Worlds/Provincetown
+    jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown
 
-Both BuildImages.py and BuildWorld.py have lots of options for the curious.
+Both BuildArrays.py and BuildWorld.py have lots of options for the curious.
