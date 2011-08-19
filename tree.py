@@ -2,6 +2,8 @@
 from __future__ import division
 from random import random, randint
 from mcarray import sealevel, setBlockAt, setBlockDataAt
+# for minX, maxX, minZ, maxZ
+import mcarray
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
@@ -65,10 +67,11 @@ def printStatistics():
         print '  %d (%.2f%%): %s' % (value, treePercent, key)
 
 def placeTree(x, z, elevval, probFactor, treeName):
-    chance = random()
-    if (chance < probFactor):
-        treeNum = [key for key in treeType if treeType[key] == treeName][0]
-        makeTree(x, z, elevval, treeNum)
+    if (x > mcarray.minX+treeWidth and z > mcarray.minZ+treeWidth and x < mcarray.maxX-treeWidth and z < mcarray.maxZ-treeWidth):
+        chance = random()
+        if (chance < probFactor):
+            treeNum = [key for key in treeType if treeType[key] == treeName][0]
+            makeTree(x, z, elevval, treeNum)
 
 def makeTree(x, z, elevval, treeNum):
     base = sealevel+elevval
