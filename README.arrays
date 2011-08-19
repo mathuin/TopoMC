@@ -1,0 +1,15 @@
+Okay, this is starting to work.
+Problem 1: we do not have a good way to set the spawn point.
+Temporary solution: I suggest one to the user when generating numpy arrays.  I then set it by hand with mce.py afterwards.
+Permanent solution: dunno.  arguments to ./BuildWorlds.py ?
+
+Problem 2: not parallelized yet.
+
+Problem 3: no Bravo version yet.
+
+AWESOME AWESOME AWESOME IDEA
+I need to break free of the 0,0,maxX,maxZ paradigm.
+What about leveraging the meters numbers in the USGS files?
+Will that work?
+Divide by hscale in each direction to get raw values, then just use them as coordinates.  Divide by 16 for chunk coordinates, nothing but net.
+Test it with BlockIsland.  Wow.  Just wow.

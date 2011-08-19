@@ -1,5 +1,5 @@
 from itertools import product
-from mcmap import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel, fillBlocks
+from mcarray import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel, fillBlocks
 from time import clock
 import logging
 logging.basicConfig(level=logging.WARNING)

@@ -3,45 +3,12 @@
 import sys
 sys.path.append('..')
 import argparse
-from time import clock
-from multiprocessing import cpu_count, RawArray
-from itertools import product
-from multinumpy import SharedMemArray
-from numpy import zeros, uint8
-from pymclevel import mclevel
-from pymclevel.nbt import TAG_List, TAG_Compound, TAG_Short, TAG_Byte
+from multiprocessing import cpu_count
 #
+import mcarray
+import mcworld
 import dataset
-import image
-import terrain
-import tree
-import mcmap
-import building
-import ore
-
-# everything an explorer needs, for now
-def equipPlayer(world):
-    # eventually give out full iron toolset and a handful of torches
-    inventory = world.root_tag['Data']['Player']['Inventory']
-    # Test object: compass
-    mycompass = TAG_Compound()
-    mycompass["Id"] = TAG_Short(345)
-    mycompass["Damage"] = TAG_Short(0)
-    mycompass["Count"] = TAG_Byte(1)
-    mycompass["Slot"] = TAG_Byte(35)
-    inventory.append(mycompass)
-    
-    # create a TAG_Compound object with the following values:
-    # Id: <item or block id>
-    # Damage: 0
-    # Count: -1 seems to be infinite
-    # Slot: where does it go
-
-    #inventory.append(Itemstack(278, slot=8))
-    #inventory.append(Itemstack(50, slot=0, count=-1)) # Torches
-    #inventory.append(Itemstack(1, slot=1, count=-1))  # Stone
-    #inventory.append(Itemstack(3, slot=2, count=-1))  # Dirt
-    #inventory.append(Itemstack(345, slot=35, count=1))  # Compass
+import os
 
 def checkProcesses(args):
     "Checks to see if the given process count is valid."
@@ -53,68 +20,27 @@ def checkProcesses(args):
     return processes
 
 def main(argv):
-    maintime = clock()
     default_processes = cpu_count()
-    default_sealevel = 32
-
     parser = argparse.ArgumentParser(description='Generate Minecraft worlds from images based on USGS datasets.')
-    parser.add_argument('--region', nargs='?', type=image.checkImageset, help='a region to be processed (leave blank for list of regions)')
+    parser.add_argument('--region', nargs='?', type=dataset.checkDataset, help='a region to be processed (leave blank for list of regions)')
     parser.add_argument('--processes', nargs=1, default=default_processes, type=int, help="number of processes to spawn (default %d)" % default_processes)
-    parser.add_argument('--sealevel', nargs=1, default=default_sealevel, type=int, help="number of sealevel to spawn (default %d)" % default_sealevel)
-    parser.add_argument('--disable-stats', action='store_false', dest='doStats', default=True, help="disables statistics display when not necessary")
-    parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help="disables ore generation when not necessary")
 
     # this is global
     args = parser.parse_args()
-
-    # list regions if requested
-    if (args.region == None):
-        image.listImagesets()
-        return 0
-
-    # set up all the values
     processes = checkProcesses(args)
-    sealevel = mcmap.checkSealevel(args)
-    
+
     # what are we doing?
     print 'Creating world from region %s' % args.region
 
     # create shared memory for each expected chunk
-    minX = 0
-    minZ = 0
-    maxX, maxZ = image.imageDims[args.region]
-    mcmap.initWorld(args.region, minX, minZ, maxX, maxZ, sealevel, processes)
+    mcworld.myinitWorld(args.region)
 
-    # iterate over images
-    peaks = image.processImages(args.region)
-        
-    # per-tile peaks here
-    # ... consider doing something nice on all the peaks?
-    peak = sorted(peaks, key=lambda point: point[2], reverse=True)[0]
+    # load arrays
+    arraydir = os.path.join("Arrays", args.region)
+    mcarray.loadArrays(mcworld.world, arraydir, processes)
 
-    # where's that ore?
-    if (args.doOre):
-        ore.placeOre()
-
-    # place the safehouse at the peak (adjust it)
-    building.building(peak[0], peak[1], peak[2]-1, 7, 9, 8, 1)
-
-    # write array to level
-    mcmap.populateWorld()
-
-    # maximum elevation
-    print 'Maximum elevation: %d (at %d, %d)' % (peak[2], peak[0], peak[1])
-
-    # set player position and spawn point (in this case, equal)
-    equipPlayer(mcmap.world)
-    mcmap.saveWorld(peak)
-
-    print 'Processing done -- took %.2f seconds.' % (clock()-maintime)
-    if (args.doStats):
-        terrain.printStatistics()
-        tree.printStatistics()
-        if (args.doOre):
-            ore.printStatistics()
+    # save world
+    mcworld.mysaveWorld()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

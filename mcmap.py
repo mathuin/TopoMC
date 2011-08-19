@@ -34,6 +34,17 @@ maxelev = chunkHeight-headroom-sealevel
 
 makeWorldNow = False
 
+def myinitWorld(string):
+    "Open this world."
+    global world
+    # it's a simpler universe now
+    worlddir = os.path.join("Worlds", string)
+    if not os.path.exists(worlddir):
+        os.mkdir(worlddir)
+    if not os.path.isdir(worlddir):
+        raise IOError, "%s already exists" % worlddir
+    world = mclevel.MCInfdevOldLevel(worlddir, create=True)
+
 # check function
 def checkSealevel(args):
     "Checks to see if the given sealevel is valid."
@@ -265,17 +276,16 @@ def populateWorld():
     count = len(times)
     mcmaplogger.info('%d chunks written (average time %.2f seconds)' % (count, sum(times)/count))
 
-def saveWorld(spawn):
+def mysaveWorld():
     global world
     sizeOnDisk = 0
-    # adjust it to sealevel, and then up another two for good measure
-    spawnxyz = (spawn[1], spawn[2]+sealevel+2, (maxX-minX)-spawn[0])
-    world.setPlayerPosition(spawnxyz)
-    world.setPlayerSpawnPosition(spawnxyz)
     # stolen from pymclevel/mce.py
+    numchunks = 0
     for i, cPos in enumerate(world.allChunks, 1):
         ch = world.getChunk(*cPos);
+        numchunks += 1
         sizeOnDisk += ch.compressedSize();
+    print '%d chunks enumerated' % numchunks
     world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
 

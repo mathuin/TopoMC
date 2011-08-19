@@ -6,7 +6,7 @@ from random import random
 from dataset import getDatasetDims
 from math import hypot
 import invdisttree
-from mcmap import sealevel
+from mcarray import sealevel
 import logging
 logging.basicConfig(level=logging.WARNING)
 bathylogger = logging.getLogger('bathy')
@@ -46,18 +46,12 @@ def getBathymetry(args, lcArray, bigArray, baseOffset, bigOffset):
             bathyArray[x-xDiff, z-zDiff] = min(args.maxdepth,hypot((bigX-x), (bigZ-z)))
     return bathyArray
 
-def checkMaxDepth(args):
-    "Checks to see if the given max depth is valid for the given region."
-    if (isinstance(args.maxdepth, list)):
-        oldmaxdepth = args.maxdepth[0]
-    else:
-        oldmaxdepth = int(args.maxdepth)
-    (rows, cols) = getDatasetDims(args.region)
+def checkMaxDepth(string):
+    "Checks to see if the given max depth is valid."
     # okay, 1 is a minimum and sealevel-1 is a maximum
-    maxdepth = max(min(oldmaxdepth, sealevel-1), 1)
-    if (maxdepth != oldmaxdepth):
-        bathylogger.warning("Maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth))
-    args.maxdepth = maxdepth
+    maxdepth = max(min(string, sealevel-1), 1)
+    if (maxdepth != string):
+        bathylogger.warning("Maximum depth of %d is invalid -- changed to %d" % (string, maxdepth))
     return maxdepth
 
 def checkSlope(args):

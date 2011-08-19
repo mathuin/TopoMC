@@ -6,9 +6,9 @@ from multiprocessing import Value
 from time import clock
 from scipy.special import cbrt
 from math import pi
-from mcmap import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
+from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 # for minX, minZ, maxX, and maxZ
-import mcmap
+import mcarray
 from multiprocessing import Pool
 from itertools import product
 import logging
@@ -55,9 +55,9 @@ def processOre(oreName, minY, maxY, maxExtent):
     clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
     clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
     clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
-    oreX = randint(int(mcmap.minX+clumpX),int(mcmap.maxX-clumpX))
+    oreX = randint(int(mcarray.minX+clumpX),int(mcarray.maxX-clumpX))
     oreY = randint(int(minY+clumpY),int(maxY-clumpY))
-    oreZ = randint(int(mcmap.minZ+clumpZ),int(mcmap.maxZ-clumpZ))
+    oreZ = randint(int(mcarray.minZ+clumpZ),int(mcarray.maxZ-clumpZ))
     oXrange = xrange(int(0-clumpX), int(clumpX+1))
     oYrange = xrange(int(0-clumpY), int(clumpY+1))
     oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
@@ -78,10 +78,10 @@ def processOrestar(args):
     return processOre(*args)
 
 def processOres(oreName, minY, maxY, maxExtent, numRounds):
-    if (mcmap.processes == 1):
+    if (mcarray.processes == 1):
         bleah = [processOre(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
     else:
-        pool = Pool(mcmap.processes)
+        pool = Pool(mcarray.processes)
         tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
         results = pool.imap_unordered(processOrestar, tasks)
         bleah = [x for x in results]
