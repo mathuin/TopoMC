@@ -2,14 +2,14 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
 
-Version 0.6 includes changes to support the most up-to-date version of pymclevel (as of 2011 Mar 14).
+Version 0.6.1 includes changes to support the most up-to-date version of pymclevel (as of 2011 Aug 19).
 
 Recent changes include:
+ * Arrays are used instead of images for intermediary data.  Go Bravo!
+ * Most module output moved to logger format.  Quieter runs!
+ * Features like ore and statistics can now be disabled.
  * The rotated-rectangle problem is fixed!
  * All "nodata" values are now treated as water.
- * There is now a hard floor of bedrock so no more falling through.
- * All created worlds are now stored in Worlds/ by default.
- * Fixed ore generation bug which made the ellipsoid a spheroid.
 
 Features include:
  * Ore (including dirt and gravel) is generated properly.
@@ -32,10 +32,10 @@ Next, here's what to do!
 2.  Extract the data files and warp the elevation file.
     jmt@belle:~/TopoMC$ ./WarpElev.sh --region Provincetown
 
-3.  Build the elevation and land cover images.
-    jmt@belle:~/TopoMC$ ./BuildImages.py --region Provincetown
+3.  Build the arrays.
+    jmt@belle:~/TopoMC$ ./BuildArrays.py --region Provincetown
 
 4.  Build a new world! 
     jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown
 
-Both BuildImages.py and BuildWorld.py have lots of options for the curious.
+Both BuildArrays.py and BuildWorld.py have lots of options for the curious.

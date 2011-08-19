@@ -6,7 +6,10 @@ from random import random
 from dataset import getDatasetDims
 from math import hypot
 import invdisttree
-from mcmap import sealevel
+from mcarray import sealevel
+import logging
+logging.basicConfig(level=logging.WARNING)
+bathylogger = logging.getLogger('bathy')
 
 def getBathymetry(args, lcArray, bigArray, baseOffset, bigOffset):
     "Generates rough bathymetric values based on proximity to terrain.  Increase slope to decrease dropoff."
@@ -43,21 +46,12 @@ def getBathymetry(args, lcArray, bigArray, baseOffset, bigOffset):
             bathyArray[x-xDiff, z-zDiff] = min(args.maxdepth,hypot((bigX-x), (bigZ-z)))
     return bathyArray
 
-def checkMaxDepth(args):
-    "Checks to see if the given max depth is valid for the given region."
-    if (isinstance(args.maxdepth, list)):
-        oldmaxdepth = args.maxdepth[0]
-    else:
-        oldmaxdepth = int(args.maxdepth)
-    (rows, cols) = getDatasetDims(args.region)
-    # okay, 1 is a minimum
-    # rows/cols is a max
-    # actually sealevel-1 is a real max! :-)
-    maxdepth = max(1, oldmaxdepth)
-    maxdepth = min(maxdepth, min(rows, cols, sealevel-1))
-    if (maxdepth != oldmaxdepth):
-        print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldmaxdepth, args.region, maxdepth)
-    args.maxdepth = maxdepth
+def checkMaxDepth(string):
+    "Checks to see if the given max depth is valid."
+    # okay, 1 is a minimum and sealevel-1 is a maximum
+    maxdepth = max(min(string, sealevel-1), 1)
+    if (maxdepth != string):
+        bathylogger.warning("Maximum depth of %d is invalid -- changed to %d" % (string, maxdepth))
     return maxdepth
 
 def checkSlope(args):
@@ -68,10 +62,9 @@ def checkSlope(args):
         oldslope = int(args.slope)
     # FIXME: need better answers here, right now guessing
     extreme = 4
-    slope = min(oldslope, extreme)
-    slope = max(slope, 1/extreme)
+    slope = max(min(oldslope, extreme), 1/extreme)
     if (slope != oldslope):
-        print "Warning: maximum depth of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope)
+        bathylogger.warning("Slope of %d for region %s is invalid -- changed to %d" % (oldslope, args.region, slope))
     args.slope = slope
     return slope
 

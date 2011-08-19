@@ -1,7 +1,9 @@
 # tree module
 from __future__ import division
 from random import random, randint
-from mcmap import sealevel, setBlockAt, setBlockDataAt
+from mcarray import sealevel, setBlockAt, setBlockDataAt
+# for minX, maxX, minZ, maxZ
+import mcarray
 from itertools import product
 from multinumpy import SharedMemArray
 from multiprocessing import Value
@@ -56,6 +58,7 @@ treeHeight = [[3, 3, 3], [5, 7, 2], [9, 11, 2], [7, 9, 2], [1, 3, 0]]
 leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
 
 def printStatistics():
+    # NB: do not convert to logger
     treeTuples = [(treeType[index], treeCount[index].value) for index in treeCount if treeCount[index].value > 0]
     treeTotal = sum([treeTuple[1] for treeTuple in treeTuples])
     print 'Tree statistics (%d total):' % treeTotal
@@ -64,10 +67,11 @@ def printStatistics():
         print '  %d (%.2f%%): %s' % (value, treePercent, key)
 
 def placeTree(x, z, elevval, probFactor, treeName):
-    chance = random()
-    if (chance < probFactor):
-        treeNum = [key for key in treeType if treeType[key] == treeName][0]
-        makeTree(x, z, elevval, treeNum)
+    if (x > mcarray.minX+treeWidth and z > mcarray.minZ+treeWidth and x < mcarray.maxX-treeWidth and z < mcarray.maxZ-treeWidth):
+        chance = random()
+        if (chance < probFactor):
+            treeNum = [key for key in treeType if treeType[key] == treeName][0]
+            makeTree(x, z, elevval, treeNum)
 
 def makeTree(x, z, elevval, treeNum):
     base = sealevel+elevval
@@ -82,11 +86,13 @@ def makeTree(x, z, elevval, treeNum):
         lxzrange = xrange(leafDistance.shape[0])
         lyrange = xrange(leafheight)
         for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
+            myleafx = x+leafx-treeWidth
+            myleafy = leafbottom+leafy
+            myleafz = z+leafz-treeWidth
             if leafPattern[treeNum](leafx, leafz, leafy, leafheight-1):
-                setBlockAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, 'Leaves')
-                setBlockDataAt(x+leafx-treeWidth, leafbottom+leafy, z+leafz-treeWidth, treeNum-1)
+                setBlockAt(myleafx, myleafy, myleafz, 'Leaves')
+                setBlockDataAt(myleafx, myleafy, myleafz, treeNum-1)
         for y in xrange(base,base+height):
-            # FIXME: sigh, 'Tree trunk' doesn't work
             setBlockAt(x, y, z, 'Wood')
             setBlockDataAt(x, y, z, treeNum-1)
     # increment tree count
