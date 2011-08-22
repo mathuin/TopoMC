@@ -18,7 +18,6 @@ Features include:
 
 This project includes one small dataset for testing.  It was generated with the following commands:
      ./GetDataset.py --region BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
-     ./WarpElev.sh --region BlockIsland
 
 The default spawn point is at the highest point in the dataset.  The safe house is back!  Perhaps someday there'll be a chest in there with everything the explorer needs?
 
@@ -29,13 +28,10 @@ Next, here's what to do!
 1.  Download the dataset from the USGS.
     jmt@belle:~/TopoMC$ ./GetDataset.py --region Provincetown --ymax 42.0901 --ymin 42.0091 --xmin -70.2611 --xmax -70.1100
 
-2.  Extract the data files and warp the elevation file.
-    jmt@belle:~/TopoMC$ ./WarpElev.sh --region Provincetown
-
-3.  Build the arrays.
+2.  Build the arrays.
     jmt@belle:~/TopoMC$ ./BuildArrays.py --region Provincetown
 
-4.  Build a new world! 
+3.  Build a new world! 
     jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown
 
 Both BuildArrays.py and BuildWorld.py have lots of options for the curious.

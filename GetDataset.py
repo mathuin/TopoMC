@@ -7,13 +7,24 @@ import urllib2
 import sys
 import os
 import shutil
+import zipfile
+import tarfile
 import argparse
 from lxml import etree
 from time import sleep
-from dataset import landcoverIDs, elevationIDs
+from dataset import landcoverIDs, elevationIDs, decodeLayerID, getSRS
+from tempfile import NamedTemporaryFile
 #import logging
 #logging.basicConfig(level=logging.INFO)
 #logging.getLogger('suds.client').setLevel(logging.DEBUG)
+
+# dataset-specific images
+# NB: not multi-file friendly
+landcoverimage = ""
+elevationimage = ""
+
+# sadness
+zipfileBroken = True
 
 def cleanDatasetDir(args):
     "Clean up the dataset directory."
@@ -154,22 +165,26 @@ def checkDownloadOptions(productIDs):
         for pair in products[4].split(','):
             (v, k) = pair.split('-')
             metadataformats[k] = v
-        # I want GeoTIFF, HTML and ZIP here
-        # should use list in order of preference like landcoverIDs etc
+        # I want GeoTIFF, HTML and TGZ here
         if u'GeoTIFF' in outputformats:
             layerID += outputformats['GeoTIFF']
         else:
             print "oh no GeoTIFF not available"
             return -1
+        # I do not use metadata so I don't care!
         if u'HTML' in metadataformats:
             layerID += metadataformats['HTML']
         else:
             print "oh no HTML not available"
             return -1
-        if u'ZIP' in compressionformats:
+        # prefer TGZ to ZIP
+        # consider preferences like landcoverIDs
+        if u'TGZ' in compressionformats:
+            layerID += compressionformats['TGZ']
+        elif u'ZIP' in compressionformats:
             layerID += compressionformats['ZIP']
         else:
-            print "oh no ZIP not available"
+            print "no compression formats available"
             return -1
         layerIDs.append([layerID, xmin, xmax, ymin, ymax])
 
@@ -188,7 +203,7 @@ def requestValidation(layerIDs):
         (tag, xmin, xmax, ymin, ymax) = layerID
         xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250)
 
-        response = clientRequest.service.processAOI(xmlString)
+        response = clientRequest.service.processAOI2(xmlString)
 
         print "Requested URLs for layer ID %s..." % tag
 
@@ -307,6 +322,69 @@ def downloadFile(layerID, downloadURL, datasetDir):
         endPos = result.find("</ns:return>")
         status = result[startPos:endPos]
 
+def warpelev(datasetDir):
+    "Extracts files and warps elevation file."
+
+    layerIDs = [ name for name in os.listdir(datasetDir) if os.path.isdir(os.path.join(datasetDir, name)) ]
+    for layerID in layerIDs:
+        (pType, iType, mType, cType) = decodeLayerID(layerID)
+        filesuffix = cType.lower()
+        layersubdir = os.path.join(datasetDir, layerID)
+        compfiles = [ name for name in os.listdir(layersubdir) if (os.path.isfile(os.path.join(layersubdir, name)) and name.endswith(filesuffix)) ]
+        for compfile in compfiles:
+            (compbase, compext) = os.path.splitext(compfile)
+            fullfile = os.path.join(layersubdir, compfile)
+            datasubdir = os.path.join(layersubdir, compbase)
+            compimage = os.path.join(compbase, "%s.%s" % (compbase, iType))
+            if os.path.exists(datasubdir):
+                shutil.rmtree(datasubdir)
+            os.makedirs(datasubdir)
+            if (zipfileBroken == False):
+                if (cType == "TGZ"):
+                    cFile = tarfile.open(fullfile)
+                elif (cType == "ZIP"):
+                    cFile = zipfile.ZipFile(fullfile)
+                cFile.extract(compimage, layersubdir)
+                cFile.close()
+            else:
+                if (cType == "TGZ"):
+                    cFile = tarfile.open(fullfile)
+                    cFile.extract(compimage, layersubdir)
+                elif (cType == "ZIP"):
+                    omfgcompimage = "\\".join([compbase, "%s.%s" % (compbase, iType)])
+                    os.mkdir(os.path.dirname(os.path.join(datasubdir,compimage)))
+                    cFile = zipfile.ZipFile(fullfile)
+                    cFile.extract(omfgcompimage, datasubdir)
+                    os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layersubdir,compimage))
+                cFile.close()
+            # tag what we found
+            # NB: needs fixing when supporting multiple images!
+            if (pType == "elevation"):
+                elevationimage = os.path.join(layersubdir, compimage)
+            elif (pType == "landcover"):
+                landcoverimage = os.path.join(layersubdir, compimage)
+            else:
+                print "Product type %s not yet supported!" % pType
+                return -1
+
+    # gotta have one of each
+    # NB: needs fixing when supporting multiple images!
+    if (elevationimage == ""):
+        print "Elevation image not found!"
+        return -1
+    if (landcoverimage == ""):
+        print "Landcover image not found!"
+        return -1
+
+    elevationimageorig = "%s-orig" % elevationimage
+    prffd = NamedTemporaryFile(delete=False)
+    prfname = prffd.name
+    prffd.write(getSRS(landcoverimage))
+    prffd.close()
+    shutil.copyfile(elevationimage, elevationimageorig)
+    os.system('gdalwarp -t_srs %s -r cubic %s %s' % (prfname, elevationimageorig, elevationimage))
+    os.remove(prfname)
+
 def main(argv):
     "The main routine."
 
@@ -346,6 +424,9 @@ def main(argv):
     for layerID in downloadURLs.keys():
         for downloadURL in downloadURLs[layerID]:
             downloadFile(layerID, downloadURL, datasetDir)
+
+    # extract files and warp elevation files
+    warpelev(datasetDir)
     
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

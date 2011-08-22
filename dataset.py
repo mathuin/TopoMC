@@ -14,8 +14,15 @@ datasetlogger = logging.getLogger('dataset')
 dsPaths = ['Datasets', '../TopoMC-Datasets']
 
 # product types in order of preference
-landcoverIDs = ['L01']
-elevationIDs = ['ND3', 'NED']
+# NB: only seamless types are being considered at present
+#     next version should handle tiled!
+# landcover IDs are:
+# L01 - 2001 (currently the only one supported)
+# L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
+# L6L - 2006
+# need to abstract out terrain.py!
+landcoverIDs = ['L01', 'L92', 'L6L']
+elevationIDs = ['ND9', 'ND3', 'NED']
 
 # functions
 def decodeLayerID(layerID):
@@ -29,17 +36,33 @@ def decodeLayerID(layerID):
         datasetlogger.error("Invalid product ID %s" % productID)
         return -1
 
-    # FIXME: handle more image types
     imagetype = layerID[3]+layerID[4]
-    if (imagetype == "02"):
+    # only 02-GeoTIFF (tif) known to work
+    if (imagetype == "01"):
+        iType = "arc"
+    elif (imagetype == "02"):
         iType = "tif"
+    elif (imagetype == "03"):
+        iType = "bil"
+    elif (imagetype == "05"):
+        iType = "GridFloat"
+    elif (imagetype == "12"):
+        iType = "IMG"
+    elif (imagetype == "15"):
+        iType = "bil_16int"
     else:
         datasetlogger.error("Invalid image type %s" % imagetype)
         return -1
         
     metatype = layerID[5]
-    if (metatype == "H"):
+    if (metatype == "A"):
+        mType = "ALL"
+    elif (metatype == "F"):
+        mType = "FAQ"
+    elif (metatype == "H"):
         mType = "HTML"
+    elif (metatype == "S"):
+        mType = "SGML"
     elif (metatype == "T"):
         mType = "TXT"
     elif (metatype == "X"):
@@ -49,21 +72,31 @@ def decodeLayerID(layerID):
         return -1
 
     compressiontype = layerID[6]
-    if (compressiontype == "Z"):
-        cType = "ZIP"
-    elif (compressiontype == "T"):
+    if (compressiontype == "T"):
         cType = "TGZ"
+    elif (compressiontype == "Z"):
+        cType = "ZIP"
     else:
         datasetlogger.error("Invalid compression type %s" % compressiontype)
         return -1
 
     return (pType, iType, mType, cType)
 
-def getDatasetDict(dspaths):
+def getDatasetDir(region):
+    "Given a list of paths, and a region, retrieve the dataset dir.  Return -1 if no regiondir found."
+    for dspath in dsPaths:
+        if not os.path.exists(dspath):
+            continue
+        regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
+        if region in regions:
+            return os.path.join(dspath, region)
+    return -1
+
+def getDatasetDict():
     "Given a list of paths, generate a dict of datasets."
 
     retval = {}
-    for dspath in dspaths:
+    for dspath in dsPaths:
         if not os.path.exists(dspath):
             continue
         regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
@@ -160,5 +193,17 @@ def checkDataset(string):
         raise ArgumentError("%s is not a valid dataset" % string)
     return string
 
+def getSRS(image):
+    "Get the SRS from a given image."
+
+    # stolen from gdalinfo.py
+    hDataset = gdal.Open(image)
+    pszProjection = hDataset.GetProjectionRef()
+    hSRS = osr.SpatialReference()
+    if hSRS.ImportFromWkt(pszProjection) == gdal.CE_None:
+        return hSRS.ExportToPrettyWkt(False)
+    else:
+        return pszProjection
+
 # initialize
-dsDict = getDatasetDict(dsPaths)
+dsDict = getDatasetDict()
