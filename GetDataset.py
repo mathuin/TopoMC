@@ -12,7 +12,7 @@ import tarfile
 import argparse
 from lxml import etree
 from time import sleep
-from dataset import landcoverIDs, elevationIDs, decodeLayerID, getSRS
+from dataset import landcoverIDs, elevationIDs, decodeLayerID, warpFile
 from tempfile import NamedTemporaryFile
 #import logging
 #logging.basicConfig(level=logging.INFO)
@@ -108,7 +108,7 @@ def checkAvail(xmin, xmax, ymin, ymax, productlist, epsg=4326):
     clientInv = suds.client.Client(wsdlInv)
 
     # ensure desired attributes are present
-    desiredAttributes = ['PRODUCTKEY']
+    desiredAttributes = ['PRODUCTKEY', 'SEAMTITLE']
     attributes = []
     attributeList = clientInv.service.return_Attribute_List()
     for attribute in desiredAttributes:
@@ -135,6 +135,7 @@ def checkAvail(xmin, xmax, ymin, ymax, productlist, epsg=4326):
     for ID in productlist:
         if (ID in offered):
             return [ID, xmin, xmax, ymin, ymax]
+    print "No products are available for this location!"
     return None
 
 def checkDownloadOptions(productIDs):
@@ -174,6 +175,16 @@ def checkDownloadOptions(productIDs):
         # I do not use metadata so I don't care!
         if u'HTML' in metadataformats:
             layerID += metadataformats['HTML']
+        elif u'ALL' in metadataformats:
+            layerID += metadataformats['ALL']
+        elif u'FAQ' in metadataformats:
+            layerID += metadataformats['FAQ']
+        elif u'SGML' in metadataformats:
+            layerID += metadataformats['SGML']
+        elif u'TXT' in metadataformats:
+            layerID += metadataformats['TXT']
+        elif u'XML' in metadataformats:
+            layerID += metadataformats['XML']
         else:
             print "oh no HTML not available"
             return -1
@@ -377,13 +388,8 @@ def warpelev(datasetDir):
         return -1
 
     elevationimageorig = "%s-orig" % elevationimage
-    prffd = NamedTemporaryFile(delete=False)
-    prfname = prffd.name
-    prffd.write(getSRS(landcoverimage))
-    prffd.close()
-    shutil.copyfile(elevationimage, elevationimageorig)
-    os.system('gdalwarp -t_srs %s -r cubic %s %s' % (prfname, elevationimageorig, elevationimage))
-    os.remove(prfname)
+    os.rename(elevationimage, elevationimageorig)
+    warpFile(elevationimageorig, elevationimage, landcoverimage)
 
 def main(argv):
     "The main routine."
