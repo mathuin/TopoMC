@@ -17,12 +17,13 @@ dsPaths = ['Datasets', '../TopoMC-Datasets']
 # NB: only seamless types are being considered at present
 #     next version should handle tiled!
 # landcover IDs are:
-# L01 - 2001 (currently the only one supported)
+# L04 - 2001 version 2.0 (should work just fine)
+# L01 - 2001 (currently the only one fully supported)
 # L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
 # L6L - 2006
 # need to abstract out terrain.py!
-landcoverIDs = ['L01', 'L92', 'L6L']
-elevationIDs = ['ND9', 'ND3', 'NED']
+landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
+elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
 
 # functions
 def decodeLayerID(layerID):
@@ -38,10 +39,10 @@ def decodeLayerID(layerID):
 
     imagetype = layerID[3]+layerID[4]
     # only 02-GeoTIFF (tif) known to work
-    if (imagetype == "01"):
-        iType = "arc"
-    elif (imagetype == "02"):
+    if (imagetype == "02"):
         iType = "tif"
+    elif (imagetype == "01"):
+        iType = "arc"
     elif (imagetype == "03"):
         iType = "bil"
     elif (imagetype == "05"):
@@ -193,17 +194,40 @@ def checkDataset(string):
         raise ArgumentError("%s is not a valid dataset" % string)
     return string
 
-def getSRS(image):
-    "Get the SRS from a given image."
-
-    # stolen from gdalinfo.py
-    hDataset = gdal.Open(image)
+def warpFile(source, dest, like):
+    "Warp the source file to the destination file to match the third file."
+    # stolen from warp.py in GDAL
+    hDataset = gdal.Open(like, GA_ReadOnly)
     pszProjection = hDataset.GetProjectionRef()
     hSRS = osr.SpatialReference()
     if hSRS.ImportFromWkt(pszProjection) == gdal.CE_None:
-        return hSRS.ExportToPrettyWkt(False)
+        dst_wkt = hSRS.ExportToPrettyWkt(False)
     else:
-        return pszProjection
+        dst_wkt = pszProjection
+    hDataset = None
+    hSRS = None
+
+    src_ds = gdal.Open(source, GA_ReadOnly)
+
+    error_threshold = 0.125
+    resampling = gdal.GRA_Cubic
+
+    tmp_ds = gdal.AutoCreateWarpedVRT(src_ds, None, dst_wkt, resampling, error_threshold)
+    dst_xsize = tmp_ds.RasterXSize
+    dst_ysize = tmp_ds.RasterYSize
+    dst_gt = tmp_ds.GetGeoTransform()
+    tmp_ds = None
+
+    # destination file uses same driver as source file
+    driver = src_ds.GetDriver()
+
+    dst_ds = driver.Create(dest, dst_xsize, dst_ysize, src_ds.RasterCount)
+    dst_ds.SetProjection(dst_wkt)
+    dst_ds.SetGeoTransform(dst_gt)
+
+    gdal.ReprojectImage(src_ds, dst_ds, None, None, resampling, 0, error_threshold)
+    src_ds = None
+    dst_ds = None
 
 # initialize
 dsDict = getDatasetDict()
