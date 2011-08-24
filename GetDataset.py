@@ -14,9 +14,8 @@ from lxml import etree
 from time import sleep
 from dataset import landcoverIDs, elevationIDs, decodeLayerID, warpFile
 from tempfile import NamedTemporaryFile
-#import logging
-#logging.basicConfig(level=logging.INFO)
-#logging.getLogger('suds.client').setLevel(logging.DEBUG)
+import logging
+logging.basicConfig(level=logging.INFO)
 
 # dataset-specific images
 # NB: not multi-file friendly
@@ -99,6 +98,10 @@ def checkInventory(args):
     # check availability
     lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
     elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+    # exit if no product available
+    if (lcProduct == None or elevProduct == None):
+        return None
+
     # return product ID and edges
     return (lcProduct, elevProduct)
 
@@ -116,7 +119,7 @@ def checkAvail(xmin, xmax, ymin, ymax, productlist, epsg=4326):
             attributes.append(attribute)
     if len(attributes) == 0:
         print "no attributes found"
-        return -1
+        return None
     
     # return_attributes arguments dictionary
     rAdict = {'Attribs': ','.join(attributes), 'XMin': xmin, 'XMax': xmax, 'YMin': ymin, 'YMax': ymax, 'EPSG': epsg}
@@ -219,8 +222,12 @@ def requestValidation(layerIDs):
         print "Requested URLs for layer ID %s..." % tag
 
         # I am a bad man.
-        downloadURLre = "<DOWNLOAD_URL>(.*?)</DOWNLOAD_URL>"
-        downloadURLs = [m.group(1) for m in re.finditer(downloadURLre, response)]
+        #downloadURLre = "<DOWNLOAD_URL>(.*?)</DOWNLOAD_URL>"
+        #downloadURLs = [m.group(1) for m in re.finditer(downloadURLre, response)]
+	# This is even worse than the other one.
+	downloadURLs = [x.rsplit("</DOWNLOAD_URL>")[0] for x in response.split("<DOWNLOAD_URL>")[1:]]
+        for url in downloadURLs:
+            print "- url is %s" % url
 
         retval[tag] = downloadURLs
 
@@ -248,7 +255,8 @@ def downloadFile(layerID, downloadURL, datasetDir):
     # initiateDownload and get the response code
     # put _this_ in its own function!
     try:
-        page = urllib2.urlopen(downloadURL)
+	print "URL is %s" % downloadURL
+        page = urllib2.urlopen(downloadURL.replace(' ','%20'))
     except IOError, e:
         if hasattr(e, 'reason'):
             print 'We failed to reach a server.'
@@ -401,6 +409,7 @@ def main(argv):
     parser.add_argument('--xmin', required=True, type=float, help='westernmost longitude (west is negative)')
     parser.add_argument('--ymax', required=True, type=float, help='northernmost latitude (south is negative)')
     parser.add_argument('--ymin', required=True, type=float, help='southernmost longitude (south is negative)')
+    parser.add_argument('--debug', action='store_true', help='enable debug output')
     args = parser.parse_args()
 
     # test case
@@ -410,6 +419,10 @@ def main(argv):
     # args.ymin = 41.138
     # args.ymax = 41.24
 
+    # enable debug
+    if (args.debug):
+        logging.getLogger('suds.client').setLevel(logging.DEBUG)
+
     # tell the user what's going on
     print "Retrieving new dataset %s..." % args.region
 
@@ -417,8 +430,13 @@ def main(argv):
     datasetDir = cleanDatasetDir(args)
 
     print "Checking inventory service for coverage."
-
     productIDs = checkInventory(args)
+
+    # exit if no inventory available
+    if (productIDs == None):
+        print "No product IDs found in inventory."
+        exit -1
+
     print "Inventory service has the following product IDs: %s" % ','.join([elem[0] for elem in productIDs])
 
     layerIDs = checkDownloadOptions(productIDs)
