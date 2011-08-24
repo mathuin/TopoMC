@@ -14,9 +14,8 @@ from lxml import etree
 from time import sleep
 from dataset import landcoverIDs, elevationIDs, decodeLayerID, warpFile
 from tempfile import NamedTemporaryFile
-#import logging
-#logging.basicConfig(level=logging.INFO)
-#logging.getLogger('suds.client').setLevel(logging.DEBUG)
+import logging
+logging.basicConfig(level=logging.INFO)
 
 # dataset-specific images
 # NB: not multi-file friendly
@@ -99,6 +98,10 @@ def checkInventory(args):
     # check availability
     lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
     elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+    # exit if no product available
+    if (lcProduct == None or elevProduct == None):
+        return None
+
     # return product ID and edges
     return (lcProduct, elevProduct)
 
@@ -116,7 +119,7 @@ def checkAvail(xmin, xmax, ymin, ymax, productlist, epsg=4326):
             attributes.append(attribute)
     if len(attributes) == 0:
         print "no attributes found"
-        return -1
+        return None
     
     # return_attributes arguments dictionary
     rAdict = {'Attribs': ','.join(attributes), 'XMin': xmin, 'XMax': xmax, 'YMin': ymin, 'YMax': ymax, 'EPSG': epsg}
@@ -212,15 +215,14 @@ def requestValidation(layerIDs):
     # we now iterate through layerIDs
     for layerID in layerIDs:
         (tag, xmin, xmax, ymin, ymax) = layerID
-        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250)
+        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250) # can be 100, 15, 25, 50, 75, 250
 
         response = clientRequest.service.processAOI2(xmlString)
 
         print "Requested URLs for layer ID %s..." % tag
 
-        # I am a bad man.
-        downloadURLre = "<DOWNLOAD_URL>(.*?)</DOWNLOAD_URL>"
-        downloadURLs = [m.group(1) for m in re.finditer(downloadURLre, response)]
+        # I am still a bad man.
+	downloadURLs = [x.rsplit("</DOWNLOAD_URL>")[0] for x in response.split("<DOWNLOAD_URL>")[1:]]
 
         retval[tag] = downloadURLs
 
@@ -248,7 +250,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
     # initiateDownload and get the response code
     # put _this_ in its own function!
     try:
-        page = urllib2.urlopen(downloadURL)
+        page = urllib2.urlopen(downloadURL.replace(' ','%20'))
     except IOError, e:
         if hasattr(e, 'reason'):
             print 'We failed to reach a server.'
@@ -256,6 +258,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
         elif hasattr(e, 'code'):
             print 'The server couldn\'t fulfill the request.'
             print 'Error code: ', e.code
+        return -1
     else:
         result = page.read()
         page.close()
@@ -301,6 +304,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
         elif hasattr(e, 'code'):
             print 'The server couldn\'t fulfill the request.'
             print 'Error code: ', e.code
+        return -1
     else:
         print "  downloading %s now!" % filename
         downloadFile = open(os.path.join(layerDir,filename), 'wb')
@@ -323,6 +327,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
         elif hasattr(e, 'code'):
             print 'The server couldn\'t fulfill the request.'
             print 'Error code: ', e.code
+        return -1
     else:
         result = page4.read()
         page4.close()
@@ -332,9 +337,10 @@ def downloadFile(layerID, downloadURL, datasetDir):
         startPos = result.find("<ns:return>") + 11
         endPos = result.find("</ns:return>")
         status = result[startPos:endPos]
+    return 0
 
-def warpelev(datasetDir):
-    "Extracts files and warps elevation file."
+def extractFiles(datasetDir):
+    "Extracts image files and merges as necessary."
 
     layerIDs = [ name for name in os.listdir(datasetDir) if os.path.isdir(os.path.join(datasetDir, name)) ]
     for layerID in layerIDs:
@@ -368,18 +374,21 @@ def warpelev(datasetDir):
                     cFile.extract(omfgcompimage, datasubdir)
                     os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layersubdir,compimage))
                 cFile.close()
-            # tag what we found
-            # NB: needs fixing when supporting multiple images!
-            if (pType == "elevation"):
-                elevationimage = os.path.join(layersubdir, compimage)
-            elif (pType == "landcover"):
-                landcoverimage = os.path.join(layersubdir, compimage)
-            else:
-                print "Product type %s not yet supported!" % pType
-                return -1
+        os.system("cd %s && gdalbuildvrt %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layersubdir, layerID, iType, layerID, layerID, iType))
 
-    # gotta have one of each
-    # NB: needs fixing when supporting multiple images!
+def warpElevation(datasetDir):
+    "Warp elevation file to match landcover file."
+    layerIDs = [ name for name in os.listdir(datasetDir) if os.path.isdir(os.path.join(datasetDir, name)) ]
+    for layerID in layerIDs:
+        (pType, iType, mType, cType) = decodeLayerID(layerID)
+        dataname = os.path.join(datasetDir, layerID, "%s.%s" % (layerID, iType))
+        if (pType == "elevation"):
+            elevationimage = dataname
+        elif (pType == "landcover"):
+            landcoverimage = dataname
+        else:
+            print "Product type %s not yet supported!" % pType
+            return -1
     if (elevationimage == ""):
         print "Elevation image not found!"
         return -1
@@ -401,6 +410,7 @@ def main(argv):
     parser.add_argument('--xmin', required=True, type=float, help='westernmost longitude (west is negative)')
     parser.add_argument('--ymax', required=True, type=float, help='northernmost latitude (south is negative)')
     parser.add_argument('--ymin', required=True, type=float, help='southernmost longitude (south is negative)')
+    parser.add_argument('--debug', action='store_true', help='enable debug output')
     args = parser.parse_args()
 
     # test case
@@ -410,6 +420,10 @@ def main(argv):
     # args.ymin = 41.138
     # args.ymax = 41.24
 
+    # enable debug
+    if (args.debug):
+        logging.getLogger('suds.client').setLevel(logging.DEBUG)
+
     # tell the user what's going on
     print "Retrieving new dataset %s..." % args.region
 
@@ -417,8 +431,13 @@ def main(argv):
     datasetDir = cleanDatasetDir(args)
 
     print "Checking inventory service for coverage."
-
     productIDs = checkInventory(args)
+
+    # exit if no inventory available
+    if (productIDs == None):
+        print "No product IDs found in inventory."
+        exit -1
+
     print "Inventory service has the following product IDs: %s" % ','.join([elem[0] for elem in productIDs])
 
     layerIDs = checkDownloadOptions(productIDs)
@@ -429,10 +448,16 @@ def main(argv):
     print "Received download URLs, downloading now!"
     for layerID in downloadURLs.keys():
         for downloadURL in downloadURLs[layerID]:
-            downloadFile(layerID, downloadURL, datasetDir)
+            retval = downloadFile(layerID, downloadURL, datasetDir)
+            if (retval == -1):
+                print "Download failed for layer ID %s!" % layerID
+                exit -1
 
-    # extract files and warp elevation files
-    warpelev(datasetDir)
+    # extract and merge files
+    extractFiles(datasetDir)
+
+    # warp the elevation file to match the landcover file
+    warpElevation(datasetDir)
     
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
