@@ -215,19 +215,14 @@ def requestValidation(layerIDs):
     # we now iterate through layerIDs
     for layerID in layerIDs:
         (tag, xmin, xmax, ymin, ymax) = layerID
-        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250)
+        xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 15) # can be 100, 15, 25, 50, 75, 250
 
         response = clientRequest.service.processAOI2(xmlString)
 
         print "Requested URLs for layer ID %s..." % tag
 
-        # I am a bad man.
-        #downloadURLre = "<DOWNLOAD_URL>(.*?)</DOWNLOAD_URL>"
-        #downloadURLs = [m.group(1) for m in re.finditer(downloadURLre, response)]
-	# This is even worse than the other one.
+        # I am still a bad man.
 	downloadURLs = [x.rsplit("</DOWNLOAD_URL>")[0] for x in response.split("<DOWNLOAD_URL>")[1:]]
-        for url in downloadURLs:
-            print "- url is %s" % url
 
         retval[tag] = downloadURLs
 
@@ -255,7 +250,6 @@ def downloadFile(layerID, downloadURL, datasetDir):
     # initiateDownload and get the response code
     # put _this_ in its own function!
     try:
-	print "URL is %s" % downloadURL
         page = urllib2.urlopen(downloadURL.replace(' ','%20'))
     except IOError, e:
         if hasattr(e, 'reason'):
@@ -264,6 +258,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
         elif hasattr(e, 'code'):
             print 'The server couldn\'t fulfill the request.'
             print 'Error code: ', e.code
+        return -1
     else:
         result = page.read()
         page.close()
@@ -309,6 +304,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
         elif hasattr(e, 'code'):
             print 'The server couldn\'t fulfill the request.'
             print 'Error code: ', e.code
+        return -1
     else:
         print "  downloading %s now!" % filename
         downloadFile = open(os.path.join(layerDir,filename), 'wb')
@@ -331,6 +327,7 @@ def downloadFile(layerID, downloadURL, datasetDir):
         elif hasattr(e, 'code'):
             print 'The server couldn\'t fulfill the request.'
             print 'Error code: ', e.code
+        return -1
     else:
         result = page4.read()
         page4.close()
@@ -340,9 +337,10 @@ def downloadFile(layerID, downloadURL, datasetDir):
         startPos = result.find("<ns:return>") + 11
         endPos = result.find("</ns:return>")
         status = result[startPos:endPos]
+    return 0
 
-def warpelev(datasetDir):
-    "Extracts files and warps elevation file."
+def extractFiles(datasetDir):
+    "Extracts image files and merges as necessary."
 
     layerIDs = [ name for name in os.listdir(datasetDir) if os.path.isdir(os.path.join(datasetDir, name)) ]
     for layerID in layerIDs:
@@ -376,18 +374,21 @@ def warpelev(datasetDir):
                     cFile.extract(omfgcompimage, datasubdir)
                     os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layersubdir,compimage))
                 cFile.close()
-            # tag what we found
-            # NB: needs fixing when supporting multiple images!
-            if (pType == "elevation"):
-                elevationimage = os.path.join(layersubdir, compimage)
-            elif (pType == "landcover"):
-                landcoverimage = os.path.join(layersubdir, compimage)
-            else:
-                print "Product type %s not yet supported!" % pType
-                return -1
+        os.system("cd %s && gdalbuildvrt %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layersubdir, layerID, iType, layerID, layerID, iType))
 
-    # gotta have one of each
-    # NB: needs fixing when supporting multiple images!
+def warpElevation(datasetDir):
+    "Warp elevation file to match landcover file."
+    layerIDs = [ name for name in os.listdir(datasetDir) if os.path.isdir(os.path.join(datasetDir, name)) ]
+    for layerID in layerIDs:
+        (pType, iType, mType, cType) = decodeLayerID(layerID)
+        dataname = os.path.join(datasetDir, layerID, "%s.%s" % (layerID, iType))
+        if (pType == "elevation"):
+            elevationimage = dataname
+        elif (pType == "landcover"):
+            landcoverimage = dataname
+        else:
+            print "Product type %s not yet supported!" % pType
+            return -1
     if (elevationimage == ""):
         print "Elevation image not found!"
         return -1
@@ -447,10 +448,16 @@ def main(argv):
     print "Received download URLs, downloading now!"
     for layerID in downloadURLs.keys():
         for downloadURL in downloadURLs[layerID]:
-            downloadFile(layerID, downloadURL, datasetDir)
+            retval = downloadFile(layerID, downloadURL, datasetDir)
+            if (retval == -1):
+                print "Download failed for layer ID %s!" % layerID
+                exit -1
 
-    # extract files and warp elevation files
-    warpelev(datasetDir)
+    # extract and merge files
+    extractFiles(datasetDir)
+
+    # warp the elevation file to match the landcover file
+    warpElevation(datasetDir)
     
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
