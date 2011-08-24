@@ -103,53 +103,49 @@ def getDatasetDict():
         regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
         for region in regions:
             dsregion = os.path.join(dspath, region)
-            lcfile = ''
-            elevfile = ''
-            elevorigfile = ''
-            layerids = [ name for name in os.listdir(dsregion) if os.path.isdir(os.path.join(dsregion, name)) ]
-            for layerid in layerids:
-                dsregionlayerid = os.path.join(dsregion, layerid)
-                (pType, iType, mType, cType) = decodeLayerID(layerid)
-                subdirs = [ name for name in os.listdir(dsregionlayerid) if os.path.isdir(os.path.join(dsregionlayerid, name)) ]
-                for subdir in subdirs:
-                    dsregionsub = os.path.join(dsregionlayerid, subdir)
-                    if (pType == "landcover"):
-                        maybelcfile = os.path.join(dsregionsub, "%s.%s" % (subdir, iType))
-                        if (os.path.isfile(maybelcfile)):
-                            lcfile = maybelcfile
-                    if (pType == "elevation"):
-                        maybeelevfile = os.path.join(dsregionsub, "%s.%s" % (subdir, iType))
-                        if (os.path.isfile(maybeelevfile)):
-                            elevfile = maybeelevfile
-                        maybeelevorigfile = os.path.join(dsregionsub, "%s.%s-orig" % (subdir, iType))
-
-                        if (os.path.isfile(maybeelevorigfile)):
-                            elevorigfile = maybeelevorigfile
-            if (lcfile != '' and elevfile != '' and elevorigfile != ''):
-                # check that both datasets open read-only without errors
-                lcds = gdal.Open(lcfile)
-                if (lcds == None):
-                    datasetlogger.error("%s: lc dataset didn't open" % region)
-                    break
-                elevds = gdal.Open(elevfile)
-                if (elevds == None):
-                    datasetlogger.error( "%s: elev dataset didn't open" % region)
-                    break
-                # check that both datasets have the same projection
-                lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
-                elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
-                if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
-                    datasetlogger.error("%s: lc and elevation maps do not have the same projection" % region)
-                    break
-                # calculate rows and columns
-                rows = lcds.RasterXSize
-                cols = lcds.RasterYSize
-                # nodata - just lc here
-                nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
-                # clean up
-                lcds = None
-                elevds = None
-                retval[region] = [lcfile, elevfile, rows, cols, nodata]
+            layerIDs = [ name for name in os.listdir(dsregion) if os.path.isdir(os.path.join(dsregion, name)) ]
+            elevfile = ""
+            lcfile = ""
+            for layerID in layerIDs:
+                (pType, iType, mType, cType) = decodeLayerID(layerID)
+                dataname = os.path.join(dsregion, layerID, "%s.%s" % (layerID, iType))
+                if (pType == "elevation"):
+                    elevfile = dataname
+                elif (pType == "landcover"):
+                    lcfile = dataname
+                else:
+                    datasetlogger.error("%s: unsupported product type %s found" % (region, pType))
+                    return -1
+            if (elevfile == ""):
+                datasetlogger.error("%s: elevation image not found" % region)
+                return -1
+            if (lcfile == ""):
+                datasetlogger.error("%s: landcover image not found" % region)
+                return -1
+            # check that both datasets open read-only without errors
+            lcds = gdal.Open(lcfile, GA_ReadOnly)
+            if (lcds == None):
+                datasetlogger.error("%s: lc dataset didn't open" % region)
+                break
+            elevds = gdal.Open(elevfile, GA_ReadOnly)
+            if (elevds == None):
+                datasetlogger.error( "%s: elev dataset didn't open" % region)
+                break
+            # check that both datasets have the same projection
+            lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
+            elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
+            if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
+                datasetlogger.error("%s: lc and elevation maps do not have the same projection" % region)
+                break
+            # calculate rows and columns
+            rows = lcds.RasterXSize
+            cols = lcds.RasterYSize
+            # nodata - just lc here
+            nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
+            # clean up
+            lcds = None
+            elevds = None
+            retval[region] = [lcfile, elevfile, rows, cols, nodata]
     return retval
 
 def getDataset(region):
