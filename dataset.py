@@ -14,8 +14,17 @@ datasetlogger = logging.getLogger('dataset')
 dsPaths = ['Datasets', '../TopoMC-Datasets']
 
 # product types in order of preference
-landcoverIDs = ['L01']
-elevationIDs = ['ND3', 'NED']
+# NB: only seamless types are being considered at present
+#     next version should handle tiled!
+# landcover IDs are:
+# L04 - 2001 version 2.0 (should work just fine)
+# L01 - 2001 (currently the only one fully supported)
+# L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
+# L6L - 2006
+# need to abstract out terrain.py!
+landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
+# JMT - 2011Aug29 - ND9 is not working, commenting out
+elevationIDs = ['ND3', 'NED', 'NAK']
 
 # functions
 def decodeLayerID(layerID):
@@ -29,17 +38,33 @@ def decodeLayerID(layerID):
         datasetlogger.error("Invalid product ID %s" % productID)
         return -1
 
-    # FIXME: handle more image types
     imagetype = layerID[3]+layerID[4]
+    # only 02-GeoTIFF (tif) known to work
     if (imagetype == "02"):
         iType = "tif"
+    elif (imagetype == "01"):
+        iType = "arc"
+    elif (imagetype == "03"):
+        iType = "bil"
+    elif (imagetype == "05"):
+        iType = "GridFloat"
+    elif (imagetype == "12"):
+        iType = "IMG"
+    elif (imagetype == "15"):
+        iType = "bil_16int"
     else:
         datasetlogger.error("Invalid image type %s" % imagetype)
         return -1
         
     metatype = layerID[5]
-    if (metatype == "H"):
+    if (metatype == "A"):
+        mType = "ALL"
+    elif (metatype == "F"):
+        mType = "FAQ"
+    elif (metatype == "H"):
         mType = "HTML"
+    elif (metatype == "S"):
+        mType = "SGML"
     elif (metatype == "T"):
         mType = "TXT"
     elif (metatype == "X"):
@@ -49,73 +74,79 @@ def decodeLayerID(layerID):
         return -1
 
     compressiontype = layerID[6]
-    if (compressiontype == "Z"):
-        cType = "ZIP"
-    elif (compressiontype == "T"):
+    if (compressiontype == "T"):
         cType = "TGZ"
+    elif (compressiontype == "Z"):
+        cType = "ZIP"
     else:
         datasetlogger.error("Invalid compression type %s" % compressiontype)
         return -1
 
     return (pType, iType, mType, cType)
 
-def getDatasetDict(dspaths):
+def getDatasetDir(region):
+    "Given a list of paths, and a region, retrieve the dataset dir.  Return -1 if no regiondir found."
+    for dspath in dsPaths:
+        if not os.path.exists(dspath):
+            continue
+        regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
+        if region in regions:
+            return os.path.join(dspath, region)
+    return -1
+
+def getDatasetDict():
     "Given a list of paths, generate a dict of datasets."
 
     retval = {}
-    for dspath in dspaths:
+    for dspath in dsPaths:
         if not os.path.exists(dspath):
             continue
         regions = [ name for name in os.listdir(dspath) if os.path.isdir(os.path.join(dspath, name)) ]
         for region in regions:
             dsregion = os.path.join(dspath, region)
-            lcfile = ''
-            elevfile = ''
-            elevorigfile = ''
-            layerids = [ name for name in os.listdir(dsregion) if os.path.isdir(os.path.join(dsregion, name)) ]
-            for layerid in layerids:
-                dsregionlayerid = os.path.join(dsregion, layerid)
-                (pType, iType, mType, cType) = decodeLayerID(layerid)
-                subdirs = [ name for name in os.listdir(dsregionlayerid) if os.path.isdir(os.path.join(dsregionlayerid, name)) ]
-                for subdir in subdirs:
-                    dsregionsub = os.path.join(dsregionlayerid, subdir)
-                    if (pType == "landcover"):
-                        maybelcfile = os.path.join(dsregionsub, "%s.%s" % (subdir, iType))
-                        if (os.path.isfile(maybelcfile)):
-                            lcfile = maybelcfile
-                    if (pType == "elevation"):
-                        maybeelevfile = os.path.join(dsregionsub, "%s.%s" % (subdir, iType))
-                        if (os.path.isfile(maybeelevfile)):
-                            elevfile = maybeelevfile
-                        maybeelevorigfile = os.path.join(dsregionsub, "%s.%s-orig" % (subdir, iType))
-
-                        if (os.path.isfile(maybeelevorigfile)):
-                            elevorigfile = maybeelevorigfile
-            if (lcfile != '' and elevfile != '' and elevorigfile != ''):
-                # check that both datasets open read-only without errors
-                lcds = gdal.Open(lcfile)
-                if (lcds == None):
-                    datasetlogger.error("%s: lc dataset didn't open" % region)
-                    break
-                elevds = gdal.Open(elevfile)
-                if (elevds == None):
-                    datasetlogger.error( "%s: elev dataset didn't open" % region)
-                    break
-                # check that both datasets have the same projection
-                lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
-                elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
-                if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
-                    datasetlogger.error("%s: lc and elevation maps do not have the same projection" % region)
-                    break
-                # calculate rows and columns
-                rows = lcds.RasterXSize
-                cols = lcds.RasterYSize
-                # nodata - just lc here
-                nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
-                # clean up
-                lcds = None
-                elevds = None
-                retval[region] = [lcfile, elevfile, rows, cols, nodata]
+            layerIDs = [ name for name in os.listdir(dsregion) if os.path.isdir(os.path.join(dsregion, name)) ]
+            elevfile = ""
+            lcfile = ""
+            for layerID in layerIDs:
+                (pType, iType, mType, cType) = decodeLayerID(layerID)
+                dataname = os.path.join(dsregion, layerID, "%s.%s" % (layerID, iType))
+                if (pType == "elevation"):
+                    elevfile = dataname
+                elif (pType == "landcover"):
+                    lcfile = dataname
+                else:
+                    datasetlogger.error("%s: unsupported product type %s found" % (region, pType))
+                    return -1
+            if (elevfile == ""):
+                datasetlogger.error("%s: elevation image not found" % region)
+                return -1
+            if (lcfile == ""):
+                datasetlogger.error("%s: landcover image not found" % region)
+                return -1
+            # check that both datasets open read-only without errors
+            lcds = gdal.Open(lcfile, GA_ReadOnly)
+            if (lcds == None):
+                datasetlogger.error("%s: lc dataset didn't open" % region)
+                break
+            elevds = gdal.Open(elevfile, GA_ReadOnly)
+            if (elevds == None):
+                datasetlogger.error( "%s: elev dataset didn't open" % region)
+                break
+            # check that both datasets have the same projection
+            lcGeogCS = osr.SpatialReference(lcds.GetProjectionRef()).CloneGeogCS()
+            elevGeogCS = osr.SpatialReference(elevds.GetProjectionRef()).CloneGeogCS()
+            if (not lcGeogCS.IsSameGeogCS(elevGeogCS)):
+                datasetlogger.error("%s: lc and elevation maps do not have the same projection" % region)
+                break
+            # calculate rows and columns
+            rows = lcds.RasterXSize
+            cols = lcds.RasterYSize
+            # nodata - just lc here
+            nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
+            # clean up
+            lcds = None
+            elevds = None
+            retval[region] = [lcfile, elevfile, rows, cols, nodata]
     return retval
 
 def getDataset(region):
@@ -160,5 +191,40 @@ def checkDataset(string):
         raise ArgumentError("%s is not a valid dataset" % string)
     return string
 
+def warpFile(source, dest, like):
+    "Warp the source file to the destination file to match the third file."
+    # stolen from warp.py in GDAL
+    hDataset = gdal.Open(like, GA_ReadOnly)
+    pszProjection = hDataset.GetProjectionRef()
+    hSRS = osr.SpatialReference()
+    if hSRS.ImportFromWkt(pszProjection) == gdal.CE_None:
+        dst_wkt = hSRS.ExportToPrettyWkt(False)
+    else:
+        dst_wkt = pszProjection
+    hDataset = None
+    hSRS = None
+
+    src_ds = gdal.Open(source, GA_ReadOnly)
+
+    error_threshold = 0.125
+    resampling = gdal.GRA_Cubic
+
+    tmp_ds = gdal.AutoCreateWarpedVRT(src_ds, None, dst_wkt, resampling, error_threshold)
+    dst_xsize = tmp_ds.RasterXSize
+    dst_ysize = tmp_ds.RasterYSize
+    dst_gt = tmp_ds.GetGeoTransform()
+    tmp_ds = None
+
+    # destination file uses same driver as source file
+    driver = src_ds.GetDriver()
+
+    dst_ds = driver.Create(dest, dst_xsize, dst_ysize, src_ds.RasterCount)
+    dst_ds.SetProjection(dst_wkt)
+    dst_ds.SetGeoTransform(dst_gt)
+
+    gdal.ReprojectImage(src_ds, dst_ds, None, None, resampling, 0, error_threshold)
+    src_ds = None
+    dst_ds = None
+
 # initialize
-dsDict = getDatasetDict(dsPaths)
+dsDict = getDatasetDict()
