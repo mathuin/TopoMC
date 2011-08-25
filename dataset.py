@@ -23,7 +23,8 @@ dsPaths = ['Datasets', '../TopoMC-Datasets']
 # L6L - 2006
 # need to abstract out terrain.py!
 landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
-elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
+# JMT - 2011Aug29 - ND9 is not working, commenting out
+elevationIDs = ['ND3', 'NED', 'NAK']
 
 # functions
 def decodeLayerID(layerID):
