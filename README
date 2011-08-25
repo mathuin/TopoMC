@@ -2,7 +2,7 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
 
-Version 0.6.1 includes changes to support the most up-to-date version of pymclevel (as of 2011 Aug 19).
+Version 0.7 includes changes to support the most up-to-date version of pymclevel (as of 2011 Aug 19).
 
 Recent changes include:
  * Larger areas can be downloaded from the USGS.
