@@ -12,14 +12,9 @@ Convert most print output to logging statements
 Schematics and equipping the player
  - in progress
  - don't forget the bed in the safe house!
-Support multiple USGS chunks per dataset
- - mcarray.py needs to be redesigned as does GetDataset.py
 Normal stuff underground!
  - ore done, what about caves?
  - I bet someone's done it better -- look for add-a-dungeon code!
-Full multiprocessing support
- - everything works except turning chunks into worlds
- - test this to make sure
 Clean up terrain.py
  - move terrain types into abstract routines to support more land cover types
 Put buildings in developed areas

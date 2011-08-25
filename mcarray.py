@@ -157,7 +157,7 @@ def loadArraystar(args):
 def loadArrays(world, arraydir, processes):
     "Load all arrays from array directory."
     # FIXME: something about getChunk and friends isn't parallel-friendly
-    if (processes == 1 or True):
+    if (processes == 1): # or True
         arrays = [loadArray(world, arraydir, name) for name in os.listdir(arraydir)]
     else:
         pool = Pool(processes)

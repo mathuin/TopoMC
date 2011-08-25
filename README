@@ -5,11 +5,11 @@ This project relies heavily on codewarrior0's pymclevel project which can also b
 Version 0.6.1 includes changes to support the most up-to-date version of pymclevel (as of 2011 Aug 19).
 
 Recent changes include:
+ * Larger areas can be downloaded from the USGS.
  * Arrays are used instead of images for intermediary data.  Go Bravo!
  * Most module output moved to logger format.  Quieter runs!
  * Features like ore and statistics can now be disabled.
  * The rotated-rectangle problem is fixed!
- * All "nodata" values are now treated as water.
 
 Features include:
  * Ore (including dirt and gravel) is generated properly.
