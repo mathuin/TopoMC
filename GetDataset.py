@@ -13,7 +13,6 @@ import argparse
 from lxml import etree
 from time import sleep
 from dataset import landcoverIDs, elevationIDs, decodeLayerID, warpFile
-from tempfile import NamedTemporaryFile
 import logging
 logging.basicConfig(level=logging.INFO)
 
