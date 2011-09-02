@@ -419,6 +419,16 @@ def main(argv):
     # args.ymin = 41.138
     # args.ymax = 41.24
 
+    # if min is more than max, switch
+    if (args.xmin > args.xmax):
+        temp = args.xmax 
+        args.xmax = args.xmin
+        args.xmin = temp
+    if (args.ymin > args.ymax):
+        temp = args.ymax 
+        args.ymax = args.ymin
+        args.ymin = temp
+
     # enable debug
     if (args.debug):
         logging.getLogger('suds.client').setLevel(logging.DEBUG)
