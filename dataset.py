@@ -6,6 +6,7 @@ from argparse import ArgumentError
 from osgeo import gdal, osr
 from osgeo.gdalconst import *
 from coords import getTransforms
+from tempfile import NamedTemporaryFile
 import logging
 logging.basicConfig(level=logging.WARNING)
 datasetlogger = logging.getLogger('dataset')
@@ -24,7 +25,7 @@ dsPaths = ['Datasets', '../TopoMC-Datasets']
 # need to abstract out terrain.py!
 landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
 # JMT - 2011Aug29 - ND9 is not working, commenting out
-elevationIDs = ['ND3', 'NED', 'NAK']
+elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
 
 # functions
 def decodeLayerID(layerID):
@@ -191,8 +192,8 @@ def checkDataset(string):
         raise ArgumentError("%s is not a valid dataset" % string)
     return string
 
-def warpFile(source, dest, like):
-    "Warp the source file to the destination file to match the third file."
+def warpFileNew(source, dest, like):
+    "Warp the source file to the destination file to match the third file.  WARNING: does not appear to work!"
     # stolen from warp.py in GDAL
     hDataset = gdal.Open(like, GA_ReadOnly)
     pszProjection = hDataset.GetProjectionRef()
@@ -226,5 +227,15 @@ def warpFile(source, dest, like):
     src_ds = None
     dst_ds = None
 
+def warpFile(source, dest, like):
+    "Warp the source file to match the like file and write to the dest file."
+    prffd = NamedTemporaryFile(delete=False)
+    prfname = prffd.name
+    prffd.close()
+    os.system('gdalinfo %s | sed -e "1,/Coordinate System is:/d" -e "/Origin =/,\$d" | xargs echo > %s' % (like, prfname))
+    os.system('gdalwarp -t_srs %s -r cubic %s %s' % (prfname, source, dest))
+    os.remove(prfname)
+
+    
 # initialize
 dsDict = getDatasetDict()

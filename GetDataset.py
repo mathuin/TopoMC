@@ -13,7 +13,6 @@ import argparse
 from lxml import etree
 from time import sleep
 from dataset import landcoverIDs, elevationIDs, decodeLayerID, warpFile
-from tempfile import NamedTemporaryFile
 import logging
 logging.basicConfig(level=logging.INFO)
 
@@ -419,6 +418,16 @@ def main(argv):
     # args.xmax = -71.529
     # args.ymin = 41.138
     # args.ymax = 41.24
+
+    # if min is more than max, switch
+    if (args.xmin > args.xmax):
+        temp = args.xmax 
+        args.xmax = args.xmin
+        args.xmin = temp
+    if (args.ymin > args.ymax):
+        temp = args.ymax 
+        args.ymax = args.ymin
+        args.ymin = temp
 
     # enable debug
     if (args.debug):
