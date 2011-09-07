@@ -25,7 +25,7 @@ dsPaths = ['Datasets', '../TopoMC-Datasets']
 # need to abstract out terrain.py!
 landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
 # JMT - 2011Aug29 - ND9 is not working, commenting out
-elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
+elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
 
 # functions
 def decodeLayerID(layerID):
@@ -233,7 +233,7 @@ def warpFile(source, dest, like):
     prfname = prffd.name
     prffd.close()
     os.system('gdalinfo %s | sed -e "1,/Coordinate System is:/d" -e "/Origin =/,\$d" | xargs echo > %s' % (like, prfname))
-    os.system('gdalwarp -t_srs %s -r cubic %s %s' % (prfname, source, dest))
+    os.system('gdalwarp -srcnodata -340282346638528859811704183484516925440.000 -wo INIT_DEST=0 -t_srs %s -r cubic %s %s' % (prfname, source, dest))
     os.remove(prfname)
 
     

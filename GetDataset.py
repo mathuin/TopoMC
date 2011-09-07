@@ -373,7 +373,7 @@ def extractFiles(datasetDir):
                     cFile.extract(omfgcompimage, datasubdir)
                     os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layersubdir,compimage))
                 cFile.close()
-        os.system("cd %s && gdalbuildvrt %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layersubdir, layerID, iType, layerID, layerID, iType))
+        os.system("cd %s && gdalbuildvrt -resolution highest %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layersubdir, layerID, iType, layerID, layerID, iType))
 
 def warpElevation(datasetDir):
     "Warp elevation file to match landcover file."
