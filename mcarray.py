@@ -124,18 +124,18 @@ def saveArrays(arraydir, processes):
 def loadArray(world, arraydir, name):
     "Load array from file."
     # extract arrays from file
+    fd = open(os.path.join(arraydir,name), 'rb')
     if (useNumpy):
-        infile = numpy.load(os.path.join(arraydir,name),mmap_mode=None)
+        infile = numpy.load(fd,mmap_mode=None)
         myBlocks = numpy.copy(infile['blocks'])
         myData = numpy.copy(infile['data'])
         infile = None
     else:
-        fd = open(os.path.join(arraydir,name), 'rb')
         myCuke = pickle.load(fd)
         myBlocks = numpy.copy(myCuke['blocks'])
         myData = numpy.copy(myCuke['data'])
         myCuke = None
-        fd.close()
+    fd.close()
     # extract key from filename
     key = name.split('.')[0]
     ctuple = key.split('x')
