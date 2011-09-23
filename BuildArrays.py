@@ -64,7 +64,7 @@ def checkVScale(args):
     vscale = min(oldvscale, elevMax)
     vscale = max(vscale, (elevMax/mcarray.maxelev)+1)
     if (vscale != oldvscale):
-        print "Warning: vertical scale of %d for region %s is invalid -- changed to %d" % (oldvscale, args.region, vscale)
+        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d) -- changed to %d" % (oldvscale, args.region, elevMax, vscale)
     args.vscale = vscale
     return vscale
 
