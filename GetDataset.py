@@ -24,6 +24,32 @@ elevationimage = ""
 # sadness
 zipfileBroken = True
 
+def checkElevationIDs(string):
+    "Checks to see if the given product IDs are valid."
+    if (isinstance(string, list)):
+        elevation = string[0]
+    else:
+        elevation = string
+    myelevationIDs = [ pid for pid in elevation.split(',') if pid in elevationIDs ]
+    if (myelevationIDs):
+        retval = myelevationIDs
+    else:
+        retval = elevationIDs
+    return retval
+
+def checkLandcoverIDs(string):
+    "Checks to see if the given product IDs are valid."
+    if (isinstance(string, list)):
+        landcover = string[0]
+    else:
+        landcover = string
+    mylandcoverIDs = [ pid for pid in landcover.split(',') if pid in landcoverIDs ]
+    if (mylandcoverIDs):
+        retval = mylandcoverIDs
+    else:
+        retval = landcoverIDs
+    return retval
+
 def cleanDatasetDir(args):
     "Clean up the dataset directory."
     datasetName = args.region
@@ -95,8 +121,8 @@ def checkInventory(args):
     elevymin = min(yfloat)
 
     # check availability
-    lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, landcoverIDs)
-    elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, elevationIDs)
+    lcProduct = checkAvail(args.xmin, args.xmax, args.ymin, args.ymax, args.landcoverIDs)
+    elevProduct = checkAvail(elevxmin, elevxmax, elevymin, elevymax, args.elevationIDs)
     # exit if no product available
     if (lcProduct == None or elevProduct == None):
         return None
@@ -402,6 +428,10 @@ def warpElevation(datasetDir):
 def main(argv):
     "The main routine."
 
+    # defaults
+    default_elevationIDs = ','.join(elevationIDs)
+    default_landcoverIDs = ','.join(landcoverIDs)
+
     # parse options and get results
     parser = argparse.ArgumentParser(description='Retrieve datasets from USGS Seamless Web services.')
     parser.add_argument('--region', required=True, type=str, help='a region to be generated')
@@ -409,6 +439,8 @@ def main(argv):
     parser.add_argument('--xmin', required=True, type=float, help='westernmost longitude (west is negative)')
     parser.add_argument('--ymax', required=True, type=float, help='northernmost latitude (south is negative)')
     parser.add_argument('--ymin', required=True, type=float, help='southernmost longitude (south is negative)')
+    parser.add_argument('--elevationIDs', default=default_elevationIDs, type=checkElevationIDs, help='ordered list of product IDs (default %s)' % default_elevationIDs)
+    parser.add_argument('--landcoverIDs', default=default_landcoverIDs, type=checkLandcoverIDs, help='ordered list of product IDs (default %s)' % default_landcoverIDs)
     parser.add_argument('--debug', action='store_true', help='enable debug output')
     args = parser.parse_args()
 
@@ -445,7 +477,7 @@ def main(argv):
     # exit if no inventory available
     if (productIDs == None):
         print "No product IDs found in inventory."
-        exit -1
+        return -1
 
     print "Inventory service has the following product IDs: %s" % ','.join([elem[0] for elem in productIDs])
 
@@ -460,7 +492,7 @@ def main(argv):
             retval = downloadFile(layerID, downloadURL, datasetDir)
             if (retval == -1):
                 print "Download failed for layer ID %s!" % layerID
-                exit -1
+                return -1
 
     # extract and merge files
     extractFiles(datasetDir)
