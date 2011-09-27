@@ -57,7 +57,7 @@ def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=Fal
     "Given the relevant information, builds the image array."
     Offset, Size = getOffsetSize(ds, idtCorners)
     IDT = getIDT(ds, Offset, Size, vScale, nodata)
-    ImageArray = IDT(baseArray, nnear=11, eps=0.1, majority=majority)
+    ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
 
     return ImageArray
 
