@@ -7,6 +7,7 @@ from __future__ import division
 import sys
 sys.path.append('..')
 import os
+from math import ceil
 from argparse import ArgumentParser
 from multiprocessing import cpu_count
 from dataset import getDataset, checkDataset, listDatasets, dsDict, getDatasetDims, getDatasetNodata
@@ -62,9 +63,9 @@ def checkVScale(args):
     elevds = None
     elevMax = elevCMinMax[1]
     vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, (elevMax/mcarray.maxelev)+1)
+    vscale = max(vscale, ceil(elevMax/mcarray.maxelev))
     if (vscale != oldvscale):
-        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d) -- changed to %d" % (oldvscale, args.region, elevMax, vscale)
+        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevMax, oldvscale*mcarray.maxelev, vscale)
     args.vscale = vscale
     return vscale
 
