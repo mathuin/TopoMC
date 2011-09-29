@@ -85,6 +85,7 @@ def processOres(oreName, minY, maxY, maxExtent, numRounds):
         tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
         results = pool.imap_unordered(processOrestar, tasks)
         bleah = [x for x in results]
+        pool = None
     return None
 
 # whole-world approach
