@@ -1,5 +1,6 @@
 # methods which manipulate arrays and their elements
 import os
+import shutil
 import numpy
 import multinumpy
 import cPickle as pickle
@@ -106,10 +107,12 @@ def saveArraystar(args):
 def saveArrays(arraydir, processes):
     "Save shared arrays."
     # make arraydir
-    if os.path.exists(arraydir):
-        [ os.remove(os.path.join(arraydir,name)) for name in os.listdir(arraydir) ]
-    else:
+    if os.path.isdir(arraydir):
+        shutil.rmtree(arraydir)
+    if not os.path.exists(arraydir):
         os.makedirs(arraydir)
+    else:
+        raise IOError, "%s already exists" % arraydir
     # distribute this
     # FIXME: numpy.savez is not threadsafe, sigh!
     if (processes == 1):

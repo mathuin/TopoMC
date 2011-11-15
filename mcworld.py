@@ -1,5 +1,6 @@
 # minecraft world
 import os
+import shutil
 from pymclevel import mclevel
 import logging
 logging.basicConfig(level=logging.WARNING)
@@ -12,10 +13,13 @@ def myinitWorld(string):
     global world
     # it's a simpler universe now
     worlddir = os.path.join("Worlds", string)
+    if os.path.isdir(worlddir):
+        shutil.rmtree(worlddir)
     if not os.path.exists(worlddir):
-        os.mkdir(worlddir)
-    if not os.path.isdir(worlddir):
+        os.makedirs(worlddir)
+    else:
         raise IOError, "%s already exists" % worlddir
+
     world = mclevel.MCInfdevOldLevel(worlddir, create=True)
 
 def mysaveWorld():
