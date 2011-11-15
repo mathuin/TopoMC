@@ -42,7 +42,7 @@ for key in oreType.keys():
     oreNodeCount[key] = Value('i', 0)
     oreVeinCount[key] = Value('i', 0)
 # any ore that tries to replace these blocks is hereby disqualified
-oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)', 'Bedrock'])
+oreDQ = set(oreType.values() + ['Air', 'Water', 'Water (active)', 'Lava', 'Lava (active)', 'Bedrock'])
 
 # actually deposits the ore
 def processOre(oreName, minY, maxY, maxExtent):
