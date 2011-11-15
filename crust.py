@@ -7,7 +7,7 @@ from invdisttree import Invdisttree
 from itertools import product
 from numpy import array, int32, fromfunction, uint8, max, min
 from random import randint, uniform
-from time import clock
+from timer import timer
 import logging
 logging.basicConfig(level=logging.WARNING)
 crustlogger = logging.getLogger('crust')
@@ -15,11 +15,11 @@ crustlogger = logging.getLogger('crust')
 crustIDT = None
 
 # first generate the crust IDT for the whole map
+@timer(crustlogger.info)
 def makeCrustIDT(args):
     rows, cols = getDatasetDims(args.region)
     lcds, elevds = getDataset(args.region)
     global crustIDT
-    start = clock()
     crustCoordsList = []
     crustValuesList = []
     crustlogger.info("making Crust IDT")
@@ -28,7 +28,6 @@ def makeCrustIDT(args):
     crustCoordsList = [worldLatLong[randint(0,rows-1)*cols+randint(0,cols-1)] for elem in xrange(int(rows*cols*0.01))]
     crustValuesList = [uniform(1,5) for elem in crustCoordsList]
     crustIDT = Invdisttree(array(crustCoordsList), array(crustValuesList))
-    crustlogger.info("... done in %.2f seconds" % (clock()-start))
 
 # construct the crust array for the tile
 def getCrust(bathyArray, baseArray):

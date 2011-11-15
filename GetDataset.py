@@ -14,7 +14,7 @@ from lxml import etree
 from time import sleep
 from dataset import landcoverIDs, elevationIDs, decodeLayerID, warpFile
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 # dataset-specific images
 # NB: not multi-file friendly

@@ -3,7 +3,6 @@
 from __future__ import division
 from random import randint
 from multiprocessing import Value
-from time import clock
 from scipy.special import cbrt
 from math import pi
 from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
@@ -11,6 +10,7 @@ from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 import mcarray
 from multiprocessing import Pool
 from itertools import product
+from timer import timer
 import logging
 logging.basicConfig(level=logging.WARNING)
 orelogger = logging.getLogger('ore')
@@ -89,8 +89,8 @@ def processOres(oreName, minY, maxY, maxExtent, numRounds):
     return None
 
 # whole-world approach
+@timer(orelogger.info)
 def placeOre():
-    placestart = clock()
     # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
@@ -103,7 +103,6 @@ def placeOre():
         numRounds = int(oreRounds[ore]*numChunks)
         processOres(ore, minY, maxY, maxExtent, numRounds)
         orelogger.info("... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value))
-    orelogger.info("finished in %.2f seconds." % (clock()-placestart))
 
 def printStatistics():
     # NB: do not change to logger
