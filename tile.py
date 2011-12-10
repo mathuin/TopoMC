@@ -6,7 +6,7 @@ from coords import *
 from invdisttree import *
 from bathy import getBathymetry
 from crust import getCrust
-from dataset import getDatasetDims
+from dataset import getDatasetDims, getDatasetElevs
 from multiprocessing import Pool
 from itertools import product
 from mcarray import maxelev
@@ -15,7 +15,7 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 tilelogger = logging.getLogger('tile')
 
-def getIDT(ds, offset, size, vScale=1, nodata=None):
+def getIDT(ds, offset, size, vScale=1, nodata=None, trim=0):
     "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
     # retrieve data from dataset
     Band = ds.GetRasterBand(1)
@@ -30,6 +30,10 @@ def getIDT(ds, offset, size, vScale=1, nodata=None):
     # build initial arrays
     LatLong = getLatLongArray(ds, (offset), (size), 1)
     Value = Data.flatten()
+
+    # trim elevation
+    if (trim > 0):
+        Value = Value - trim
 
     # scale elevation vertically
     Value = Value / vScale
@@ -53,10 +57,10 @@ def getOffsetSize(ds, corners, mult=1):
     tilelogger.debug("offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1]))
     return offset, size
 
-def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False):
+def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False, trim=0):
     "Given the relevant information, builds the image array."
     Offset, Size = getOffsetSize(ds, idtCorners)
-    IDT = getIDT(ds, Offset, Size, vScale, nodata)
+    IDT = getIDT(ds, Offset, Size, vScale, nodata, trim)
     ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
 
     return ImageArray
@@ -81,6 +85,7 @@ def processTile(args, tileRowIndex, tileColIndex):
     curtime = time()
     (lcds, elevds) = getDataset(args.region)
     (rows, cols) = getDatasetDims(args.region)
+    (elevmin, elevmax) = getDatasetElevs(args.region)
     maxRows = int(rows*mult)
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
@@ -101,7 +106,7 @@ def processTile(args, tileRowIndex, tileColIndex):
     lcImageArray.resize(baseShape)
 
     # elevation array
-    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale)
+    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale, trim=elevmin)
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification
@@ -131,6 +136,8 @@ def processTile(args, tileRowIndex, tileColIndex):
         crustval = int(crustImageArray[tilez,tilex])
         real_x = baseOffset[0] + tilex
         real_z = baseOffset[1] + tilez
+        if (elevval < 0):
+            print "OMG elevval %d is less than zero" % (elevval)
         if (elevval > maxelev):
             tilelogger.warning('Elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev))
             elevval = maxelev

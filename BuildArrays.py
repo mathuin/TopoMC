@@ -10,7 +10,7 @@ import os
 from math import ceil
 from argparse import ArgumentParser
 from multiprocessing import cpu_count
-from dataset import getDataset, checkDataset, listDatasets, dsDict, getDatasetDims, getDatasetNodata
+from dataset import getDataset, checkDataset, listDatasets, dsDict, getDatasetDims, getDatasetNodata, getDatasetElevs
 from tile import checkTile, checkStartEnd, processTiles
 import bathy
 import mcarray
@@ -55,17 +55,12 @@ def checkVScale(args):
         oldvscale = args.vscale[0]
     else:
         oldvscale = int(args.vscale)
-    (lcds, elevds) = getDataset(args.region)
-    lcds = None
-    elevBand = elevds.GetRasterBand(1)
-    elevCMinMax = elevBand.ComputeRasterMinMax(False)
-    elevBand = None
-    elevds = None
-    elevMax = elevCMinMax[1]
-    vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, ceil(elevMax/mcarray.maxelev))
+    (elevmin, elevmax) = getDatasetElevs(args.region)
+    elevdiff = elevmax-elevmin
+    vscale = min(oldvscale, elevdiff)
+    vscale = max(vscale, ceil(elevdiff/mcarray.maxelev))
     if (vscale != oldvscale):
-        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevMax, oldvscale*mcarray.maxelev, vscale)
+        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevdiff, oldvscale*mcarray.maxelev, vscale)
     args.vscale = vscale
     return vscale
 
