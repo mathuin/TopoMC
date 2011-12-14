@@ -32,8 +32,7 @@ def getIDT(ds, offset, size, vScale=1, nodata=None, trim=0):
     Value = Data.flatten()
 
     # trim elevation
-    if (trim > 0):
-        Value = Value - trim
+    Value = Value - trim
 
     # scale elevation vertically
     Value = Value / vScale
@@ -86,6 +85,10 @@ def processTile(args, tileRowIndex, tileColIndex):
     (lcds, elevds) = getDataset(args.region)
     (rows, cols) = getDatasetDims(args.region)
     (elevmin, elevmax) = getDatasetElevs(args.region)
+    if (args.doTrim):
+        trimElev = elevmin
+    else:
+        trimElev = 0
     maxRows = int(rows*mult)
     maxCols = int(cols*mult)
     baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
@@ -106,7 +109,7 @@ def processTile(args, tileRowIndex, tileColIndex):
     lcImageArray.resize(baseShape)
 
     # elevation array
-    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale, trim=elevmin)
+    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale, trim=trimElev)
     elevImageArray.resize(baseShape)
 
     # TODO: go through the arrays for some special transmogrification

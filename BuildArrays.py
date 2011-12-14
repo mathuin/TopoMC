@@ -56,11 +56,14 @@ def checkVScale(args):
     else:
         oldvscale = int(args.vscale)
     (elevmin, elevmax) = getDatasetElevs(args.region)
-    elevdiff = elevmax-elevmin
-    vscale = min(oldvscale, elevdiff)
-    vscale = max(vscale, ceil(elevdiff/mcarray.maxelev))
+    if (args.doTrim):
+        elevcheck = elevmax-elevmin
+    else:
+        elevcheck = elevmax
+    vscale = min(oldvscale, elevcheck)
+    vscale = max(vscale, ceil(elevcheck/mcarray.maxelev))
     if (vscale != oldvscale):
-        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevdiff, oldvscale*mcarray.maxelev, vscale)
+        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevcheck, oldvscale*mcarray.maxelev, vscale)
     args.vscale = vscale
     return vscale
 
@@ -90,6 +93,7 @@ def main(argv):
     parser.add_argument('--end', nargs=2, default=default_end, type=int, help="end tile in tuple form (default %s)" % (default_end,))
     parser.add_argument('--disable-stats', action='store_false', dest='doStats', default=True, help="disables stats generation when not necessary")
     parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help="disables ore generation when not necessary")
+    parser.add_argument('--trim', action='store_true', dest='doTrim', default=False, help="trim all space between minimum elevation and sea level")
     args = parser.parse_args()
 
     # list regions if requested
