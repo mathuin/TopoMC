@@ -10,7 +10,7 @@ import os
 from math import ceil
 from argparse import ArgumentParser
 from multiprocessing import cpu_count
-from dataset import getDataset, checkDataset, listDatasets, dsDict, getDatasetDims, getDatasetNodata
+from dataset import getDataset, checkDataset, listDatasets, dsDict, getDatasetDims, getDatasetNodata, getDatasetElevs
 from tile import checkTile, checkStartEnd, processTiles
 import bathy
 import mcarray
@@ -55,17 +55,15 @@ def checkVScale(args):
         oldvscale = args.vscale[0]
     else:
         oldvscale = int(args.vscale)
-    (lcds, elevds) = getDataset(args.region)
-    lcds = None
-    elevBand = elevds.GetRasterBand(1)
-    elevCMinMax = elevBand.ComputeRasterMinMax(False)
-    elevBand = None
-    elevds = None
-    elevMax = elevCMinMax[1]
-    vscale = min(oldvscale, elevMax)
-    vscale = max(vscale, ceil(elevMax/mcarray.maxelev))
+    (elevmin, elevmax) = getDatasetElevs(args.region)
+    if (args.doTrim):
+        elevcheck = elevmax-elevmin
+    else:
+        elevcheck = elevmax
+    vscale = min(oldvscale, elevcheck)
+    vscale = max(vscale, ceil(elevcheck/mcarray.maxelev))
     if (vscale != oldvscale):
-        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevMax, oldvscale*mcarray.maxelev, vscale)
+        print "Warning: vertical scale of %d for region %s is invalid (max elevation is %d, max allowed is %d) -- changed to %d" % (oldvscale, args.region, elevcheck, oldvscale*mcarray.maxelev, vscale)
     args.vscale = vscale
     return vscale
 
@@ -95,6 +93,7 @@ def main(argv):
     parser.add_argument('--end', nargs=2, default=default_end, type=int, help="end tile in tuple form (default %s)" % (default_end,))
     parser.add_argument('--disable-stats', action='store_false', dest='doStats', default=True, help="disables stats generation when not necessary")
     parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help="disables ore generation when not necessary")
+    parser.add_argument('--trim', action='store_true', dest='doTrim', default=False, help="trim all space between minimum elevation and sea level")
     args = parser.parse_args()
 
     # list regions if requested
