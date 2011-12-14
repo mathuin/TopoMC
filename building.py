@@ -1,12 +1,12 @@
 from itertools import product
 from mcarray import setBlockAt, setBlocksAt, setBlockDataAt, setBlocksDataAt, sealevel, fillBlocks
-from time import clock
+from timer import timer
 import logging
 logging.basicConfig(level=logging.WARNING)
 buildinglogger = logging.getLogger('building')
 
+@timer(buildinglogger.info)
 def building(x, z, elevval, length, width, height, side):
-    buildingstart = clock()
     buildinglogger.info("Constructing a building at %d, %d, %d\nwith dimensions %d, %d, %d and facing %d" % (x, z, elevval, length, width, height, side))
     x_offset = int(length/2)
     right = x-x_offset
@@ -180,6 +180,3 @@ def building(x, z, elevval, length, width, height, side):
     setBlockDataAt(right, top+1, front, 0x5)
     setBlockAt(left, top+1, front, "Torch")
     setBlockDataAt(left, top+1, front, 0x5)
-
-    # tada
-    buildinglogger.info("... finished in %f seconds." % (clock()-buildingstart))

@@ -2,7 +2,7 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
 
-Version 0.7.2 includes changes to support the most up-to-date version of pymclevel (as of 2011 Aug 19).
+Version 0.8 includes changes to support the most up-to-date version of pymclevel (as of 2011 Dec 06).
 
 Recent changes include:
  * Larger areas can be downloaded from the USGS.
@@ -12,6 +12,8 @@ Recent changes include:
  * The rotated-rectangle problem is fixed!
 
 Features include:
+ * Vertical range can be expanded by trimming unused elevation.
+ * Specific USGS product IDs can be selected for download.
  * Ore (including dirt and gravel) is generated properly.
  * Simulated bathymetric data based on local terrain.
  * Datasets can now be downloaded directly from the USGS!
@@ -34,4 +36,6 @@ Next, here's what to do!
 3.  Build a new world! 
     jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown
 
-Both BuildArrays.py and BuildWorld.py have lots of options for the curious.
+Both BuildArrays.py and BuildWorld.py have lots of options for the curious.  
+
+One new option for BuildArrays.py is "--trim".  This option should be used with "--vscale 1" for users who are willing to sacrifice absolute elevation accuracy to achieve maximum vertical scale on the surface.  Essentially, "--trim" removes all the space between the minimum elevation of the region and sea level.  For more details, see the source code.

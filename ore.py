@@ -3,7 +3,6 @@
 from __future__ import division
 from random import randint
 from multiprocessing import Value
-from time import clock
 from scipy.special import cbrt
 from math import pi
 from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
@@ -11,6 +10,7 @@ from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
 import mcarray
 from multiprocessing import Pool
 from itertools import product
+from timer import timer
 import logging
 logging.basicConfig(level=logging.WARNING)
 orelogger = logging.getLogger('ore')
@@ -42,7 +42,7 @@ for key in oreType.keys():
     oreNodeCount[key] = Value('i', 0)
     oreVeinCount[key] = Value('i', 0)
 # any ore that tries to replace these blocks is hereby disqualified
-oreDQ = set(oreType.values() + ['Air', 'Water (still)', 'Water (active)', 'Lava (still)', 'Lava (active)', 'Bedrock'])
+oreDQ = set(oreType.values() + ['Air', 'Water', 'Water (active)', 'Lava', 'Lava (active)', 'Bedrock'])
 
 # actually deposits the ore
 def processOre(oreName, minY, maxY, maxExtent):
@@ -85,11 +85,12 @@ def processOres(oreName, minY, maxY, maxExtent, numRounds):
         tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
         results = pool.imap_unordered(processOrestar, tasks)
         bleah = [x for x in results]
+        pool = None
     return None
 
 # whole-world approach
+@timer(orelogger.info)
 def placeOre():
-    placestart = clock()
     # FIXME: calculate this instead?
     numChunks = len(arrayBlocks.keys())
     for ore in oreType.keys():
@@ -102,7 +103,6 @@ def placeOre():
         numRounds = int(oreRounds[ore]*numChunks)
         processOres(ore, minY, maxY, maxExtent, numRounds)
         orelogger.info("... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value))
-    orelogger.info("finished in %.2f seconds." % (clock()-placestart))
 
 def printStatistics():
     # NB: do not change to logger

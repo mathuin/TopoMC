@@ -1,5 +1,6 @@
 # methods which manipulate arrays and their elements
 import os
+import shutil
 import numpy
 import multinumpy
 import cPickle as pickle
@@ -106,10 +107,12 @@ def saveArraystar(args):
 def saveArrays(arraydir, processes):
     "Save shared arrays."
     # make arraydir
-    if os.path.exists(arraydir):
-        [ os.remove(os.path.join(arraydir,name)) for name in os.listdir(arraydir) ]
-    else:
+    if os.path.isdir(arraydir):
+        shutil.rmtree(arraydir)
+    if not os.path.exists(arraydir):
         os.makedirs(arraydir)
+    else:
+        raise IOError, "%s already exists" % arraydir
     # distribute this
     # FIXME: numpy.savez is not threadsafe, sigh!
     if (processes == 1):
@@ -124,18 +127,18 @@ def saveArrays(arraydir, processes):
 def loadArray(world, arraydir, name):
     "Load array from file."
     # extract arrays from file
+    fd = open(os.path.join(arraydir,name), 'rb')
     if (useNumpy):
-        infile = numpy.load(os.path.join(arraydir,name),mmap_mode=None)
+        infile = numpy.load(fd,mmap_mode=None)
         myBlocks = numpy.copy(infile['blocks'])
         myData = numpy.copy(infile['data'])
         infile = None
     else:
-        fd = open(os.path.join(arraydir,name), 'rb')
         myCuke = pickle.load(fd)
         myBlocks = numpy.copy(myCuke['blocks'])
         myData = numpy.copy(myCuke['data'])
         myCuke = None
-        fd.close()
+    fd.close()
     # extract key from filename
     key = name.split('.')[0]
     ctuple = key.split('x')

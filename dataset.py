@@ -143,12 +143,19 @@ def getDatasetDict():
             # calculate rows and columns
             rows = lcds.RasterXSize
             cols = lcds.RasterYSize
+            # minimum and maximum elevation here
+            elevband = elevds.GetRasterBand(1)
+            elevmin = elevband.GetMinimum()
+            elevmax = elevband.GetMaximum()
+            if elevmin is None or elevmax is None:
+                (elevmin, elevmax) = elevds.GetRasterBand(1).ComputeRasterMinMax(False)
+            elevband = None
             # nodata - just lc here
             nodata = int(lcds.GetRasterBand(lcds.RasterCount).GetNoDataValue())
             # clean up
             lcds = None
             elevds = None
-            retval[region] = [lcfile, elevfile, rows, cols, nodata]
+            retval[region] = [lcfile, elevfile, rows, cols, elevmin, elevmax, nodata]
     return retval
 
 def getDataset(region):
@@ -171,11 +178,19 @@ def getDatasetDims(region):
     else:
         return None
 
+def getDatasetElevs(region):
+    "Given a region name, return minimum and maximum elevations."
+    if (region in dsDict):
+        dsList = dsDict[region]
+        return (dsList[4], dsList[5])
+    else:
+        return None
+
 def getDatasetNodata(region):
     "Given a region name, return the nodata value."
     if (region in dsDict):
         dsList = dsDict[region]
-        return dsList[4]
+        return dsList[6]
     else:
         return None
 
