@@ -8,6 +8,7 @@ from pymclevel import mclevel
 from pymclevel.materials import alphaMaterials
 from itertools import product
 from multiprocessing import Pool
+from memoize import memoize
 from random import randint
 import logging
 logging.basicConfig(level=logging.WARNING)
@@ -45,10 +46,12 @@ def checkSealevel(string):
     return sealevel
 
 # helper functions for pymclevel
+@memoize()
 def materialNamed(string):
     "Returns block ID for block with name given in string."
     return [v.ID for v in alphaMaterials.allBlocks if v.name==string][0]
 
+@memoize()
 def names(blockID):
     "Returns block name for given block ID."
     return alphaMaterials.names[blockID][0]
