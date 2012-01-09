@@ -124,8 +124,12 @@ class Region:
 
         lcProductID = self.checkavail(landcoverIDs)
         self.lclayer = self.checkdownloadoptions(lcProductID)
+        if (self.lclayer == ""):
+            raise AttributeError, 'Landcover product ID not found'
         elProductID = self.checkavail(elevationIDs)
         self.ellayer = self.checkdownloadoptions(elProductID)
+        if (self.ellayer == ""):
+            raise AttributeError, 'Elevation product ID not found'
 
         # write the values to the file
         stream = file(os.path.join(regiondir, 'Region.yaml'), 'w')
@@ -220,7 +224,7 @@ class Region:
             layerID += CFfound[0]
         else:
             raise AttributeError, 'no acceptable compression format found'
-        return layerID
+        return str(layerID)
 
     def requestvalidation(self, layerIDs):
         """Generates download URLs from layer IDs."""
@@ -384,27 +388,12 @@ class Region:
 
     def warpelevation(self):
         """Warp elevation file to match landcover file."""
-        # NB: not multi-big-file-friendly
-        elevationimage = ""
-        landcoverimage = ""
-        layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
-        for layerID in layerIDs:
-            (pType, iType, mType, cType) = decodeLayerID(layerID)
-            dataname = os.path.join(self.mapsdir, layerID, "%s.%s" % (layerID, iType))
-            if (pType == "elevation"):
-                elevationimage = dataname
-            elif (pType == "landcover"):
-                landcoverimage = dataname
-            else:
-                raise AttributeError, "Product type %s not yet supported!" % pType
-        if (elevationimage == ""):
-            raise AttributeError, "Elevation image not found!"
-        if (landcoverimage == ""):
-            raise AttributeError, "Landcover image not found!"
-
-        elevationimageorig = "%s-orig" % elevationimage
-        os.rename(elevationimage, elevationimageorig)
-        warpFile(elevationimageorig, elevationimage, landcoverimage)
+        # NB: multi-file issues should have been handled in extractfiles
+        lcimage = os.path.join(self.mapsdir, self.lclayer, '%s.%s' % (self.lclayer, decodeLayerID(self.lclayer)[1]))
+        elimage = os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, decodeLayerID(self.ellayer)[1]))
+        elimageorig = "%s-orig" % elimage
+        os.rename(elimage, elimageorig)
+        warpFile(elimageorig, elimage, lcimage)
 
     def getfiles(self):
         """Get files from USGS."""
@@ -419,14 +408,13 @@ class Region:
 def checkRegion():
     epsilon = 0.000001 # comparing floating point with equals is wrong
 
-    if True:
-        try:
-            BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
-        except AttributeError:
-            print "Mod 16 check passed"
-        else:
-            print "Mod 16 check failed"
-            exit -1
+    try:
+        BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
+    except AttributeError:
+        print "Mod 16 check passed"
+    else:
+        raise AssertionError, "Mod 16 check failed"
+        
 
     BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     try:
@@ -454,12 +442,26 @@ def checkRegion():
         assert myyaml['txmin'] == BlockIsland.txmin, 'YAML txmin does not match'
         assert myyaml['tymax'] == BlockIsland.tymax, 'YAML tymax does not match'
         assert myyaml['tymin'] == BlockIsland.tymin, 'YAML tymin does not match'
+        assert myyaml['lclayer'] == BlockIsland.lclayer, 'YAML lclayer does not match'
+        assert myyaml['ellayer'] == BlockIsland.ellayer, 'YAML ellayer does not match'
     except AssertionError:
         pass
     else:
         print "YAML check passed"
 
     BlockIsland.getfiles()
+    try:
+        # for now, just check existence of all three map files
+        lcimage = os.path.join(BlockIsland.mapsdir, BlockIsland.lclayer, '%s.%s' % (BlockIsland.lclayer, decodeLayerID(BlockIsland.lclayer)[1]))
+        elimage = os.path.join(BlockIsland.mapsdir, BlockIsland.ellayer, '%s.%s' % (BlockIsland.ellayer, decodeLayerID(BlockIsland.ellayer)[1]))
+        elimageorig = "%s-orig" % elimage
+        assert os.path.exists(lcimage), 'getfiles: lcimage %s does not exist' % lcimage
+        assert os.path.exists(elimage), 'getfiles: elimage %s does not exist' % elimage
+        assert os.path.exists(elimageorig), 'getfiles: elimageorig %s does not exist' % elimageorig
+    except AssertionError:
+        pass
+    else:
+        print "getfiles check passed"
     
 if __name__ == '__main__':
     checkRegion();
