@@ -122,6 +122,11 @@ class Region:
         self.mapymax = max(yfloat)
         self.mapymin = min(yfloat)
 
+        lcProductID = self.checkavail(landcoverIDs)
+        self.lclayer = self.checkdownloadoptions(lcProductID)
+        elProductID = self.checkavail(elevationIDs)
+        self.ellayer = self.checkdownloadoptions(elProductID)
+
         # write the values to the file
         stream = file(os.path.join(regiondir, 'Region.yaml'), 'w')
         yaml.dump({'tilesize': self.tilesize, 
@@ -135,11 +140,13 @@ class Region:
                    'txmin': self.txmin,
                    'tymax': self.tymax,
                    'tymin': self.tymin,
+                   'lclayer': self.lclayer,
+                   'ellayer': self.ellayer,
                    }, 
                   stream)
         stream.close()
 
-    def checkavail(self, xmin, xmax, ymin, ymax, productlist, epsg=4326):
+    def checkavail(self, productlist):
         """Check availability with web service."""
         # access the web service to check availability
         wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
@@ -156,7 +163,7 @@ class Region:
             raise AttributeError, "No attributes found"
     
         # return_attributes arguments dictionary
-        rAdict = {'Attribs': ','.join(attributes), 'XMin': xmin, 'XMax': xmax, 'YMin': ymin, 'YMax': ymax, 'EPSG': epsg}
+        rAdict = {'Attribs': ','.join(attributes), 'XMin': self.mapxmin, 'XMax': self.mapxmax, 'YMin': self.mapymin, 'YMax': self.mapymax, 'EPSG': Region.wgs84}
         rAatts = clientInv.service.return_Attributes(**rAdict)
         # store offered products in a list
         offered = []
@@ -171,67 +178,49 @@ class Region:
         # this should extract the first
         for ID in productlist:
             if (ID in offered):
-                return [ID, xmin, xmax, ymin, ymax]
+                return ID
         raise AttributeError, "No products are available for this location!"
 
-    def checkdownloadoptions(self, productIDs):
+    def checkdownloadoptions(self, productID):
         """Check download options for product IDs."""
+        OFlist = [u'GeoTIFF']
+        MFlist = [u'HTML', u'ALL', u'FAQ', u'SGML', u'TXT', u'XML']
+        CFlist = [u'TGZ', u'ZIP']
         wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
         clientInv = suds.client.Client(wsdlInv)
-        productdict = {'ProductIDs': ','.join([elem[0] for elem in productIDs])}
+        productdict = {'ProductIDs': productID}
         doproducts = clientInv.service.return_Download_Options(**productdict)
-        layerIDs = []
-        for products in doproducts[0]:
-            productID = products[0]
-            for ID in productIDs:
-                if (productID == ID[0]):
-                    xmin = ID[1]
-                    xmax = ID[2]
-                    ymin = ID[3]
-                    ymax = ID[4]
-            layerID = productID
-            outputformats = {}
-            compressionformats = {}
-            metadataformats = {}
-            for pair in products[2].split(','):
-                (v, k) = pair.split('-')
-                outputformats[k] = v
-            for pair in products[3].split(','):
-                (v, k) = pair.split('-')
-                compressionformats[k] = v
-            for pair in products[4].split(','):
-                (v, k) = pair.split('-')
-                metadataformats[k] = v
-            # I want GeoTIFF, HTML and TGZ here
-            if u'GeoTIFF' in outputformats:
-                layerID += outputformats['GeoTIFF']
-            else:
-                raise AttributeError, 'GeoTIFF not available'
-            # I do not use metadata so I don't care!
-            if u'HTML' in metadataformats:
-                layerID += metadataformats['HTML']
-            elif u'ALL' in metadataformats:
-                layerID += metadataformats['ALL']
-            elif u'FAQ' in metadataformats:
-                layerID += metadataformats['FAQ']
-            elif u'SGML' in metadataformats:
-                layerID += metadataformats['SGML']
-            elif u'TXT' in metadataformats:
-                layerID += metadataformats['TXT']
-            elif u'XML' in metadataformats:
-                layerID += metadataformats['XML']
-            else:
-                raise AttributeError, 'HTML not available'
-            # prefer TGZ to ZIP
-            # consider preferences like landcoverIDs
-            if u'TGZ' in compressionformats:
-                layerID += compressionformats['TGZ']
-            elif u'ZIP' in compressionformats:
-                layerID += compressionformats['ZIP']
-            else:
-                raise AttributeError, 'no compression formats available'
-            layerIDs.append([layerID, xmin, xmax, ymin, ymax])
-        return layerIDs
+        [doPID, doType, doOF, doCF, doMF] = [value for (key, value) in doproducts['DownloadOptions'][0]]
+        # assemble layerID
+        layerID = doPID
+        outputformats = {}
+        compressionformats = {}
+        metadataformats = {}
+        for pair in doOF.split(','):
+            (v, k) = pair.split('-')
+            outputformats[k] = v
+        for pair in doCF.split(','):
+            (v, k) = pair.split('-')
+            compressionformats[k] = v
+        for pair in doMF.split(','):
+            (v, k) = pair.split('-')
+            metadataformats[k] = v
+        OFfound = [outputformats[OFval] for OFval in OFlist if OFval in outputformats]
+        if OFfound:
+            layerID += OFfound[0]
+        else:
+            raise AttributeError, 'no acceptable output format found'
+        MFfound = [metadataformats[MFval] for MFval in MFlist if MFval in metadataformats]
+        if MFfound:
+            layerID += MFfound[0]
+        else:
+            raise AttributeError, 'no acceptable metadata format found'
+        CFfound = [compressionformats[CFval] for CFval in CFlist if CFval in compressionformats]
+        if CFfound:
+            layerID += CFfound[0]
+        else:
+            raise AttributeError, 'no acceptable compression format found'
+        return layerID
 
     def requestvalidation(self, layerIDs):
         """Generates download URLs from layer IDs."""
@@ -243,17 +232,16 @@ class Region:
 
         # we now iterate through layerIDs
         for layerID in layerIDs:
-            (tag, xmin, xmax, ymin, ymax) = layerID
-            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (ymax, ymin, xmin, xmax, tag, 250) # can be 100, 15, 25, 50, 75, 250
+            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (self.mapymax, self.mapymin, self.mapxmin, self.mapxmax, layerID, 250) # can be 100, 15, 25, 50, 75, 250
 
             response = clientRequest.service.processAOI2(xmlString)
 
-            #print "Requested URLs for layer ID %s..." % tag
+            #print "Requested URLs for layer ID %s..." % layerID
 
             # I am still a bad man.
             downloadURLs = [x.rsplit("</DOWNLOAD_URL>")[0] for x in response.split("<DOWNLOAD_URL>")[1:]]
 
-            retval[tag] = downloadURLs
+            retval[layerID] = downloadURLs
 
         return retval
 
@@ -261,9 +249,12 @@ class Region:
         """Actually download the file at the URL."""
         # FIXME: extract try/expect around urlopen
         # FIXME: consider breaking apart further
+        (pType, iType, mType, cType) = decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
+            # whee!
+            os.symlink(layerdir, os.path.join(self.mapsdir, pType))
 
         #print "  Requesting download for %s." % layerID
         # initiateDownload and get the response code
@@ -361,12 +352,12 @@ class Region:
         for layerID in layerIDs:
             (pType, iType, mType, cType) = decodeLayerID(layerID)
             filesuffix = cType.lower()
-            layersubdir = os.path.join(self.mapsdir, layerID)
-            compfiles = [ name for name in os.listdir(layersubdir) if (os.path.isfile(os.path.join(layersubdir, name)) and name.endswith(filesuffix)) ]
+            layerdir = os.path.join(self.mapsdir, layerID)
+            compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
             for compfile in compfiles:
                 (compbase, compext) = os.path.splitext(compfile)
-                fullfile = os.path.join(layersubdir, compfile)
-                datasubdir = os.path.join(layersubdir, compbase)
+                fullfile = os.path.join(layerdir, compfile)
+                datasubdir = os.path.join(layerdir, compbase)
                 compimage = os.path.join(compbase, "%s.%s" % (compbase, iType))
                 if os.path.exists(datasubdir):
                     shutil.rmtree(datasubdir)
@@ -376,20 +367,20 @@ class Region:
                         cFile = tarfile.open(fullfile)
                     elif (cType == "ZIP"):
                         cFile = zipfile.ZipFile(fullfile)
-                    cFile.extract(compimage, layersubdir)
+                    cFile.extract(compimage, layerdir)
                     cFile.close()
                 else:
                     if (cType == "TGZ"):
                         cFile = tarfile.open(fullfile)
-                        cFile.extract(compimage, layersubdir)
+                        cFile.extract(compimage, layerdir)
                     elif (cType == "ZIP"):
                         omfgcompimage = "\\".join([compbase, "%s.%s" % (compbase, iType)])
                         os.mkdir(os.path.dirname(os.path.join(datasubdir,compimage)))
                         cFile = zipfile.ZipFile(fullfile)
                         cFile.extract(omfgcompimage, datasubdir)
-                        os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layersubdir,compimage))
+                        os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layerdir,compimage))
                     cFile.close()
-            os.system("cd %s && gdalbuildvrt -resolution highest %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layersubdir, layerID, iType, layerID, layerID, iType))
+            os.system("cd %s && gdalbuildvrt -resolution highest %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layerdir, layerID, iType, layerID, layerID, iType))
 
     def warpelevation(self):
         """Warp elevation file to match landcover file."""
@@ -417,10 +408,7 @@ class Region:
 
     def getfiles(self):
         """Get files from USGS."""
-        # transmit el values for both, don't ask why right now
-        productIDs = (self.checkavail(self.mapxmin, self.mapxmax, self.mapymin, self.mapymax, landcoverIDs),
-                      self.checkavail(self.mapxmin, self.mapxmax, self.mapymin, self.mapymax, elevationIDs))
-        layerIDs = self.checkdownloadoptions(productIDs)
+        layerIDs = [self.lclayer, self.ellayer]
         downloadURLs = self.requestvalidation(layerIDs)
         for layerID in downloadURLs.keys():
             for downloadURL in downloadURLs[layerID]:
