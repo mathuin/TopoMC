@@ -36,5 +36,5 @@ def getCoords(ds, lat, lon):
     pnt = ds.transforms[1].TransformPoint(lon, lat, 0)
     x = (pnt[0] - ds.transforms[2][0])/ds.transforms[2][1]
     y = (pnt[1] - ds.transforms[2][3])/ds.transforms[2][5]
-    return int(x), int(y)
+    return round(x), round(y)
 
