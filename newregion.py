@@ -14,12 +14,27 @@ import logging
 logging.basicConfig(level=logging.INFO)
 #logging.getLogger('suds.client').setLevel(logging.DEBUG)
 from time import sleep
-from dataset import decodeLayerID, landcoverIDs, elevationIDs, warpFile
+from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
 
 # sadness
 zipfileBroken = False
+
+# product types in order of preference
+# NB: only seamless types are being considered at present
+#     next version should handle tiled!
+# landcover IDs are:
+# L04 - 2001 version 2.0 (should work just fine)
+# L01 - 2001 (currently the only one fully supported)
+# L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
+# L6L - 2006
+# need to abstract out terrain.py!
+landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
+# JMT - 2011Aug29 - ND9 is not working, commenting out
+elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
+#elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
+#elevationIDs = ['NED', 'ND3', 'NAK', 'ND9']
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
@@ -36,16 +51,56 @@ class Region:
     wgs84 = 4326
     albers = 102039
 
-
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=256, scale=6, maxdepth=16):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
         if (tilesize % 16 != 0):
-            raise AttributeError
+            raise AttributeError, 'bad tilesize %s' % tilesize
         self.tilesize = tilesize
+        # only integers for me
+        if (30 % scale != 0):
+            raise AttributeError, 'bad scale %s' % scale
         self.scale = scale
         self.maxdepth = maxdepth
+
+        # SCALE CRAZY
+        # if scale is 1, map is huge.  there will be many tiles for the same area.
+        #   therefore tiles will be smaller in real-world meters.
+        # if scale is 30, map is tiny.  there will be few tiles for the same area.
+        #   therefore tiles will be larger in real-world meters.
+        # ALSO:
+        # the smaller tiles get, the closer to the supplied coordinates they should be.
+
+        # BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
+        # Region-mult-1.yaml
+        # {ellayer: NED02HT, lclayer: L0102HT, mapxmax: -71.4987109807475, mapxmin: -71.6535260579047,
+        #   mapymax: 41.2561278285407, mapymin: 41.1247467528176, maxdepth: 16, mult: 1, tilesize: 256,
+        #   txmax: 7872, txmin: 7833, tymax: 8931, tymin: 8882}
+        # ... 7872-7833 = 39, 8931-8882 = 49, that's lots of tiles
+        # ...   -71.6535 instead of -71.6202 (0.0333)
+        # ...   -71.4987 instead of -71.5332 (0.0345)
+        # ...   41.2561 instead of 41.2378 (0.0183)
+        # ...   41.1247 instead of 41.1415 (0.0168)
+
+        # (/ (- -71.4987 -71.6535) 39) 0.003969230769230628 x degrees/tile
+        # (/ (- 41.2561 41.1247) 49) 0.002681632653061355 y degrees/tile
+
+        # Region-mult-30.yaml
+        # {ellayer: NED02HT, lclayer: L0102HT, mapxmax: -71.4380655023887, mapxmin: -71.6640056768999,
+        #   mapymax: 41.2777760454274, mapymin: 41.1098363050723, maxdepth: 16, mult: 30, tilesize: 256,
+        #   txmax: 263, txmin: 261, tymax: 298, tymin: 296}
+        # ... 263-261 = 2, 298-296 = 2, that's few tiles
+        # ...   -71.6640 instead of -71.6202 (0.0438)
+        # ...   -71.4381 instead of -71.5332 (0.0951)
+        # ...   41.2778 instead of 41.2378 (0.0400)
+        # ...   41.1098 instead of 41.1415 (0.0317)
+
+        # (/ (- -71.4381 -71.6640) 2) 0.11294999999999789 x degrees/tile
+        # (/ (- 41.2778 41.1098) 2) 0.08399999999999963 y degrees/tile
+
+        # (/ 0.11129499 0.00396923)28.039440899116453 about thirty yay
+        # (/ 0.08399999 0.00268163)31.324228174654966 about thirty yay
 
         # crazy directory fun
         regiondir = os.path.join('Regions', self.name)
@@ -133,22 +188,78 @@ class Region:
 
         # write the values to the file
         stream = file(os.path.join(regiondir, 'Region.yaml'), 'w')
-        yaml.dump({'tilesize': self.tilesize, 
-                   'scale': self.scale, 
-                   'maxdepth': self.maxdepth,
-                   'mapxmax': self.mapxmax,
-                   'mapxmin': self.mapxmin,
-                   'mapymax': self.mapymax,
-                   'mapymin': self.mapymin,
-                   'txmax': self.txmax,
-                   'txmin': self.txmin,
-                   'tymax': self.tymax,
-                   'tymin': self.tymin,
-                   'lclayer': self.lclayer,
-                   'ellayer': self.ellayer,
-                   }, 
-                  stream)
+        yaml.dump(self, stream)
+        # yaml.dump({'tilesize': self.tilesize, 
+        #            'scale': self.scale, 
+        #            'maxdepth': self.maxdepth,
+        #            'mapxmax': self.mapxmax,
+        #            'mapxmin': self.mapxmin,
+        #            'mapymax': self.mapymax,
+        #            'mapymin': self.mapymin,
+        #            'txmax': self.txmax,
+        #            'txmin': self.txmin,
+        #            'tymax': self.tymax,
+        #            'tymin': self.tymin,
+        #            'lclayer': self.lclayer,
+        #            'ellayer': self.ellayer,
+        #            }, 
+        #           stream)
         stream.close()
+
+
+    def decodeLayerID(self, layerID):
+        """Given a layer ID, return the product type, image type, metadata type, and compression type."""
+        # NB: convert this to dicts
+        productID = layerID[0]+layerID[1]+layerID[2]
+        if (productID in landcoverIDs):
+            pType = "landcover"
+        elif (productID in elevationIDs):
+            pType = "elevation"
+        else:
+            raise AttributeError, 'Invalid productID %s' % productID
+
+        imagetype = layerID[3]+layerID[4]
+        # only 02-GeoTIFF (tif) known to work
+        if (imagetype == "02"):
+            iType = "tif"
+        elif (imagetype == "01"):
+            iType = "arc"
+        elif (imagetype == "03"):
+            iType = "bil"
+        elif (imagetype == "05"):
+            iType = "GridFloat"
+        elif (imagetype == "12"):
+            iType = "IMG"
+        elif (imagetype == "15"):
+            iType = "bil_16int"
+        else:
+            raise AttributeError, 'Invalid imagetype %s' % imagetype
+        
+        metatype = layerID[5]
+        if (metatype == "A"):
+            mType = "ALL"
+        elif (metatype == "F"):
+            mType = "FAQ"
+        elif (metatype == "H"):
+            mType = "HTML"
+        elif (metatype == "S"):
+            mType = "SGML"
+        elif (metatype == "T"):
+            mType = "TXT"
+        elif (metatype == "X"):
+            mType = "XML"
+        else:
+            raise AttributeError, 'Invalid metatype %s' % metatype
+
+        compressiontype = layerID[6]
+        if (compressiontype == "T"):
+            cType = "TGZ"
+        elif (compressiontype == "Z"):
+            cType = "ZIP"
+        else:
+            raise AttributeError, 'Invalid compressiontype %s' % compressiontype
+        
+        return (pType, iType, mType, cType)
 
     def checkavail(self, productlist):
         """Check availability with web service."""
@@ -187,9 +298,9 @@ class Region:
 
     def checkdownloadoptions(self, productID):
         """Check download options for product IDs."""
-        OFlist = [u'GeoTIFF']
-        MFlist = [u'HTML', u'ALL', u'FAQ', u'SGML', u'TXT', u'XML']
-        CFlist = [u'TGZ', u'ZIP']
+        OFgood = [u'GeoTIFF']
+        MFgood = [u'HTML', u'ALL', u'FAQ', u'SGML', u'TXT', u'XML']
+        CFgood = [u'TGZ', u'ZIP']
         wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
         clientInv = suds.client.Client(wsdlInv)
         productdict = {'ProductIDs': productID}
@@ -197,29 +308,20 @@ class Region:
         [doPID, doType, doOF, doCF, doMF] = [value for (key, value) in doproducts['DownloadOptions'][0]]
         # assemble layerID
         layerID = doPID
-        outputformats = {}
-        compressionformats = {}
-        metadataformats = {}
-        for pair in doOF.split(','):
-            (v, k) = pair.split('-')
-            outputformats[k] = v
-        for pair in doCF.split(','):
-            (v, k) = pair.split('-')
-            compressionformats[k] = v
-        for pair in doMF.split(','):
-            (v, k) = pair.split('-')
-            metadataformats[k] = v
-        OFfound = [outputformats[OFval] for OFval in OFlist if OFval in outputformats]
+        OFdict = dict([reversed(pair.split('-')) for pair in doOF.split(',')])
+        CFdict = dict([reversed(pair.split('-')) for pair in doCF.split(',')])
+        MFdict = dict([reversed(pair.split('-')) for pair in doMF.split(',')])
+        OFfound = [OFdict[OFval] for OFval in OFgood if OFval in OFdict]
         if OFfound:
             layerID += OFfound[0]
         else:
             raise AttributeError, 'no acceptable output format found'
-        MFfound = [metadataformats[MFval] for MFval in MFlist if MFval in metadataformats]
+        MFfound = [MFdict[MFval] for MFval in MFgood if MFval in MFdict]
         if MFfound:
             layerID += MFfound[0]
         else:
             raise AttributeError, 'no acceptable metadata format found'
-        CFfound = [compressionformats[CFval] for CFval in CFlist if CFval in compressionformats]
+        CFfound = [CFdict[CFval] for CFval in CFgood if CFval in CFdict]
         if CFfound:
             layerID += CFfound[0]
         else:
@@ -253,12 +355,10 @@ class Region:
         """Actually download the file at the URL."""
         # FIXME: extract try/expect around urlopen
         # FIXME: consider breaking apart further
-        (pType, iType, mType, cType) = decodeLayerID(layerID)
+        (pType, iType, mType, cType) = self.decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
-            # whee!
-            os.symlink(layerdir, os.path.join(self.mapsdir, pType))
 
         #print "  Requesting download for %s." % layerID
         # initiateDownload and get the response code
@@ -354,7 +454,7 @@ class Region:
 
         layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
         for layerID in layerIDs:
-            (pType, iType, mType, cType) = decodeLayerID(layerID)
+            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
             filesuffix = cType.lower()
             layerdir = os.path.join(self.mapsdir, layerID)
             compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
@@ -389,11 +489,16 @@ class Region:
     def warpelevation(self):
         """Warp elevation file to match landcover file."""
         # NB: multi-file issues should have been handled in extractfiles
-        lcimage = os.path.join(self.mapsdir, self.lclayer, '%s.%s' % (self.lclayer, decodeLayerID(self.lclayer)[1]))
-        elimage = os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, decodeLayerID(self.ellayer)[1]))
+        lcimage = os.path.join(self.mapsdir, self.lclayer, '%s.%s' % (self.lclayer, self.decodeLayerID(self.lclayer)[1]))
+        elimage = os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, self.decodeLayerID(self.ellayer)[1]))
         elimageorig = "%s-orig" % elimage
         os.rename(elimage, elimageorig)
-        warpFile(elimageorig, elimage, lcimage)
+        prffd = NamedTemporaryFile(delete=False)
+        prfname = prffd.name
+        prffd.close()
+        os.system('gdalinfo %s | sed -e "1,/Coordinate System is:/d" -e "/Origin =/,\$d" | xargs echo > %s' % (lcimage, prfname))
+        os.system('gdalwarp -srcnodata -340282346638528859811704183484516925440.000 -dstnodata 0 -t_srs %s -r cubic %s %s' % (prfname, elimageorig, elimage))
+        os.remove(prfname)
 
     def getfiles(self):
         """Get files from USGS."""
@@ -411,57 +516,60 @@ def checkRegion():
     try:
         BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     except AttributeError:
-        print "Mod 16 check passed"
+        print 'Mod 16 check passed'
     else:
-        raise AssertionError, "Mod 16 check failed"
-        
+        raise AssertionError, 'Mod 16 check failed'
+
+    try:
+        BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, scale=7)
+    except AttributeError:
+        print 'Scale check passed'
+    else:
+        raise AssertionError, 'Scale check failed'
 
     BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     try:
-        assert (BlockIsland.mapxmax - -71.496356) < epsilon, "mapxmax does not check"
-        assert (BlockIsland.mapxmin - -71.664006) < epsilon, "mapxmin does not check"
-        assert (BlockIsland.mapymax - 41.264504) < epsilon, "mapymax does not check"
-        assert (BlockIsland.mapymin - 41.120324) < epsilon, "mapymin does not check"
-    except AssertionError:
         pass
+    except AssertionError, e:
+        print 'Region creation failed: ', e
     else:
-        print "Region creation passed"
+        print 'Region creation passed'
 
     yamlfile = file(os.path.join('Regions', 'BlockIsland', 'Region.yaml'))
     myyaml = yaml.load(yamlfile)
     yamlfile.close()
     try:
-        assert myyaml['tilesize'] == BlockIsland.tilesize, 'YAML tilesize does not match'
-        assert myyaml['scale'] == BlockIsland.scale, 'YAML scale does not match'
-        assert myyaml['maxdepth'] == BlockIsland.maxdepth, 'YAML maxdepth does not match'
-        assert (myyaml['mapxmax'] - BlockIsland.mapxmax) < epsilon, "YAML mapxmax does not match"
-        assert (myyaml['mapxmin'] - BlockIsland.mapxmin) < epsilon, "YAML mapxmin does not match"
-        assert (myyaml['mapymax'] - BlockIsland.mapymax) < epsilon, "YAML mapymax does not match"
-        assert (myyaml['mapymin'] - BlockIsland.mapymin) < epsilon, "YAML mapymin does not match"
-        assert myyaml['txmax'] == BlockIsland.txmax, 'YAML txmax does not match'
-        assert myyaml['txmin'] == BlockIsland.txmin, 'YAML txmin does not match'
-        assert myyaml['tymax'] == BlockIsland.tymax, 'YAML tymax does not match'
-        assert myyaml['tymin'] == BlockIsland.tymin, 'YAML tymin does not match'
-        assert myyaml['lclayer'] == BlockIsland.lclayer, 'YAML lclayer does not match'
-        assert myyaml['ellayer'] == BlockIsland.ellayer, 'YAML ellayer does not match'
-    except AssertionError:
-        pass
+        assert myyaml.tilesize == BlockIsland.tilesize, 'YAML tilesize does not match'
+        assert myyaml.scale == BlockIsland.scale, 'YAML scale does not match'
+        assert myyaml.maxdepth == BlockIsland.maxdepth, 'YAML maxdepth does not match'
+        assert (myyaml.mapxmax - BlockIsland.mapxmax) < epsilon, 'YAML mapxmax does not match'
+        assert (myyaml.mapxmin - BlockIsland.mapxmin) < epsilon, 'YAML mapxmin does not match'
+        assert (myyaml.mapymax - BlockIsland.mapymax) < epsilon, 'YAML mapymax does not match'
+        assert (myyaml.mapymin - BlockIsland.mapymin) < epsilon, 'YAML mapymin does not match'
+        assert myyaml.txmax == BlockIsland.txmax, 'YAML txmax does not match'
+        assert myyaml.txmin == BlockIsland.txmin, 'YAML txmin does not match'
+        assert myyaml.tymax == BlockIsland.tymax, 'YAML tymax does not match'
+        assert myyaml.tymin == BlockIsland.tymin, 'YAML tymin does not match'
+        assert myyaml.lclayer == BlockIsland.lclayer, 'YAML lclayer does not match'
+        assert myyaml.ellayer == BlockIsland.ellayer, 'YAML ellayer does not match'
+    except AssertionError, e:
+        print 'YAML check failed: ', e
     else:
-        print "YAML check passed"
+        print 'YAML check passed'
 
     BlockIsland.getfiles()
     try:
         # for now, just check existence of all three map files
-        lcimage = os.path.join(BlockIsland.mapsdir, BlockIsland.lclayer, '%s.%s' % (BlockIsland.lclayer, decodeLayerID(BlockIsland.lclayer)[1]))
-        elimage = os.path.join(BlockIsland.mapsdir, BlockIsland.ellayer, '%s.%s' % (BlockIsland.ellayer, decodeLayerID(BlockIsland.ellayer)[1]))
-        elimageorig = "%s-orig" % elimage
+        lcimage = os.path.join(BlockIsland.mapsdir, BlockIsland.lclayer, '%s.%s' % (BlockIsland.lclayer, BlockIsland.decodeLayerID(BlockIsland.lclayer)[1]))
+        elimage = os.path.join(BlockIsland.mapsdir, BlockIsland.ellayer, '%s.%s' % (BlockIsland.ellayer, BlockIsland.decodeLayerID(BlockIsland.ellayer)[1]))
+        elimageorig = '%s-orig' % elimage
         assert os.path.exists(lcimage), 'getfiles: lcimage %s does not exist' % lcimage
         assert os.path.exists(elimage), 'getfiles: elimage %s does not exist' % elimage
         assert os.path.exists(elimageorig), 'getfiles: elimageorig %s does not exist' % elimageorig
-    except AssertionError:
-        pass
+    except AssertionError, e:
+        print 'getfiles check failed:', e
     else:
-        print "getfiles check passed"
+        print 'getfiles check passed'
     
 if __name__ == '__main__':
     checkRegion();
