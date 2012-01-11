@@ -78,44 +78,6 @@ class Region:
             if elevationIDs == False:
                 raise AttributeError, 'invalid elevation ID'
 
-        # SCALE CRAZY
-        # if scale is 1, map is huge.  there will be many tiles for the same area.
-        #   therefore tiles will be smaller in real-world meters.
-        # if scale is 30, map is tiny.  there will be few tiles for the same area.
-        #   therefore tiles will be larger in real-world meters.
-        # ALSO:
-        # the smaller tiles get, the closer to the supplied coordinates they should be.
-
-        # BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
-        # Region-mult-1.yaml
-        # {ellayer: NED02HT, lclayer: L0102HT, mapxmax: -71.4987109807475, mapxmin: -71.6535260579047,
-        #   mapymax: 41.2561278285407, mapymin: 41.1247467528176, maxdepth: 16, mult: 1, tilesize: 256,
-        #   txmax: 7872, txmin: 7833, tymax: 8931, tymin: 8882}
-        # ... 7872-7833 = 39, 8931-8882 = 49, that's lots of tiles
-        # ...   -71.6535 instead of -71.6202 (0.0333)
-        # ...   -71.4987 instead of -71.5332 (0.0345)
-        # ...   41.2561 instead of 41.2378 (0.0183)
-        # ...   41.1247 instead of 41.1415 (0.0168)
-
-        # (/ (- -71.4987 -71.6535) 39) 0.003969230769230628 x degrees/tile
-        # (/ (- 41.2561 41.1247) 49) 0.002681632653061355 y degrees/tile
-
-        # Region-mult-30.yaml
-        # {ellayer: NED02HT, lclayer: L0102HT, mapxmax: -71.4380655023887, mapxmin: -71.6640056768999,
-        #   mapymax: 41.2777760454274, mapymin: 41.1098363050723, maxdepth: 16, mult: 30, tilesize: 256,
-        #   txmax: 263, txmin: 261, tymax: 298, tymin: 296}
-        # ... 263-261 = 2, 298-296 = 2, that's few tiles
-        # ...   -71.6640 instead of -71.6202 (0.0438)
-        # ...   -71.4381 instead of -71.5332 (0.0951)
-        # ...   41.2778 instead of 41.2378 (0.0400)
-        # ...   41.1098 instead of 41.1415 (0.0317)
-
-        # (/ (- -71.4381 -71.6640) 2) 0.11294999999999789 x degrees/tile
-        # (/ (- 41.2778 41.1098) 2) 0.08399999999999963 y degrees/tile
-
-        # (/ 0.11129499 0.00396923)28.039440899116453 about thirty yay
-        # (/ 0.08399999 0.00268163)31.324228174654966 about thirty yay
-
         # crazy directory fun
         regiondir = os.path.join('Regions', self.name)
         self.mapsdir = os.path.join(regiondir, 'Maps')
