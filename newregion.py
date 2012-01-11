@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from __future__ import division
 from math import ceil, floor
 import suds
@@ -62,6 +64,7 @@ class Region:
         if (30 % scale != 0):
             raise AttributeError, 'bad scale %s' % scale
         self.scale = scale
+        self.mult = 30 / scale
 
         # specified IDs must be in region list
         if lcIDs == None:
@@ -120,7 +123,7 @@ class Region:
         mymin = min(yfloat)
 
         # calculate tile edges
-        realsize = self.scale * self.tilesize
+        realsize = self.mult * self.tilesize
         self.txmax = int(ceil(mxmax / realsize))
         self.tymax = int(ceil(mymax / realsize))
         self.txmin = int(floor(mxmin / realsize))
