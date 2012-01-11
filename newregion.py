@@ -18,24 +18,6 @@ from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
 
-# sadness
-zipfileBroken = False
-
-# product types in order of preference
-# NB: only seamless types are being considered at present
-#     next version should handle tiled!
-# landcover IDs are:
-# L04 - 2001 version 2.0 (should work just fine)
-# L01 - 2001 (currently the only one fully supported)
-# L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
-# L6L - 2006
-# need to abstract out terrain.py!
-landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
-# JMT - 2011Aug29 - ND9 is not working, commenting out
-elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
-#elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
-#elevationIDs = ['NED', 'ND3', 'NAK', 'ND9']
-
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
     def http_error_302(self, req, fp, code, msg, headers):
@@ -51,7 +33,25 @@ class Region:
     wgs84 = 4326
     albers = 102039
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=256, scale=6, maxdepth=16):
+    # sadness
+    zipfileBroken = False
+
+    # product types in order of preference
+    # NB: only seamless types are being considered at present
+    #     next version should handle tiled!
+    # landcover IDs are:
+    # L04 - 2001 version 2.0 (should work just fine)
+    # L01 - 2001 (currently the only one fully supported)
+    # L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
+    # L6L - 2006
+    # need to abstract out terrain.py!
+    landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
+    # JMT - 2011Aug29 - ND9 is not working, commenting out
+    #elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
+    #elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
+    elevationIDs = ['NED', 'ND3', 'ND9', 'NAK']
+
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=256, scale=6, maxdepth=16, lcIDs=None, elIDs=None, debug=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
@@ -63,6 +63,21 @@ class Region:
             raise AttributeError, 'bad scale %s' % scale
         self.scale = scale
         self.maxdepth = maxdepth
+
+        # specified IDs must be in region list
+        if lcIDs == None:
+            landcoverIDs = Region.landcoverIDs
+        else:
+            landcoverIDs = [ ID for ID in lcIDs if ID in Region.landcoverIDs ]
+            if landcoverIDs == False:
+                raise AttributeError, 'invalid landcover ID'
+
+        if elIDs == None:
+            elevationIDs = Region.elevationIDs
+        else:
+            elevationIDs = [ ID for ID in elIDs if ID in Region.elevationIDs ]
+            if elevationIDs == False:
+                raise AttributeError, 'invalid elevation ID'
 
         # SCALE CRAZY
         # if scale is 1, map is huge.  there will be many tiles for the same area.
@@ -126,13 +141,13 @@ class Region:
         Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
 
         # convert from WGS84 to Albers
-        ULdict = {'X_Value': llxmin, 'Y_Value': llymin, 'Current_Coordinate_System': self.wgs84, 'Target_Coordinate_System': self.albers}
+        ULdict = {'X_Value': llxmin, 'Y_Value': llymin, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        URdict = {'X_Value': llxmax, 'Y_Value': llymin, 'Current_Coordinate_System': self.wgs84, 'Target_Coordinate_System': self.albers}
+        URdict = {'X_Value': llxmax, 'Y_Value': llymin, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        LLdict = {'X_Value': llxmin, 'Y_Value': llymax, 'Current_Coordinate_System': self.wgs84, 'Target_Coordinate_System': self.albers}
+        LLdict = {'X_Value': llxmin, 'Y_Value': llymax, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        LRdict = {'X_Value': llxmax, 'Y_Value': llymax, 'Current_Coordinate_System': self.wgs84, 'Target_Coordinate_System': self.albers}
+        LRdict = {'X_Value': llxmax, 'Y_Value': llymax, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
         # select maximum values for landcover extents
@@ -159,13 +174,13 @@ class Region:
         lcymin = (self.tymin * realsize) - self.maxdepth
 
         # now convert back from Albers to WGS84
-        ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': self.albers, 'Target_Coordinate_System': self.wgs84}
+        ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': self.albers, 'Target_Coordinate_System': self.wgs84}
+        URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': self.albers, 'Target_Coordinate_System': self.wgs84}
+        LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': self.albers, 'Target_Coordinate_System': self.wgs84}
+        LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
         # select maximum values for elevation extents
@@ -177,43 +192,23 @@ class Region:
         self.mapymax = max(yfloat)
         self.mapymin = min(yfloat)
 
-        lcProductID = self.checkavail(landcoverIDs)
-        self.lclayer = self.checkdownloadoptions(lcProductID)
-        if (self.lclayer == ""):
-            raise AttributeError, 'Landcover product ID not found'
-        elProductID = self.checkavail(elevationIDs)
-        self.ellayer = self.checkdownloadoptions(elProductID)
-        if (self.ellayer == ""):
-            raise AttributeError, 'Elevation product ID not found'
+        # check availability of product IDs and identify specific layer IDs
+        self.lclayer = self.checkavail(landcoverIDs)
+        self.ellayer = self.checkavail(elevationIDs)
 
         # write the values to the file
         stream = file(os.path.join(regiondir, 'Region.yaml'), 'w')
         yaml.dump(self, stream)
-        # yaml.dump({'tilesize': self.tilesize, 
-        #            'scale': self.scale, 
-        #            'maxdepth': self.maxdepth,
-        #            'mapxmax': self.mapxmax,
-        #            'mapxmin': self.mapxmin,
-        #            'mapymax': self.mapymax,
-        #            'mapymin': self.mapymin,
-        #            'txmax': self.txmax,
-        #            'txmin': self.txmin,
-        #            'tymax': self.tymax,
-        #            'tymin': self.tymin,
-        #            'lclayer': self.lclayer,
-        #            'ellayer': self.ellayer,
-        #            }, 
-        #           stream)
         stream.close()
 
-
-    def decodeLayerID(self, layerID):
+    @staticmethod
+    def decodeLayerID(layerID):
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
         # NB: convert this to dicts
         productID = layerID[0]+layerID[1]+layerID[2]
-        if (productID in landcoverIDs):
+        if (productID in Region.landcoverIDs):
             pType = "landcover"
-        elif (productID in elevationIDs):
+        elif (productID in Region.elevationIDs):
             pType = "elevation"
         else:
             raise AttributeError, 'Invalid productID %s' % productID
@@ -261,6 +256,15 @@ class Region:
         
         return (pType, iType, mType, cType)
 
+    def lcfile(self):
+        """Landcover map file."""
+        return os.path.join(self.mapsdir, self.lclayer, '%s.%s' % (self.lclayer, Region.decodeLayerID(self.lclayer)[1]))
+
+    def elfile(self):
+        """Landcover map file."""
+        return os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, Region.decodeLayerID(self.ellayer)[1]))
+        
+        
     def checkavail(self, productlist):
         """Check availability with web service."""
         # access the web service to check availability
@@ -268,7 +272,7 @@ class Region:
         clientInv = suds.client.Client(wsdlInv)
 
         # ensure desired attributes are present
-        desiredAttributes = ['PRODUCTKEY', 'SEAMTITLE']
+        desiredAttributes = ['PRODUCTKEY']
         attributes = []
         attributeList = clientInv.service.return_Attribute_List()
         for attribute in desiredAttributes:
@@ -287,17 +291,14 @@ class Region:
         # in our case, there's only one key: PRODUCTKEY
         for elem in rAatts.ArrayOfCustomAttributes:
             for each in elem[0]:
-                if (each[0] == 'PRODUCTKEY'):
-                    if (each[1] in productlist):
+                if (each[0] == 'PRODUCTKEY' and each[1] in productlist):
                         offered.append(each[1])
         # this should extract the first
-        for ID in productlist:
-            if (ID in offered):
-                return ID
-        raise AttributeError, "No products are available for this location!"
-
-    def checkdownloadoptions(self, productID):
-        """Check download options for product IDs."""
+        try:
+            productID = [ ID for ID in productlist if ID in offered ][0]
+        except IndexError:
+            raise AttributeError, "No products are available for this location!"
+        # check download options
         OFgood = [u'GeoTIFF']
         MFgood = [u'HTML', u'ALL', u'FAQ', u'SGML', u'TXT', u'XML']
         CFgood = [u'TGZ', u'ZIP']
@@ -355,7 +356,7 @@ class Region:
         """Actually download the file at the URL."""
         # FIXME: extract try/expect around urlopen
         # FIXME: consider breaking apart further
-        (pType, iType, mType, cType) = self.decodeLayerID(layerID)
+        (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
@@ -454,7 +455,7 @@ class Region:
 
         layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
         for layerID in layerIDs:
-            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
+            (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
             filesuffix = cType.lower()
             layerdir = os.path.join(self.mapsdir, layerID)
             compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
@@ -466,7 +467,7 @@ class Region:
                 if os.path.exists(datasubdir):
                     shutil.rmtree(datasubdir)
                 os.makedirs(datasubdir)
-                if (zipfileBroken == False):
+                if (Region.zipfileBroken == False):
                     if (cType == "TGZ"):
                         cFile = tarfile.open(fullfile)
                     elif (cType == "ZIP"):
@@ -484,20 +485,20 @@ class Region:
                         cFile.extract(omfgcompimage, datasubdir)
                         os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layerdir,compimage))
                     cFile.close()
-            os.system("cd %s && gdalbuildvrt -resolution highest %s.vrt */*.%s && gdal_translate %s.vrt %s.%s" % (layerdir, layerID, iType, layerID, layerID, iType))
+            os.system("cd %s && gdalbuildvrt -resolution highest %s.vrt */*.%s >/dev/null && gdal_translate %s.vrt %s.%s >/dev/null" % (layerdir, layerID, iType, layerID, layerID, iType))
 
     def warpelevation(self):
         """Warp elevation file to match landcover file."""
         # NB: multi-file issues should have been handled in extractfiles
-        lcimage = os.path.join(self.mapsdir, self.lclayer, '%s.%s' % (self.lclayer, self.decodeLayerID(self.lclayer)[1]))
-        elimage = os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, self.decodeLayerID(self.ellayer)[1]))
+        lcimage = self.lcfile()
+        elimage = self.elfile()
         elimageorig = "%s-orig" % elimage
         os.rename(elimage, elimageorig)
         prffd = NamedTemporaryFile(delete=False)
         prfname = prffd.name
         prffd.close()
         os.system('gdalinfo %s | sed -e "1,/Coordinate System is:/d" -e "/Origin =/,\$d" | xargs echo > %s' % (lcimage, prfname))
-        os.system('gdalwarp -srcnodata -340282346638528859811704183484516925440.000 -dstnodata 0 -t_srs %s -r cubic %s %s' % (prfname, elimageorig, elimage))
+        os.system('gdalwarp -srcnodata -340282346638528859811704183484516925440.000 -dstnodata 0 -t_srs %s -r cubic %s %s >/dev/null' % (prfname, elimageorig, elimage))
         os.remove(prfname)
 
     def getfiles(self):
@@ -526,6 +527,13 @@ def checkRegion():
         print 'Scale check passed'
     else:
         raise AssertionError, 'Scale check failed'
+
+    try:
+        BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, elIDs=['ND4'])
+    except AttributeError:
+        print 'Elevation ID check passed'
+    else:
+        raise AssertionError, 'Elevation ID check failed'
 
     BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     try:
@@ -556,12 +564,12 @@ def checkRegion():
         print 'YAML check failed: ', e
     else:
         print 'YAML check passed'
-
+ 
     BlockIsland.getfiles()
     try:
         # for now, just check existence of all three map files
-        lcimage = os.path.join(BlockIsland.mapsdir, BlockIsland.lclayer, '%s.%s' % (BlockIsland.lclayer, BlockIsland.decodeLayerID(BlockIsland.lclayer)[1]))
-        elimage = os.path.join(BlockIsland.mapsdir, BlockIsland.ellayer, '%s.%s' % (BlockIsland.ellayer, BlockIsland.decodeLayerID(BlockIsland.ellayer)[1]))
+        lcimage = BlockIsland.lcfile()
+        elimage = BlockIsland.elfile()
         elimageorig = '%s-orig' % elimage
         assert os.path.exists(lcimage), 'getfiles: lcimage %s does not exist' % lcimage
         assert os.path.exists(elimage), 'getfiles: elimage %s does not exist' % elimage

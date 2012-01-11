@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.WARNING)
 datasetlogger = logging.getLogger('dataset')
 
 # paths for datasets
-dsPaths = ['Datasets', '../TopoMC-Datasets']
+dsPaths = ['Datasets', 'Regions/BlockIsland']
 
 # product types in order of preference
 # NB: only seamless types are being considered at present
