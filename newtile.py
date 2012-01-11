@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # tile class
 
 # REALLY NEED TO SEPARATE OUT THAT WSDL CRAZINESS INTO ANOTHER CLASS
@@ -20,67 +22,6 @@ from newregion import Region
 import os
 import shutil
 
-# tile.py getIDT
-def getIDT(ds, offset, size, vScale=1, nodata=None, trim=0):
-    "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
-    # retrieve data from dataset
-    Band = ds.GetRasterBand(1)
-    Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
-
-    # set nodata if it exists
-    if (nodata != None):
-        fromnodata = Band.GetNoDataValue()
-        Data[Data == fromnodata] = nodata
-    Band = None
-
-    # build initial arrays
-    LatLong = coords.getLatLongArray(ds, (offset), (size), 1)
-    Value = Data.flatten()
-
-    # trim elevation
-    Value = Value - trim
-
-    # scale elevation vertically
-    Value = Value / vScale
-
-    # build tree
-    IDT = invdisttree.Invdisttree(LatLong, Value)
-
-    return IDT
-
-# tile.py getOffsetSize
-def getOffsetSize(ds, corners, mult=1):
-    "Convert corners to offset and size."
-    (ul, lr) = corners
-    ox, oy = coords.getCoords(ds, ul[0], ul[1])
-    print "ox, oy are %f, %f" % (ox, oy)
-    offset_x = max(ox, 0)
-    offset_y = max(oy, 0)
-    fcx, fcy = coords.getCoords(ds, lr[0], lr[1])
-    print "fcx, fcy are %f, %f" % (fcx, fcy)
-    farcorner_x = min(fcx, ds.RasterXSize)
-    farcorner_y = min(fcy, ds.RasterYSize)
-    offset = (int(offset_x*mult), int(offset_y*mult))
-    size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
-    print "offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1])
-    return offset, size
-
-# tile.py getImageArray
-def getImageArrayold(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False, trim=0):
-    "Given the relevant information, builds the image array."
-    Offset, Size = getOffsetSize(ds, idtCorners)
-    IDT = getIDT(ds, Offset, Size, vScale, nodata, trim)
-    ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
-
-    return ImageArray
-
-def getImageArray(ds, offset, size, baseArray, vScale=1, nodata=None, majority=False, trim=0):
-    "Given the relevant information, builds the image array."
-    IDT = getIDT(ds, offset, size, vScale, nodata, trim)
-    ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
-
-    return ImageArray
-
 class Tile:
     """Tiles are the base render object.  or something."""
     def __init__(self, region, tilex, tiley):
@@ -93,11 +34,10 @@ class Tile:
         if (tiley < region.tymin) or (tiley >= region.tymax):
             raise AttributeError, "tiley (%d) must be between %d and %d" % (tiley, region.tymin, region.tymax)
 
-        realsize = region.tilesize * region.scale
+        realsize = region.tilesize * region.mult
         # set offsets
-        # effectively negates tile.py:getTileOffsetSize
-        self.offsetx = realsize * (tilex - region.txmin)
-        self.offsety = realsize * (tiley - region.tymin)
+        offsetx = region.tilesize * (tilex - region.txmin + 1)
+        offsety = region.tilesize * (tiley - region.tymin + 1)
 
         # create the tile directory if necessary
         tiledir = os.path.join('Regions', region.name, 'Tiles', '%dx%d' % (tilex, tiley))
@@ -109,27 +49,19 @@ class Tile:
         else:
             raise IOError, '%s already exists' % tilesdir
 
-        # generate two mapsize*mapsize arrays for landcover and elevation
+        # open landcover and elevation datasets
         lcimage = region.lcfile()
         lcds = gdal.Open(lcimage, GA_ReadOnly)
         lcds.transforms = coords.getTransforms(lcds)
-        lcUL = coords.getLatLong(lcds, self.offsetx - realsize, self.offsety - realsize)
-        print lcUL
-        lcLR = coords.getLatLong(lcds, self.offsetx + 2 * realsize, self.offsety + 2 * realsize)
-        print lcLR
-        lccorners = [lcUL, lcLR]
-        lcoffset, lcsize = getOffsetSize(lcds, lccorners)
-        print lcoffset, lcsize
-        # IGNORE baseoffset
-        baseoffset = [self.offsetx, self.offsety]
-        basesize = [realsize, realsize]
-        basecorners = [[self.offsetx, self.offsety], [self.offsetx+realsize, self.offsety+realsize]]
-        basearray = coords.getCoordsArray(lcds, baseoffset, basesize)
-        
+        print lcds.RasterXSize
+        elimage = region.elfile()
+        elds = gdal.Open(elimage, GA_ReadOnly)
+        elds.transforms = coords.getTransforms(elds)
 
-#        lcoffset = [self.offsetx - region.maxdepth, self.offsety - region.maxdepth]
-#        lcsize = [mapsize, mapsize]
-        lcarray = getImageArray(lcds, lcoffset, lcsize, basearray, nodata=11, majority=True)
+        print "hrm!something about / mult here makes sense"
+
+        # generate two mapsize*mapsize arrays for landcover and elevation
+        Tile.newgetOffsetSize(lcds, offsetx - region.tilesize, offsetx + 2 * region.tilesize, offsety - region.tilesize, offsety + 2 * region.tilesize)
         
         # generate one tilesize*tilesize array for bathymetry
 
@@ -146,7 +78,78 @@ class Tile:
         # write that world to the Tiles/XxY/World directory
         raise AttributeError
 
+    @staticmethod
+    def getIDT(ds, offset, size, vScale=1, nodata=None, trim=0):
+        "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
+        # retrieve data from dataset
+        Band = ds.GetRasterBand(1)
+        Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
 
+        # set nodata if it exists
+        if (nodata != None):
+            fromnodata = Band.GetNoDataValue()
+            Data[Data == fromnodata] = nodata
+        Band = None
+
+        # build initial arrays
+        LatLong = getLatLongArray(ds, (offset), (size), 1)
+        Value = Data.flatten()
+
+        # trim elevation
+        Value = Value - trim
+
+        # scale elevation vertically
+        Value = Value / vScale
+
+        # build tree
+        IDT = invdisttree.Invdisttree(LatLong, Value)
+
+        return IDT
+
+    @staticmethod
+    def getOffsetSize(ds, corners, mult=1):
+        """Convert lat-long corners to coords offset and size."""
+        (ul, lr) = corners
+        ox, oy = getCoords(ds, ul[0], ul[1])
+        offset_x = max(ox, 0)
+        offset_y = max(oy, 0)
+        fcx, fcy = getCoords(ds, lr[0], lr[1])
+        farcorner_x = min(fcx, ds.RasterXSize)
+        farcorner_y = min(fcy, ds.RasterYSize)
+        offset = (int(offset_x*mult), int(offset_y*mult))
+        size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
+        #tilelogger.debug("offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1]))
+        return offset, size
+
+    @staticmethod
+    def newgetOffsetSize(ds, xmin, xmax, ymin, ymax, mult=1):
+        ox, oy = coords.getLatLong(ds, xmin, ymax)
+        print xmin, ymax, ox, oy
+        fcx, fcy = coords.getLatLong(ds, xmax, ymin)
+        print xmax, ymin, fcx, fcy
+        raise AttributeError
+
+    @staticmethod
+    def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False, trim=0):
+        "Given the relevant information, builds the image array."
+        Offset, Size = getOffsetSize(ds, idtCorners)
+        IDT = getIDT(ds, Offset, Size, vScale, nodata, trim)
+        ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
+
+        return ImageArray
+
+    @staticmethod
+    def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0):
+        "run this with idtPad=0 to generate image."
+        imageRows = tileShape[0]
+        imageCols = tileShape[1]
+        imageLeft = max(rowIndex*imageRows-idtPad, 0)
+        imageRight = min(imageLeft+imageRows+2*idtPad, maxRows)
+        imageUpper = max(colIndex*imageCols-idtPad, 0)
+        imageLower = min(imageUpper+imageCols+2*idtPad, maxCols)
+        imageOffset = (imageLeft, imageUpper)
+        imageSize = (imageRight-imageLeft, imageLower-imageUpper)
+        return imageOffset, imageSize
 
 def checkTile():
     """Checks tile code."""
