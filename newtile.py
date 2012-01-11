@@ -109,16 +109,13 @@ class Tile:
         else:
             raise IOError, '%s already exists' % tilesdir
 
-        # array for landcover and elevation needs maxdepth-sized borders
-        mapsize = realsize + 2 * region.maxdepth
-
         # generate two mapsize*mapsize arrays for landcover and elevation
-        lcimage = os.path.join(region.mapsdir, region.lclayer, '%s.%s' % (region.lclayer, region.decodeLayerID(region.lclayer)[1]))
+        lcimage = region.lcfile()
         lcds = gdal.Open(lcimage, GA_ReadOnly)
         lcds.transforms = coords.getTransforms(lcds)
-        lcUL = coords.getLatLong(lcds, self.offsetx - region.maxdepth, self.offsety - region.maxdepth)
+        lcUL = coords.getLatLong(lcds, self.offsetx - realsize, self.offsety - realsize)
         print lcUL
-        lcLR = coords.getLatLong(lcds, self.offsetx + realsize + region.maxdepth, self.offsety + realsize + region.maxdepth)
+        lcLR = coords.getLatLong(lcds, self.offsetx + 2 * realsize, self.offsety + 2 * realsize)
         print lcLR
         lccorners = [lcUL, lcLR]
         lcoffset, lcsize = getOffsetSize(lcds, lccorners)

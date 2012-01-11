@@ -51,7 +51,7 @@ class Region:
     #elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
     elevationIDs = ['NED', 'ND3', 'ND9', 'NAK']
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=256, scale=6, maxdepth=16, lcIDs=None, elIDs=None, debug=False):
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=256, scale=6, lcIDs=None, elIDs=None, debug=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
@@ -62,7 +62,6 @@ class Region:
         if (30 % scale != 0):
             raise AttributeError, 'bad scale %s' % scale
         self.scale = scale
-        self.maxdepth = maxdepth
 
         # specified IDs must be in region list
         if lcIDs == None:
@@ -168,10 +167,10 @@ class Region:
         # add border
         # NB: this is ideal but not what's transmitted
         # should be albersxmax maybe?  mcxmax?
-        lcxmax = (self.txmax * realsize) + self.maxdepth
-        lcxmin = (self.txmin * realsize) - self.maxdepth
-        lcymax = (self.tymax * realsize) + self.maxdepth
-        lcymin = (self.tymin * realsize) - self.maxdepth
+        lcxmax = ((self.txmax + 1) * realsize)
+        lcxmin = ((self.txmin - 1) * realsize)
+        lcymax = ((self.tymax + 1) * realsize)
+        lcymin = ((self.tymin - 1) * realsize)
 
         # now convert back from Albers to WGS84
         ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
@@ -263,7 +262,6 @@ class Region:
     def elfile(self):
         """Landcover map file."""
         return os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, Region.decodeLayerID(self.ellayer)[1]))
-        
         
     def checkavail(self, productlist):
         """Check availability with web service."""
@@ -549,7 +547,6 @@ def checkRegion():
     try:
         assert myyaml.tilesize == BlockIsland.tilesize, 'YAML tilesize does not match'
         assert myyaml.scale == BlockIsland.scale, 'YAML scale does not match'
-        assert myyaml.maxdepth == BlockIsland.maxdepth, 'YAML maxdepth does not match'
         assert (myyaml.mapxmax - BlockIsland.mapxmax) < epsilon, 'YAML mapxmax does not match'
         assert (myyaml.mapxmin - BlockIsland.mapxmin) < epsilon, 'YAML mapxmin does not match'
         assert (myyaml.mapymax - BlockIsland.mapymax) < epsilon, 'YAML mapymax does not match'
