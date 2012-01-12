@@ -2,12 +2,6 @@
 
 # tile class
 
-# REALLY NEED TO SEPARATE OUT THAT WSDL CRAZINESS INTO ANOTHER CLASS
-
-# ./BuildRegion.py does all of this, then generates one big world from all the littles
-# in the Tiles/XxY directories and stores it in Region/<name>/World, setting spawn to 
-# the first highest altitude plus two Y.
-
 from __future__ import division
 import yaml
 try:
@@ -25,18 +19,23 @@ import numpy
 import newcoords
 import invdisttree
 #import newterrain
+from timer import timer
+
+import sys
+sys.path.append('..')
+from pymclevel import mclevel, box
 
 class Tile:
     """Tiles are the base render object.  or something."""
 
     # stuff that should come from pymclevel
-
-    # stuff that should come from region
-    chunkHeight = 128
+    chunkHeight = mclevel.MCInfdevOldLevel.Height # 128 actually
+    chunkWidth = 16 # hardcoded in InfdevChunk actually
     sealevel = 32
     maxdepth = 16
     crustwidth = 3
 
+    @timer()
     def __init__(self, region, tilex, tiley):
         """Create a tile based on the region and the tile's coordinates."""
         # NB: smart people check that files have been gotten.
@@ -49,32 +48,44 @@ class Tile:
 
         # create the tile directory if necessary
         tiledir = os.path.join('Regions', region.name, 'Tiles', '%dx%d' % (tilex, tiley))
-        self.worlddir = os.path.join(tiledir, 'World')
         if os.path.isdir(tiledir):
             shutil.rmtree(tiledir)
         if not os.path.exists(tiledir):
-            os.makedirs(self.worlddir)
+            os.makedirs(tiledir)
         else:
             raise IOError, '%s already exists' % tilesdir
 
+        # offsets
+        offsetx = tilex * region.tilesize
+        offsety = tiley * region.tilesize
+        print "yay offsetx is %d and offsety is %d" % (offsetx, offsety)
+
+        # build a Minecraft world via pymclevel from blocks and data
+        self.world = mclevel.MCInfdevOldLevel(tiledir, create=True)
+        tilebox = box.BoundingBox((offsetx, 0, offsety), (region.tilesize, Tile.chunkHeight, region.tilesize))
+        self.world.createChunksInBox(tilebox)
+
         # build inverse distance trees for landcover and elevation
-        # FIXME: we currently read in the entire world
-        lcds = region.ds(region.lclayer)
-        elds = region.ds(region.ellayer)
-        # landcover nodata is 11
-        lcidt = Tile.getIDT(lcds, nodata=11)
-        # FIXME: need 'vscale=SOMETHINGSANE' here
-        elidt = Tile.getIDT(elds, vscale=region.scale)
+        # (see if they've been passed to us already)
+        try:
+            lcds = region.lcds
+            elds = region.elds
+            lcidt = region.lcidt
+            elidt = region.elidt
+        except AttributeError:
+            # FIXME: we currently read in the entire world
+            lcds = region.ds(region.lclayer)
+            elds = region.ds(region.ellayer)
+            # landcover nodata is 11
+            lcidt = Tile.getIDT(lcds, nodata=11)
+            # FIXME: need 'vscale=SOMETHINGSANE' here
+            elidt = Tile.getIDT(elds, vscale=region.scale)
         
         # fun with coordinates
         #print "upper left:", newcoords.fromRastertoMap(lcds, 0, 0)
         #print "lower left:",  newcoords.fromRastertoMap(lcds, 0, lcds.RasterYSize)
         #print "upper right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, 0)
         #print "lower right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, lcds.RasterYSize)
-
-        # offsets
-        offsetx = tilex * region.tilesize
-        offsety = tiley * region.tilesize
 
         # the base array
         # the offsets are Minecraft units
@@ -92,8 +103,6 @@ class Tile:
         
         # bathymetry and crust go here 
 
-        # generate two tilesize*height*tilesize arrays for blocks and data
-
         # do the terrain thing (no trees, ore or building)
         self.peak = [0, 0, 0]
 
@@ -103,21 +112,44 @@ class Tile:
             elval = int(elarray[myz, myx])
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
+            realx = myx + offsetx
+            realz = myz + offsety
             if elval > self.peak[1]:
-                self.peak = [myx + offsetx, elval, myz + offsety]
+                self.peak = [realx, elval, realz]
             #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
+            # FIXME: for now, dirt or no dirt, to the appropriate altitude
+            if (lcval == 11):
+                columns = [crustval, self.world.materials.Sand.ID, bathyval, self.world.materials.Water.ID]
+            else:
+                columns = [crustval, self.world.materials.Dirt.ID]
+            self.templayers(realx, realz, elval, columns)
             
+        # stick the player and the spawn at the peak
+        self.world.setPlayerPosition(tuple(self.peak))
+        spawn = self.peak
+        spawn[1] += 2
+        self.world.setPlayerSpawnPosition(tuple(spawn))
+        # write that world to the Tiles/XxY/World directory
+        sizeOnDisk = 0
+        # NB: numchunks is calculable = (region.tilesize/chunkWidth)*(region.tilesize/chunkWidth)
+        numchunks = 0
+        for i, cPos in enumerate(self.world.allChunks, 1):
+            ch = self.world.getChunk(*cPos);
+            numchunks += 1
+            sizeOnDisk += ch.compressedSize();
+        self.world.SizeOnDisk = sizeOnDisk
+        self.world.saveInPlace()
+
         # write Tile.yaml with relevant data (peak at least)
+        # NB: world is not dump-friendly. :-)
+        del self.world
         stream = file(os.path.join(tiledir, 'Tile.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
 
-        # build a Minecraft world via pymclevel from blocks and data
-
-        # write that world to the Tiles/XxY/World directory
-        raise AttributeError
 
     @staticmethod
+    @timer()
     def getIDT(ds, nodata=None, vscale=1, trim=0):
         """Get inverse distance tree based on dataset."""
         band = ds.GetRasterBand(1)
@@ -133,30 +165,26 @@ class Tile:
         IDT = invdisttree.Invdisttree(latlong, value)
         return IDT
 
-    def layers(self, myx, myz, elevval, slices):
+    def templayers(self, x, z, elval, column):
         """Attempt to do layers."""
         blocks = []
-        for column in columns:
-            x = column.pop(0)
-            z = column.pop(0)
-            elevval = column.pop(0)
-            top = sealevel+elevval
-            overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
-            column.insert(0, 'Bedrock')
-            column.insert(1, top-overstone-1)
-            column.insert(2, 'Stone')
-            while (len(column) > 0 or top > 0):
-                # better be a block
-                block = column.pop()
-                if (len(column) > 0):
-                    layer = column.pop()
-                else:
-                    layer = top
-                # now do something
-                if (layer > 0):
-                    [blocks.append((x, y, z, block)) for y in xrange(top-layer,top)]
-                    top -= layer
-        self.setBlocksAt(blocks)
+        top = Tile.sealevel+elval
+        overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
+        column.insert(0, self.world.materials.Bedrock.ID)
+        column.insert(1, top-overstone-1)
+        column.insert(2, self.world.materials.Stone.ID)
+        while (len(column) > 0 or top > 0):
+            # better be a block
+            block = column.pop()
+            if (len(column) > 0):
+                layer = column.pop()
+            else:
+                layer = top
+            # now do something
+            if (layer > 0):
+                [blocks.append((x, y, z, block)) for y in xrange(top-layer,top)]
+                top -= layer
+        [ self.world.setBlockAt(x, y, z, block) for (x, y, z, block) in blocks ]
 
     # NEED TO REIMPLEMENT SETBLOCKSAT AND FRIENDS
 
@@ -176,7 +204,13 @@ def checkTile():
     else:
         print "out of bounds tile check failed"
 
-    myTile = Tile(BlockIsland, BlockIsland.txmin, BlockIsland.tymin)
+    # set the inverse distance trees first
+    BlockIsland.lcds = BlockIsland.ds(BlockIsland.lclayer)
+    BlockIsland.elds = BlockIsland.ds(BlockIsland.ellayer)
+    BlockIsland.lcidt = Tile.getIDT(BlockIsland.lcds, nodata=11)
+    BlockIsland.elidt = Tile.getIDT(BlockIsland.elds, vscale=BlockIsland.scale)
+
+    myTile = Tile(BlockIsland, 1309, 1485)
 
 if __name__ == '__main__':
     checkTile()
