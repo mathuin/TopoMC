@@ -231,7 +231,7 @@ class Region:
 
     def mapsdir(self):
         """Maps directory."""
-        return os.path.join('Regions', self.name, 'Maps')
+        return os.path.join('Maps', self.name)
 
     def mapfile(self, layer):
         """Generate map file based on layer"""
