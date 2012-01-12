@@ -20,6 +20,11 @@ from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
 
+from osgeo import gdal
+from osgeo.gdalconst import GA_ReadOnly
+import newcoords
+import invdisttree
+
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
     def http_error_302(self, req, fp, code, msg, headers):
@@ -38,31 +43,32 @@ class Region:
     # sadness
     zipfileBroken = False
 
+    # default values
+    tilesize = 256
+    scale = 6
     # product types in order of preference
-    # NB: only seamless types are being considered at present
-    #     next version should handle tiled!
-    # landcover IDs are:
-    # L04 - 2001 version 2.0 (should work just fine)
-    # L01 - 2001 (currently the only one fully supported)
-    # L92 - 1992 http://www.mrlc.gov/nlcd92_leg.php (01 and 06 for other two!)
-    # L6L - 2006
-    # need to abstract out terrain.py!
     landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
-    # JMT - 2011Aug29 - ND9 is not working, commenting out
     #elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
     #elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
     elevationIDs = ['NED', 'ND3', 'ND9', 'NAK']
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=256, scale=6, lcIDs=None, elIDs=None, debug=False):
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, lcIDs=None, elIDs=None, debug=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
-        if (tilesize % 16 != 0):
-            raise AttributeError, 'bad tilesize %s' % tilesize
+
+        if tilesize == None:
+            tilesize = Region.tilesize
+        else:
+            if (tilesize % 16 != 0):
+                raise AttributeError, 'bad tilesize %s' % tilesize
         self.tilesize = tilesize
-        # only integers for me
-        if (30 % scale != 0):
-            raise AttributeError, 'bad scale %s' % scale
+
+        if scale == None:
+            scale = Region.scale
+        else:
+            if (30 % scale != 0):
+                raise AttributeError, 'bad scale %s' % scale
         self.scale = scale
         self.mult = 30 / scale
 
@@ -83,11 +89,10 @@ class Region:
 
         # crazy directory fun
         regiondir = os.path.join('Regions', self.name)
-        self.mapsdir = os.path.join(regiondir, 'Maps')
         if os.path.isdir(regiondir):
             shutil.rmtree(regiondir)
         if not os.path.exists(regiondir):
-            os.makedirs(self.mapsdir)
+            os.makedirs(regiondir)
         else:
             raise IOError, '%s already exists' % regiondir
 
@@ -123,7 +128,7 @@ class Region:
         mymin = min(yfloat)
 
         # calculate tile edges
-        realsize = self.mult * self.tilesize
+        realsize = self.scale * self.tilesize
         self.txmax = int(ceil(mxmax / realsize))
         self.tymax = int(ceil(mymax / realsize))
         self.txmin = int(floor(mxmin / realsize))
@@ -136,6 +141,10 @@ class Region:
         lcxmin = ((self.txmin - 1) * realsize)
         lcymax = ((self.tymax + 1) * realsize)
         lcymin = ((self.tymin - 1) * realsize)
+        self.imagexmax = self.txmax * realsize
+        self.imagexmin = self.txmin * realsize
+        self.imageymax = self.tymax * realsize
+        self.imageymin = self.tymin * realsize
 
         # now convert back from Albers to WGS84
         ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
@@ -220,14 +229,21 @@ class Region:
         
         return (pType, iType, mType, cType)
 
-    def lcfile(self):
-        """Landcover map file."""
-        return os.path.join(self.mapsdir, self.lclayer, '%s.%s' % (self.lclayer, Region.decodeLayerID(self.lclayer)[1]))
+    def mapsdir(self):
+        """Maps directory."""
+        return os.path.join('Regions', self.name, 'Maps')
 
-    def elfile(self):
-        """Landcover map file."""
-        return os.path.join(self.mapsdir, self.ellayer, '%s.%s' % (self.ellayer, Region.decodeLayerID(self.ellayer)[1]))
-        
+    def mapfile(self, layer):
+        """Generate map file based on layer"""
+        return os.path.join(self.mapsdir(), layer, '%s.%s' % (layer, Region.decodeLayerID(layer)[1]))
+
+    def ds(self, layer):
+        """Return dataset including transforms."""
+        filename = self.mapfile(layer)
+        ds = gdal.Open(filename, GA_ReadOnly)
+        ds.transforms = newcoords.getTransforms(ds)
+        return ds
+
     def checkavail(self, productlist):
         """Check availability with web service."""
         # access the web service to check availability
@@ -320,7 +336,7 @@ class Region:
         # FIXME: extract try/expect around urlopen
         # FIXME: consider breaking apart further
         (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
-        layerdir = os.path.join(self.mapsdir, layerID)
+        layerdir = os.path.join(self.mapsdir(), layerID)
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
 
@@ -416,11 +432,14 @@ class Region:
     def extractfiles(self):
         """Extracts image files and merges as necessary."""
 
-        layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
+        mapsdir = self.mapsdir()
+        layerIDs = [ name for name in os.listdir(mapsdir) if os.path.isdir(os.path.join(mapsdir, name)) ]
+        if layerIDs == False:
+            raise IOError, 'No files found'
         for layerID in layerIDs:
             (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
             filesuffix = cType.lower()
-            layerdir = os.path.join(self.mapsdir, layerID)
+            layerdir = os.path.join(mapsdir, layerID)
             compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
             for compfile in compfiles:
                 (compbase, compext) = os.path.splitext(compfile)
@@ -452,9 +471,8 @@ class Region:
 
     def warpelevation(self):
         """Warp elevation file to match landcover file."""
-        # NB: multi-file issues should have been handled in extractfiles
-        lcimage = self.lcfile()
-        elimage = self.elfile()
+        lcimage = self.mapfile(self.lclayer)
+        elimage = self.mapfile(self.ellayer)
         elimageorig = "%s-orig" % elimage
         os.rename(elimage, elimageorig)
         prffd = NamedTemporaryFile(delete=False)
@@ -466,6 +484,7 @@ class Region:
 
     def getfiles(self):
         """Get files from USGS."""
+        os.makedirs(self.mapsdir())
         layerIDs = [self.lclayer, self.ellayer]
         downloadURLs = self.requestvalidation(layerIDs)
         for layerID in downloadURLs.keys():
@@ -478,21 +497,21 @@ def checkRegion():
     epsilon = 0.000001 # comparing floating point with equals is wrong
 
     try:
-        BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
+        BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, tilesize=255)
     except AttributeError:
-        print 'Mod 16 check passed'
+        print 'Tilesize check passed'
     else:
         raise AssertionError, 'Mod 16 check failed'
 
     try:
-        BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, scale=7)
+        BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, scale=7)
     except AttributeError:
         print 'Scale check passed'
     else:
         raise AssertionError, 'Scale check failed'
 
     try:
-        BlockIsland = Region(name='BlockIsland', tilesize=255, ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, elIDs=['ND4'])
+        BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, elIDs=['ND4'])
     except AttributeError:
         print 'Elevation ID check passed'
     else:
@@ -530,8 +549,8 @@ def checkRegion():
     BlockIsland.getfiles()
     try:
         # for now, just check existence of all three map files
-        lcimage = BlockIsland.lcfile()
-        elimage = BlockIsland.elfile()
+        lcimage = BlockIsland.mapfile(BlockIsland.lclayer)
+        elimage = BlockIsland.mapfile(BlockIsland.ellayer)
         elimageorig = '%s-orig' % elimage
         assert os.path.exists(lcimage), 'getfiles: lcimage %s does not exist' % lcimage
         assert os.path.exists(elimage), 'getfiles: elimage %s does not exist' % elimage
@@ -540,6 +559,6 @@ def checkRegion():
         print 'getfiles check failed:', e
     else:
         print 'getfiles check passed'
-    
+
 if __name__ == '__main__':
     checkRegion();

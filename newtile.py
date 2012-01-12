@@ -14,16 +14,29 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
-import invdisttree
-import coords
 from osgeo import gdal, osr
 from osgeo.gdalconst import GA_ReadOnly
 from newregion import Region
 import os
 import shutil
+from itertools import product
+import numpy
+
+import newcoords
+import invdisttree
+#import newterrain
 
 class Tile:
     """Tiles are the base render object.  or something."""
+
+    # stuff that should come from pymclevel
+
+    # stuff that should come from region
+    chunkHeight = 128
+    sealevel = 32
+    maxdepth = 16
+    crustwidth = 3
+
     def __init__(self, region, tilex, tiley):
         """Create a tile based on the region and the tile's coordinates."""
         # NB: smart people check that files have been gotten.
@@ -33,11 +46,6 @@ class Tile:
             raise AttributeError, "tilex (%d) must be between %d and %d" % (tilex, region.txmin, region.txmax)
         if (tiley < region.tymin) or (tiley >= region.tymax):
             raise AttributeError, "tiley (%d) must be between %d and %d" % (tiley, region.tymin, region.tymax)
-
-        realsize = region.tilesize * region.mult
-        # set offsets
-        offsetx = region.tilesize * (tilex - region.txmin + 1)
-        offsety = region.tilesize * (tiley - region.tymin + 1)
 
         # create the tile directory if necessary
         tiledir = os.path.join('Regions', region.name, 'Tiles', '%dx%d' % (tilex, tiley))
@@ -49,29 +57,60 @@ class Tile:
         else:
             raise IOError, '%s already exists' % tilesdir
 
-        # open landcover and elevation datasets
-        lcimage = region.lcfile()
-        lcds = gdal.Open(lcimage, GA_ReadOnly)
-        lcds.transforms = coords.getTransforms(lcds)
-        print lcds.RasterXSize
-        elimage = region.elfile()
-        elds = gdal.Open(elimage, GA_ReadOnly)
-        elds.transforms = coords.getTransforms(elds)
-
-        print "hrm!something about / mult here makes sense"
-
-        # generate two mapsize*mapsize arrays for landcover and elevation
-        Tile.newgetOffsetSize(lcds, offsetx - region.tilesize, offsetx + 2 * region.tilesize, offsety - region.tilesize, offsety + 2 * region.tilesize)
+        # build inverse distance trees for landcover and elevation
+        # FIXME: we currently read in the entire world
+        lcds = region.ds(region.lclayer)
+        elds = region.ds(region.ellayer)
+        # landcover nodata is 11
+        lcidt = Tile.getIDT(lcds, nodata=11)
+        # FIXME: need 'vscale=SOMETHINGSANE' here
+        elidt = Tile.getIDT(elds, vscale=region.scale)
         
-        # generate one tilesize*tilesize array for bathymetry
+        # fun with coordinates
+        #print "upper left:", newcoords.fromRastertoMap(lcds, 0, 0)
+        #print "lower left:",  newcoords.fromRastertoMap(lcds, 0, lcds.RasterYSize)
+        #print "upper right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, 0)
+        #print "lower right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, lcds.RasterYSize)
 
-        # generate one tilesize*tilesize array for crust values
+        # offsets
+        offsetx = tilex * region.tilesize
+        offsety = tiley * region.tilesize
+
+        # the base array
+        # the offsets are Minecraft units
+        # the size is tilesize
+        # the contents are latlongs
+        baseshape = (region.tilesize, region.tilesize)
+        basearray = newcoords.getCoordsArray(lcds, offsetx, offsety, region.tilesize, region.tilesize, newcoords.fromMaptoLL, region.scale)
+
+        # generate landcover and elevation arrays
+        lcarray = lcidt(basearray, nnear=8, eps=0.1, majority=True)
+        lcarray.resize(baseshape)
+        
+        elarray = elidt(basearray, nnear=8, eps=0.1)
+        elarray.resize(baseshape)
+        
+        # bathymetry and crust go here 
 
         # generate two tilesize*height*tilesize arrays for blocks and data
 
         # do the terrain thing (no trees, ore or building)
+        self.peak = [0, 0, 0]
 
+        for myx, myz in product(xrange(region.tilesize), xrange(region.tilesize)):
+            # I FORGET WHY THIS IS Z, X
+            lcval = int(lcarray[myz, myx])
+            elval = int(elarray[myz, myx])
+            bathyval = 3 # FIXME
+            crustval = 5 # FIXME
+            if elval > self.peak[1]:
+                self.peak = [myx + offsetx, elval, myz + offsety]
+            #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
+            
         # write Tile.yaml with relevant data (peak at least)
+        stream = file(os.path.join(tiledir, 'Tile.yaml'), 'w')
+        yaml.dump(self, stream)
+        stream.close()
 
         # build a Minecraft world via pymclevel from blocks and data
 
@@ -79,77 +118,47 @@ class Tile:
         raise AttributeError
 
     @staticmethod
-    def getIDT(ds, offset, size, vScale=1, nodata=None, trim=0):
-        "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
-        # retrieve data from dataset
-        Band = ds.GetRasterBand(1)
-        Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
-
-        # set nodata if it exists
+    def getIDT(ds, nodata=None, vscale=1, trim=0):
+        """Get inverse distance tree based on dataset."""
+        band = ds.GetRasterBand(1)
+        data = band.ReadAsArray(0, 0, ds.RasterXSize, ds.RasterYSize)
         if (nodata != None):
-            fromnodata = Band.GetNoDataValue()
-            Data[Data == fromnodata] = nodata
-        Band = None
-
-        # build initial arrays
-        LatLong = getLatLongArray(ds, (offset), (size), 1)
-        Value = Data.flatten()
-
-        # trim elevation
-        Value = Value - trim
-
-        # scale elevation vertically
-        Value = Value / vScale
-
-        # build tree
-        IDT = invdisttree.Invdisttree(LatLong, Value)
-
+            fromnodata = band.GetNoDataValue()
+            data[data == fromnodata] = nodata
+        latlong = newcoords.getCoordsArray(ds, 0, 0, ds.RasterXSize, ds.RasterYSize, newcoords.fromRastertoLL)
+        #print latlong
+        value = data.flatten()
+        value = value - trim
+        value = value / vscale
+        IDT = invdisttree.Invdisttree(latlong, value)
         return IDT
 
-    @staticmethod
-    def getOffsetSize(ds, corners, mult=1):
-        """Convert lat-long corners to coords offset and size."""
-        (ul, lr) = corners
-        ox, oy = getCoords(ds, ul[0], ul[1])
-        offset_x = max(ox, 0)
-        offset_y = max(oy, 0)
-        fcx, fcy = getCoords(ds, lr[0], lr[1])
-        farcorner_x = min(fcx, ds.RasterXSize)
-        farcorner_y = min(fcy, ds.RasterYSize)
-        offset = (int(offset_x*mult), int(offset_y*mult))
-        size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
-        #tilelogger.debug("offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1]))
-        return offset, size
+    def layers(self, myx, myz, elevval, slices):
+        """Attempt to do layers."""
+        blocks = []
+        for column in columns:
+            x = column.pop(0)
+            z = column.pop(0)
+            elevval = column.pop(0)
+            top = sealevel+elevval
+            overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
+            column.insert(0, 'Bedrock')
+            column.insert(1, top-overstone-1)
+            column.insert(2, 'Stone')
+            while (len(column) > 0 or top > 0):
+                # better be a block
+                block = column.pop()
+                if (len(column) > 0):
+                    layer = column.pop()
+                else:
+                    layer = top
+                # now do something
+                if (layer > 0):
+                    [blocks.append((x, y, z, block)) for y in xrange(top-layer,top)]
+                    top -= layer
+        self.setBlocksAt(blocks)
 
-    @staticmethod
-    def newgetOffsetSize(ds, xmin, xmax, ymin, ymax, mult=1):
-        ox, oy = coords.getLatLong(ds, xmin, ymax)
-        print xmin, ymax, ox, oy
-        fcx, fcy = coords.getLatLong(ds, xmax, ymin)
-        print xmax, ymin, fcx, fcy
-        raise AttributeError
-
-    @staticmethod
-    def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False, trim=0):
-        "Given the relevant information, builds the image array."
-        Offset, Size = getOffsetSize(ds, idtCorners)
-        IDT = getIDT(ds, Offset, Size, vScale, nodata, trim)
-        ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
-
-        return ImageArray
-
-    @staticmethod
-    def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0):
-        "run this with idtPad=0 to generate image."
-        imageRows = tileShape[0]
-        imageCols = tileShape[1]
-        imageLeft = max(rowIndex*imageRows-idtPad, 0)
-        imageRight = min(imageLeft+imageRows+2*idtPad, maxRows)
-        imageUpper = max(colIndex*imageCols-idtPad, 0)
-        imageLower = min(imageUpper+imageCols+2*idtPad, maxCols)
-        imageOffset = (imageLeft, imageUpper)
-        imageSize = (imageRight-imageLeft, imageLower-imageUpper)
-        return imageOffset, imageSize
+    # NEED TO REIMPLEMENT SETBLOCKSAT AND FRIENDS
 
 def checkTile():
     """Checks tile code."""
@@ -171,3 +180,4 @@ def checkTile():
 
 if __name__ == '__main__':
     checkTile()
+

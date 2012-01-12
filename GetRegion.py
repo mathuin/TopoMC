@@ -4,6 +4,9 @@ from newregion import Region
 import sys
 import argparse
 
+from osgeo import gdal
+from osgeo.gdalconst import GA_ReadOnly
+
 def checkElevationIDs(string):
     """Checks to see if the given product IDs are valid."""
     givenIDs = string.split(',')
@@ -41,9 +44,11 @@ def main(argv):
     parser.add_argument('--xmin', required=True, type=float, help='westernmost longitude (west is negative)')
     parser.add_argument('--ymax', required=True, type=float, help='northernmost latitude (south is negative)')
     parser.add_argument('--ymin', required=True, type=float, help='southernmost longitude (south is negative)')
+    parser.add_argument('--scale', type=int, help='scale value')
     parser.add_argument('--elevationIDs', default=default_elevationIDs, type=checkElevationIDs, help='ordered list of product IDs (default %s)' % default_elevationIDs)
     parser.add_argument('--landcoverIDs', default=default_landcoverIDs, type=checkLandcoverIDs, help='ordered list of product IDs (default %s)' % default_landcoverIDs)
     parser.add_argument('--debug', action='store_true', help='enable debug output')
+    parser.add_argument('--disable-maps', action='store_false', dest='doMaps', default=True, help="disables maps retrieval when not necessary")
     args = parser.parse_args()
 
     # enable debug
@@ -52,10 +57,20 @@ def main(argv):
 
     # create the region
     print "Creating new region %s..." % args.name
-    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
+    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
 
-    print "Downloading files..."
-    myRegion.getfiles()
+    # temporary
+    print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin-1)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin-1)*myRegion.tilesize)
+
+    if (args.doMaps):
+        print "Downloading files..."
+        myRegion.getfiles()
+        lcimage = myRegion.lcfile()
+        lcds = gdal.open(lcimage, GA_ReadOnly)
+        print "The landcover file has dimensions %d x %d" % (lcds.RasterXSize, lcds.RasterYSize)
+        elimage = myRegion.elfile()
+        elds = gdal.open(elimage, GA_ReadOnly)
+        print "The elevation file has dimensions %d x %d" % (elds.RasterXSize, elds.RasterYSize)
     
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
