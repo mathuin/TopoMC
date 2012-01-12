@@ -77,14 +77,14 @@ class Region:
             landcoverIDs = Region.landcoverIDs
         else:
             landcoverIDs = [ ID for ID in lcIDs if ID in Region.landcoverIDs ]
-            if landcoverIDs == False:
+            if landcoverIDs == []:
                 raise AttributeError, 'invalid landcover ID'
 
         if elIDs == None:
             elevationIDs = Region.elevationIDs
         else:
             elevationIDs = [ ID for ID in elIDs if ID in Region.elevationIDs ]
-            if elevationIDs == False:
+            if elevationIDs == []:
                 raise AttributeError, 'invalid elevation ID'
 
         # crazy directory fun
@@ -434,7 +434,7 @@ class Region:
 
         mapsdir = self.mapsdir()
         layerIDs = [ name for name in os.listdir(mapsdir) if os.path.isdir(os.path.join(mapsdir, name)) ]
-        if layerIDs == False:
+        if layerIDs == []:
             raise IOError, 'No files found'
         for layerID in layerIDs:
             (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
@@ -498,28 +498,27 @@ def checkRegion():
 
     try:
         BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, tilesize=255)
-    except AttributeError:
-        print 'Tilesize check passed'
+    except AttributeError, e:
+        print 'Tilesize check passed: ', e
     else:
         raise AssertionError, 'Mod 16 check failed'
 
     try:
         BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, scale=7)
-    except AttributeError:
-        print 'Scale check passed'
+    except AttributeError, e:
+        print 'Scale check passed: ', e
     else:
         raise AssertionError, 'Scale check failed'
 
     try:
         BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, elIDs=['ND4'])
-    except AttributeError:
-        print 'Elevation ID check passed'
+    except AttributeError, e:
+        print 'Elevation ID check passed: ', e
     else:
         raise AssertionError, 'Elevation ID check failed'
 
-    BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     try:
-        pass
+    	BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     except AssertionError, e:
         print 'Region creation failed: ', e
     else:
