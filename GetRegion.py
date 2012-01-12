@@ -65,11 +65,9 @@ def main(argv):
     if (args.doMaps):
         print "Downloading files..."
         myRegion.getfiles()
-        lcimage = myRegion.lcfile()
-        lcds = gdal.open(lcimage, GA_ReadOnly)
+        lcds = myRegion.ds(myRegion.lclayer)
         print "The landcover file has dimensions %d x %d" % (lcds.RasterXSize, lcds.RasterYSize)
-        elimage = myRegion.elfile()
-        elds = gdal.open(elimage, GA_ReadOnly)
+        elds = myRegion.ds(myRegion.ellayer)
         print "The elevation file has dimensions %d x %d" % (elds.RasterXSize, elds.RasterYSize)
     
 if __name__ == '__main__':
