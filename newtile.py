@@ -47,7 +47,7 @@ class Tile:
             raise AttributeError, "tiley (%d) must be between %d and %d" % (tiley, region.tymin, region.tymax)
 
         # create the tile directory if necessary
-        tiledir = os.path.join('Regions', region.name, 'Tiles', '%dx%d' % (tilex, tiley))
+        tiledir = os.path.join('Tiles', region.name, '%dx%d' % (tilex, tiley))
         if os.path.isdir(tiledir):
             shutil.rmtree(tiledir)
         if not os.path.exists(tiledir):
@@ -108,8 +108,8 @@ class Tile:
 
         for myx, myz in product(xrange(region.tilesize), xrange(region.tilesize)):
             # I FORGET WHY THIS IS Z, X
-            lcval = int(lcarray[myz, myx])
-            elval = int(elarray[myz, myx])
+            lcval = int(lcarray[myx, myz])
+            elval = int(elarray[myx, myz])
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
             realx = myx + offsetx
@@ -129,7 +129,8 @@ class Tile:
         spawn = self.peak
         spawn[1] += 2
         self.world.setPlayerSpawnPosition(tuple(spawn))
-        # write that world to the Tiles/XxY/World directory
+
+        # write world
         sizeOnDisk = 0
         # NB: numchunks is calculable = (region.tilesize/chunkWidth)*(region.tilesize/chunkWidth)
         numchunks = 0
