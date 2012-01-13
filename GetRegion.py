@@ -43,6 +43,7 @@ def main(argv):
     parser.add_argument('--ymax', required=True, type=float, help='northernmost latitude (south is negative)')
     parser.add_argument('--ymin', required=True, type=float, help='southernmost longitude (south is negative)')
     parser.add_argument('--scale', type=int, help='scale value')
+    parser.add_argument('--tilesize', type=int, help='tilesize value')
     parser.add_argument('--elevationIDs', default=default_elevationIDs, type=checkElevationIDs, help='ordered list of product IDs (default %s)' % default_elevationIDs)
     parser.add_argument('--landcoverIDs', default=default_landcoverIDs, type=checkLandcoverIDs, help='ordered list of product IDs (default %s)' % default_landcoverIDs)
     parser.add_argument('--debug', action='store_true', help='enable debug output')
@@ -55,7 +56,7 @@ def main(argv):
 
     # create the region
     print "Creating new region %s..." % args.name
-    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
+    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, tilesize=args.tilesize, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
 
     # temporary
     print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin-1)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin-1)*myRegion.tilesize)
