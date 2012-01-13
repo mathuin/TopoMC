@@ -231,7 +231,7 @@ class Region:
 
     def mapsdir(self):
         """Maps directory."""
-        return os.path.join('Maps', self.name)
+        return os.path.join('Datasets', self.name)
 
     def mapfile(self, layer):
         """Generate map file based on layer"""
@@ -322,7 +322,7 @@ class Region:
 
             response = clientRequest.service.processAOI2(xmlString)
 
-            #print "Requested URLs for layer ID %s..." % layerID
+            print "Requested URLs for layer ID %s..." % layerID
 
             # I am still a bad man.
             downloadURLs = [x.rsplit("</DOWNLOAD_URL>")[0] for x in response.split("<DOWNLOAD_URL>")[1:]]
@@ -340,7 +340,7 @@ class Region:
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
 
-        #print "  Requesting download for %s." % layerID
+        print "  Requesting download for %s." % layerID
         # initiateDownload and get the response code
         # put _this_ in its own function!
         try:
@@ -365,7 +365,7 @@ class Region:
                 startPos = result.find("<ns:return>") + 11
                 endPos = result.find("</ns:return>")
                 requestID = result[startPos:endPos]
-        #print "  request ID is %s" % requestID
+        print "  request ID is %s" % requestID
 
         downloadDict = {'downloadID': requestID}
         sleep(5)
@@ -378,7 +378,7 @@ class Region:
             startPos = result.find("<ns:return>") + 11
             endPos = result.find("</ns:return>")
             (code, status) = result[startPos:endPos].split(',',1)
-            #print "  status is %s" % status
+            print "  status is %s" % status
             if (int(code) == 400):
                 break
             sleep(15)
@@ -398,7 +398,7 @@ class Region:
             else:
                 raise IOError
         else:
-            #print "  downloading %s now!" % filename
+            print "  downloading %s now!" % filename
             downloadFile = open(os.path.join(layerdir,filename), 'wb')
             while True:
                 data = obj.read(8192)

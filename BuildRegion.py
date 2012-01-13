@@ -10,6 +10,7 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
+from multiprocessing import Pool
 
 sys.path.append('..')
 from pymclevel import mclevel, box
@@ -35,23 +36,22 @@ def main(argv):
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 
-    # set the inverse distance trees first
-    myRegion.lcds = myRegion.ds(myRegion.lclayer)
-    myRegion.elds = myRegion.ds(myRegion.ellayer)
-    myRegion.lcidt = Tile.getIDT(myRegion.lcds, nodata=11)
-    myRegion.elidt = Tile.getIDT(myRegion.elds, vscale=myRegion.scale)
-
-    # generate individual tiles
-    for tilex in xrange(myRegion.txmin, myRegion.txmax):
-        for tiley in xrange(myRegion.tymin, myRegion.tymax):
-            print "Generating tile for %d x %d..." % (tilex, tiley)
-            myTile = Tile(myRegion, tilex, tiley)
-            del myTile
 
     # generate overall world
     worlddir = os.path.join('Worlds', args.name)
     world = mclevel.MCInfdevOldLevel(worlddir, create=True)
     peak = [0, 0, 0]
+
+    # generate individual tiles
+    # if I ever get this blessed thing to work,
+    # use a callback to return the peak
+    # AND add the world to the uberworld
+    # ... that will save a loop at the least!
+    tiles = [(myRegion, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
+    # single process version - works
+    for tile in tiles:
+        myTile = Tile(tile[0], tile[1], tile[2])
+        myTile.build()
 
     # merge individual worlds into it
     for tilex in xrange(myRegion.txmin, myRegion.txmax):

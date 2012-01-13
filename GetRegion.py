@@ -3,9 +3,7 @@
 from newregion import Region
 import sys
 import argparse
-
-from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly
+import logging
 
 def checkElevationIDs(string):
     """Checks to see if the given product IDs are valid."""

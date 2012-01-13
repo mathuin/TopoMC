@@ -35,19 +35,31 @@ class Tile:
     maxdepth = 16
     crustwidth = 3
 
-    @timer()
     def __init__(self, region, tilex, tiley):
         """Create a tile based on the region and the tile's coordinates."""
         # NB: smart people check that files have been gotten.
         # today we assume that's already been done.
+        # snag stuff from the region first
+        self.name = region.name
+        self.size = region.tilesize
+        self.scale = region.scale
+        self.lclayer = region.lclayer
+        self.ellayer = region.ellayer
+        self.tilex = tilex
+        self.tiley = tiley
+        self.offsetx = self.tilex * self.size
+        self.offsety = self.tiley * self.size
 
-        if (tilex < region.txmin) or (tilex >= region.txmax):
-            raise AttributeError, "tilex (%d) must be between %d and %d" % (tilex, region.txmin, region.txmax)
-        if (tiley < region.tymin) or (tiley >= region.tymax):
-            raise AttributeError, "tiley (%d) must be between %d and %d" % (tiley, region.tymin, region.tymax)
+        if (self.tilex < region.txmin) or (self.tilex >= region.txmax):
+            raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, region.txmin, region.txmax)
+        if (self.tiley < region.tymin) or (self.tiley >= region.tymax):
+            raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, region.tymin, region.tymax)
 
+    @timer()
+    def build(self):
+        """Actually build the Minecraft world that corresponds to a tile."""
         # create the tile directory if necessary
-        tiledir = os.path.join('Tiles', region.name, '%dx%d' % (tilex, tiley))
+        tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
         if os.path.isdir(tiledir):
             shutil.rmtree(tiledir)
         if not os.path.exists(tiledir):
@@ -55,31 +67,19 @@ class Tile:
         else:
             raise IOError, '%s already exists' % tilesdir
 
-        # offsets
-        offsetx = tilex * region.tilesize
-        offsety = tiley * region.tilesize
-        print "yay offsetx is %d and offsety is %d" % (offsetx, offsety)
-
         # build a Minecraft world via pymclevel from blocks and data
         self.world = mclevel.MCInfdevOldLevel(tiledir, create=True)
-        tilebox = box.BoundingBox((offsetx, 0, offsety), (region.tilesize, Tile.chunkHeight, region.tilesize))
+        tilebox = box.BoundingBox((self.offsetx, 0, self.offsety), (self.size, Tile.chunkHeight, self.size))
         self.world.createChunksInBox(tilebox)
 
         # build inverse distance trees for landcover and elevation
-        # (see if they've been passed to us already)
-        try:
-            lcds = region.lcds
-            elds = region.elds
-            lcidt = region.lcidt
-            elidt = region.elidt
-        except AttributeError:
-            # FIXME: we currently read in the entire world
-            lcds = region.ds(region.lclayer)
-            elds = region.ds(region.ellayer)
-            # landcover nodata is 11
-            lcidt = Tile.getIDT(lcds, nodata=11)
-            # FIXME: need 'vscale=SOMETHINGSANE' here
-            elidt = Tile.getIDT(elds, vscale=region.scale)
+        # FIXME: we currently read in the entire world
+        lcds = Tile.ds(self.name, self.lclayer)
+        elds = Tile.ds(self.name, self.ellayer)
+        # landcover nodata is 11
+        lcidt = Tile.getIDT(lcds, nodata=11)
+        # FIXME: need 'vscale=SOMETHINGSANE' here
+        elidt = Tile.getIDT(elds, vscale=self.scale)
         
         # fun with coordinates
         #print "upper left:", newcoords.fromRastertoMap(lcds, 0, 0)
@@ -91,8 +91,8 @@ class Tile:
         # the offsets are Minecraft units
         # the size is tilesize
         # the contents are latlongs
-        baseshape = (region.tilesize, region.tilesize)
-        basearray = newcoords.getCoordsArray(lcds, offsetx, offsety, region.tilesize, region.tilesize, newcoords.fromMaptoLL, region.scale)
+        baseshape = (self.size, self.size)
+        basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, newcoords.fromMaptoLL, self.scale)
 
         # generate landcover and elevation arrays
         lcarray = lcidt(basearray, nnear=8, eps=0.1, majority=True)
@@ -106,14 +106,13 @@ class Tile:
         # do the terrain thing (no trees, ore or building)
         self.peak = [0, 0, 0]
 
-        for myx, myz in product(xrange(region.tilesize), xrange(region.tilesize)):
-            # I FORGET WHY THIS IS Z, X
+        for myx, myz in product(xrange(self.size), xrange(self.size)):
             lcval = int(lcarray[myx, myz])
             elval = int(elarray[myx, myz])
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
-            realx = myx + offsetx
-            realz = myz + offsety
+            realx = myx + self.offsetx
+            realz = myz + self.offsety
             if elval > self.peak[1]:
                 self.peak = [realx, elval, realz]
             #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
@@ -132,7 +131,7 @@ class Tile:
 
         # write world
         sizeOnDisk = 0
-        # NB: numchunks is calculable = (region.tilesize/chunkWidth)*(region.tilesize/chunkWidth)
+        # NB: numchunks is calculable = (self.size/chunkWidth)*(self.size/chunkWidth)
         numchunks = 0
         for i, cPos in enumerate(self.world.allChunks, 1):
             ch = self.world.getChunk(*cPos);
@@ -147,18 +146,28 @@ class Tile:
         stream = file(os.path.join(tiledir, 'Tile.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
-
+    
+    # duplicates region.ds
+    @staticmethod
+    def ds(name, layer):
+        filename = os.path.join('Datasets', name, layer, '%s.%s' % (layer, Region.decodeLayerID(layer)[1]))
+        ds = gdal.Open(filename, GA_ReadOnly)
+        ds.transforms = newcoords.getTransforms(ds)
+        return ds
 
     @staticmethod
     @timer()
     def getIDT(ds, nodata=None, vscale=1, trim=0):
         """Get inverse distance tree based on dataset."""
         band = ds.GetRasterBand(1)
-        data = band.ReadAsArray(0, 0, ds.RasterXSize, ds.RasterYSize)
+        # try grabbing only the coordinates we care about
+        offset = (0, 0)
+        size = (ds.RasterXSize, ds.RasterYSize)
+        data = band.ReadAsArray(offset[0], offset[1], size[0], size[1])
         if (nodata != None):
             fromnodata = band.GetNoDataValue()
             data[data == fromnodata] = nodata
-        latlong = newcoords.getCoordsArray(ds, 0, 0, ds.RasterXSize, ds.RasterYSize, newcoords.fromRastertoLL)
+        latlong = newcoords.getCoordsArray(ds, offset[0], offset[1], size[0], size[1], newcoords.fromRastertoLL)
         #print latlong
         value = data.flatten()
         value = value - trim
@@ -192,26 +201,23 @@ class Tile:
 def checkTile():
     """Checks tile code."""
 
-    #BlockIsland = Region(name='BlockIsland', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
     # assume newregion.py passed its checks
-    yamlfile = file(os.path.join('Regions', 'BlockIsland', 'Region.yaml'))
-    BlockIsland = yaml.load(yamlfile)
+    yamlfile = file(os.path.join('Regions', 'Test', 'Region.yaml'))
+    Test = yaml.load(yamlfile)
     yamlfile.close()
 
     try:
-        myTile = Tile(BlockIsland, BlockIsland.txmin-1, BlockIsland.tymin-1)
+        myTile = Tile(Test, Test.txmin-1, Test.tymin-1)
     except AttributeError:
         print "out of bounds tile check passed"
     else:
         print "out of bounds tile check failed"
 
-    # set the inverse distance trees first
-    BlockIsland.lcds = BlockIsland.ds(BlockIsland.lclayer)
-    BlockIsland.elds = BlockIsland.ds(BlockIsland.ellayer)
-    BlockIsland.lcidt = Tile.getIDT(BlockIsland.lcds, nodata=11)
-    BlockIsland.elidt = Tile.getIDT(BlockIsland.elds, vscale=BlockIsland.scale)
+    # create the tile
+    myTile = Tile(Test, Test.txmin, Test.tymin)
 
-    myTile = Tile(BlockIsland, 1309, 1485)
+    # build the world corresponding to the tile
+    myTile.build()
 
 if __name__ == '__main__':
     checkTile()
