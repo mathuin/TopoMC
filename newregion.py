@@ -5,7 +5,6 @@ from math import ceil, floor
 import suds
 import re
 import os
-import shutil
 import urllib2
 import yaml
 try:
@@ -20,10 +19,9 @@ from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
 
-from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly
 import newcoords
 import invdisttree
+from newutils import cleanmkdir, ds
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
@@ -88,13 +86,11 @@ class Region:
                 raise AttributeError, 'invalid elevation ID'
 
         # crazy directory fun
-        regiondir = os.path.join('Regions', self.name)
-        if os.path.isdir(regiondir):
-            shutil.rmtree(regiondir)
-        if not os.path.exists(regiondir):
-            os.makedirs(regiondir)
-        else:
-            raise IOError, '%s already exists' % regiondir
+        self.regiondir = os.path.join('Regions', self.name)
+        cleanmkdir(self.regiondir)
+
+        self.mapsdir = os.path.join('Datasets', self.name)
+        cleanmkdir(self.mapsdir)
 
         # these are the latlong values
         llxmax = max(xmax, xmin)
@@ -170,7 +166,7 @@ class Region:
         self.ellayer = self.checkavail(elevationIDs)
 
         # write the values to the file
-        stream = file(os.path.join(regiondir, 'Region.yaml'), 'w')
+        stream = file(os.path.join(self.regiondir, 'Region.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
 
@@ -229,20 +225,9 @@ class Region:
         
         return (pType, iType, mType, cType)
 
-    def mapsdir(self):
-        """Maps directory."""
-        return os.path.join('Datasets', self.name)
-
     def mapfile(self, layer):
         """Generate map file based on layer"""
-        return os.path.join(self.mapsdir(), layer, '%s.%s' % (layer, Region.decodeLayerID(layer)[1]))
-
-    def ds(self, layer):
-        """Return dataset including transforms."""
-        filename = self.mapfile(layer)
-        ds = gdal.Open(filename, GA_ReadOnly)
-        ds.transforms = newcoords.getTransforms(ds)
-        return ds
+        return os.path.join(self.mapsdir, layer, '%s.%s' % (layer, Region.decodeLayerID(layer)[1]))
 
     def checkavail(self, productlist):
         """Check availability with web service."""
@@ -336,9 +321,8 @@ class Region:
         # FIXME: extract try/expect around urlopen
         # FIXME: consider breaking apart further
         (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
-        layerdir = os.path.join(self.mapsdir(), layerID)
-        if not os.path.exists(layerdir):
-            os.makedirs(layerdir)
+        layerdir = os.path.join(self.mapsdir, layerID)
+        cleanmkdir(layerdir)
 
         print "  Requesting download for %s." % layerID
         # initiateDownload and get the response code
@@ -432,23 +416,20 @@ class Region:
     def extractfiles(self):
         """Extracts image files and merges as necessary."""
 
-        mapsdir = self.mapsdir()
-        layerIDs = [ name for name in os.listdir(mapsdir) if os.path.isdir(os.path.join(mapsdir, name)) ]
+        layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
         if layerIDs == []:
             raise IOError, 'No files found'
         for layerID in layerIDs:
             (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
             filesuffix = cType.lower()
-            layerdir = os.path.join(mapsdir, layerID)
+            layerdir = os.path.join(self.mapsdir, layerID)
             compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
             for compfile in compfiles:
                 (compbase, compext) = os.path.splitext(compfile)
                 fullfile = os.path.join(layerdir, compfile)
                 datasubdir = os.path.join(layerdir, compbase)
                 compimage = os.path.join(compbase, "%s.%s" % (compbase, iType))
-                if os.path.exists(datasubdir):
-                    shutil.rmtree(datasubdir)
-                os.makedirs(datasubdir)
+                cleanmkdir(datasubdir)
                 if (Region.zipfileBroken == False):
                     if (cType == "TGZ"):
                         cFile = tarfile.open(fullfile)
@@ -484,7 +465,6 @@ class Region:
 
     def getfiles(self):
         """Get files from USGS."""
-        os.makedirs(self.mapsdir())
         layerIDs = [self.lclayer, self.ellayer]
         downloadURLs = self.requestvalidation(layerIDs)
         for layerID in downloadURLs.keys():

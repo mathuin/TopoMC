@@ -8,17 +8,15 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
-from osgeo import gdal, osr
-from osgeo.gdalconst import GA_ReadOnly
 from newregion import Region
 import os
-import shutil
 from itertools import product
 import numpy
 
 import newcoords
 import invdisttree
 #import newterrain
+from newutils import cleanmkdir, ds
 from timer import timer
 
 import sys
@@ -43,8 +41,8 @@ class Tile:
         self.name = region.name
         self.size = region.tilesize
         self.scale = region.scale
-        self.lclayer = region.lclayer
-        self.ellayer = region.ellayer
+        self.lcfile = region.mapfile(region.lclayer)
+        self.elfile = region.mapfile(region.ellayer)
         self.tilex = tilex
         self.tiley = tiley
         self.offsetx = self.tilex * self.size
@@ -60,12 +58,7 @@ class Tile:
         """Actually build the Minecraft world that corresponds to a tile."""
         # create the tile directory if necessary
         tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
-        if os.path.isdir(tiledir):
-            shutil.rmtree(tiledir)
-        if not os.path.exists(tiledir):
-            os.makedirs(tiledir)
-        else:
-            raise IOError, '%s already exists' % tilesdir
+        cleanmkdir(tiledir)
 
         # build a Minecraft world via pymclevel from blocks and data
         self.world = mclevel.MCInfdevOldLevel(tiledir, create=True)
@@ -74,8 +67,8 @@ class Tile:
 
         # build inverse distance trees for landcover and elevation
         # FIXME: we currently read in the entire world
-        lcds = Tile.ds(self.name, self.lclayer)
-        elds = Tile.ds(self.name, self.ellayer)
+        lcds = ds(self.lcfile)
+        elds = ds(self.elfile)
         # landcover nodata is 11
         lcidt = Tile.getIDT(lcds, nodata=11)
         # FIXME: need 'vscale=SOMETHINGSANE' here
@@ -92,7 +85,7 @@ class Tile:
         # the size is tilesize
         # the contents are latlongs
         baseshape = (self.size, self.size)
-        basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, newcoords.fromMaptoLL, self.scale)
+        basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, self.fromMCtoLL)
 
         # generate landcover and elevation arrays
         lcarray = lcidt(basearray, nnear=8, eps=0.1, majority=True)
@@ -197,6 +190,21 @@ class Tile:
         [ self.world.setBlockAt(x, y, z, block) for (x, y, z, block) in blocks ]
 
     # NEED TO REIMPLEMENT SETBLOCKSAT AND FRIENDS
+    def fromMCtoMap(self, ds, MCx, MCy):
+        """Used with getCoordsArray to transform from Minecraft units to map units."""
+        mapx = MCx * self.scale
+        mapy = MCy * self.scale
+        return mapx, mapy
+
+    def fromMCtoLL(self, ds, MCx, MCy):
+        mapx, mapy = self.fromMCtoMap(ds, MCx, MCy)
+        pnt1, pnt0 = newcoords.fromMaptoLL(ds, mapx, mapy)
+        return pnt1, pnt0
+
+    def fromMCtoRaster(self, ds, MCx, MCy):
+        mapx, mapy = self.fromMCtoMap(ds, MCx, MCy)
+        x, y = newcoords.fromMaptoRaster(ds, mapx, mapy)
+        return round(x), round(y)
 
 def checkTile():
     """Checks tile code."""

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from newregion import Region
+from newutils import ds
 import sys
 import argparse
 import logging
@@ -27,9 +28,6 @@ def main(argv):
     """Creates a specified region and downloads files from USGS."""
     # example:
     # ./GetRegion.py --name BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
-
-    # NB: add tile size, scale, and maxdepth here 
-    # consider adding elevation and landcover ID support
 
     # defaults
     default_elevationIDs = ','.join(Region.elevationIDs)
@@ -64,9 +62,9 @@ def main(argv):
     if (args.doMaps):
         print "Downloading files..."
         myRegion.getfiles()
-        lcds = myRegion.ds(myRegion.lclayer)
+        lcds = ds(myRegion.mapfile(myRegion.lclayer))
         print "The landcover file has dimensions %d x %d" % (lcds.RasterXSize, lcds.RasterYSize)
-        elds = myRegion.ds(myRegion.ellayer)
+        elds = ds(myRegion.mapfile(myRegion.ellayer))
         print "The elevation file has dimensions %d x %d" % (elds.RasterXSize, elds.RasterYSize)
     
 if __name__ == '__main__':
