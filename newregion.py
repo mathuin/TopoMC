@@ -165,6 +165,12 @@ class Region:
         self.lclayer = self.checkavail(landcoverIDs)
         self.ellayer = self.checkavail(elevationIDs)
 
+        # transform the maxmins here
+        self.txmax = int(ceil(-1 * mymin / realsize))
+        self.tymax = int(ceil(mxmax / realsize))
+        self.txmin = int(floor(-1 * mymax / realsize))
+        self.tymin = int(floor(mxmin / realsize))
+
         # write the values to the file
         stream = file(os.path.join(self.regiondir, 'Region.yaml'), 'w')
         yaml.dump(self, stream)

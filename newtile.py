@@ -183,13 +183,8 @@ class Tile:
     # these are Tile-based coords functions because they use self.scale
     def fromMCtoMap(self, ds, MCx, MCz):
         """Used with getCoordsArray to transform from Minecraft units to map units."""
-        #     north  south  east  west
-        # alb  y+     y-     x+    x-
-        #  MC  z-     z+     x+    x-
-        #mapx = MCz * self.scale
-        #mapy = MCx * self.scale * -1
-        mapx = MCx * self.scale
-        mapy = MCz * self.scale
+        mapx = MCz * self.scale
+        mapy = MCx * self.scale * -1
         return mapx, mapy
 
     def fromMCtoLL(self, ds, MCx, MCz):
