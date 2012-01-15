@@ -85,7 +85,9 @@ class Tile:
         # the size is tilesize
         # the contents are latlongs
         baseshape = (self.size, self.size)
+	# this should work but does not yet
         basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, self.fromMCtoLL)
+        #basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, newcoords.fromMaptoLL, self.scale)
 
         # generate landcover and elevation arrays
         lcarray = lcidt(basearray, nnear=8, eps=0.1, majority=True)
@@ -184,8 +186,10 @@ class Tile:
         #     north  south  east  west
         # alb  y+     y-     x+    x-
         #  MC  z-     z+     x+    x-
+        #mapx = MCz * self.scale
+        #mapy = MCx * self.scale * -1
         mapx = MCx * self.scale
-        mapy = MCz * self.scale * -1
+        mapy = MCz * self.scale
         return mapx, mapy
 
     def fromMCtoLL(self, ds, MCx, MCz):

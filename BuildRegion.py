@@ -50,10 +50,19 @@ def main(argv):
     # AND add the world to the uberworld
     # ... that will save a loop at the least!
     tiles = [(myRegion, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
-    # single process version - works
-    for tile in tiles:
-        myTile = Tile(tile[0], tile[1], tile[2])
-        myTile.build()
+    if False:
+        # single process version - works
+        for tile in tiles:
+            (myRegion, tilex, tiley) = tile
+            myTile = Tile(myRegion, tilex, tiley)
+            myTile.build()
+    else:
+        # multi-process ... let's see...
+        pool = Pool()
+        tasks = ["./BuildTile.py %s %d %d" % (myRegion.name, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
+        results = pool.map(os.system, tasks)
+        peaks = [x for x in results]
+        pool = None
 
     # merge individual worlds into it
     for tilex in xrange(myRegion.txmin, myRegion.txmax):
