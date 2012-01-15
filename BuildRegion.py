@@ -45,19 +45,28 @@ def main(argv):
     peak = [0, 0, 0]
 
     # generate individual tiles
-    print "Now building %d tiles" % ((myRegion.txmax-myRegion.txmin)*(myRegion.tymax-myRegion.tymin))
+    # if I ever get this blessed thing to work,
+    # use a callback to return the peak
+    # AND add the world to the uberworld
+    # ... that will save a loop at the least!
     tiles = [(myRegion, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
     # single process version - works
     for tile in tiles:
-        (myRegion, tilex, tiley) = tile
-        print "building tile %d, %d" % (tilex-myRegion.txmin, tiley-myRegion.tymin)
-        myTile = Tile(myRegion, tilex, tiley)
-        mypeak = myTile.build()
-        if (mypeak[1] > peak[1]):
-            print "new peak: ", mypeak
-            peak = mypeak
-        myWorld = mclevel.MCInfdevOldLevel(myTile.tiledir, create=False)
-        world.copyBlocksFrom(myWorld, myWorld.bounds, myWorld.bounds.origin)
+        myTile = Tile(tile[0], tile[1], tile[2])
+        myTile.build()
+
+    # merge individual worlds into it
+    for tilex in xrange(myRegion.txmin, myRegion.txmax):
+        for tiley in xrange(myRegion.tymin, myRegion.tymax):
+            tiledir = os.path.join('Tiles', myRegion.name, '%dx%d' % (tilex, tiley))
+            peakfile = file(os.path.join(tiledir, 'Tile.yaml'))
+            newpeak = yaml.load(peakfile)
+            peakfile.close()
+            if (newpeak.peak[1] > peak[1]):
+                peak = newpeak.peak
+            tileworld = mclevel.MCInfdevOldLevel(tiledir, create=False)
+            world.copyBlocksFrom(tileworld, tileworld.bounds, tileworld.bounds.origin)
+            tileworld = False
 
     # tie up loose ends
     setspawnandsave(world, peak)

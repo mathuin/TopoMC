@@ -16,19 +16,14 @@ def getTransforms(ds):
 
 def getCoordsArray(ds, xmin, ymin, xsize, ysize, func, scale=1):
     "Builds array with coordinates based on supplied function."
-    originx = xmin*scale
-    originy = ymin*scale
-    farx = (xmin+xsize)*scale
-    fary = (ymin+ysize)*scale
-    rows = numpy.linspace(originx, farx, xsize, False)
-    cols = numpy.linspace(originy, fary, ysize, False)
+    cols = numpy.linspace(ymin*scale, (ymin+ysize)*scale, ysize, False)
+    rows = numpy.linspace(xmin*scale, (xmin+xsize)*scale, xsize, False)
     retval = numpy.array([func(ds, row, col) for row in rows for col in cols])
     return retval
 
 # in the definitions below:
 # LL is lat-long in the real world
 # Map is in the coordinate system of the dataset
-# NB: Map here != Minecraft
 # Raster is the position of the point in the dataset
 
 def fromRastertoMap(ds, x, y):
