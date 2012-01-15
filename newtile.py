@@ -29,8 +29,8 @@ class Tile:
     # stuff that should come from pymclevel
     chunkHeight = mclevel.MCInfdevOldLevel.Height # 128 actually
     chunkWidth = 16 # hardcoded in InfdevChunk actually
-    sealevel = 32
-    maxdepth = 16
+    sealevel = 64
+    maxdepth = 32
     crustwidth = 3
 
     def __init__(self, region, tilex, tiley):
@@ -70,9 +70,9 @@ class Tile:
         lcds = ds(self.lcfile)
         elds = ds(self.elfile)
         # landcover nodata is 11
-        lcidt = Tile.getIDT(lcds, nodata=11)
+        lcidt = self.getIDT(lcds, nodata=11)
         # FIXME: need 'vscale=SOMETHINGSANE' here
-        elidt = Tile.getIDT(elds, vscale=self.scale)
+        elidt = self.getIDT(elds, vscale=self.scale)
         
         # fun with coordinates
         #print "upper left:", newcoords.fromRastertoMap(lcds, 0, 0)
@@ -85,9 +85,7 @@ class Tile:
         # the size is tilesize
         # the contents are latlongs
         baseshape = (self.size, self.size)
-	# this should work but does not yet
         basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, self.fromMCtoLL)
-        #basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, newcoords.fromMaptoLL, self.scale)
 
         # generate landcover and elevation arrays
         lcarray = lcidt(basearray, nnear=8, eps=0.1, majority=True)
@@ -107,9 +105,10 @@ class Tile:
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
             realx = myx + self.offsetx
+            realel = elval + Tile.sealevel
             realz = myz + self.offsety
             if elval > self.peak[1]:
-                self.peak = [realx, elval, realz]
+                self.peak = [realx, realel, realz]
             #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
             # FIXME: for now, dirt or no dirt, to the appropriate altitude
             if (lcval == 11):
@@ -131,28 +130,29 @@ class Tile:
         # return peak
         return self.peak
     
-    # duplicates region.ds
-    @staticmethod
-    def ds(name, layer):
-        filename = os.path.join('Datasets', name, layer, '%s.%s' % (layer, Region.decodeLayerID(layer)[1]))
-        ds = gdal.Open(filename, GA_ReadOnly)
-        ds.transforms = newcoords.getTransforms(ds)
-        return ds
-
-    @staticmethod
+    #@staticmethod due to raster
     @timer()
-    def getIDT(ds, nodata=None, vscale=1, trim=0):
+    def getIDT(self, ds, nodata=None, vscale=1, trim=0):
         """Get inverse distance tree based on dataset."""
+        origin = self.fromMCtoRaster(ds, self.offsetx-self.size, self.offsety-self.size)
+        print "origin is %d, %d" % (origin[0], origin[1])
+        far = self.fromMCtoRaster(ds, self.offsetx+self.size*3, self.offsety+self.size*3)
+        print "far is %d, %d" % (far[0], far[1])
+        ox = int(max(0, min(origin[0], far[0])))
+        oy = int(max(0, min(origin[1], far[1])))
+        fx = int(min(ds.RasterXSize, max(origin[0], far[0])))
+        fy = int(min(ds.RasterYSize, max(origin[1], far[1])))
+        sx = fx - ox
+        sy = fy - oy
+        print "o = (%d, %d), f = (%d, %d), s = (%s, %s)" % (ox, oy, fx, fy, sx, sy)
+	print "was (0, 0, %d, %d) now is (%d, %d, %d, %d)" % (ds.RasterXSize, ds.RasterYSize, ox, oy, sx, sy)
+        (ox, oy, sx, sy) = (0, 0, ds.RasterXSize, ds.RasterYSize)
         band = ds.GetRasterBand(1)
-        # try grabbing only the coordinates we care about
-        offset = (0, 0)
-        size = (ds.RasterXSize, ds.RasterYSize)
-        data = band.ReadAsArray(offset[0], offset[1], size[0], size[1])
+        data = band.ReadAsArray(ox, oy, sx, sy)
         if (nodata != None):
             fromnodata = band.GetNoDataValue()
             data[data == fromnodata] = nodata
-        latlong = newcoords.getCoordsArray(ds, offset[0], offset[1], size[0], size[1], newcoords.fromRastertoLL)
-        #print latlong
+        latlong = newcoords.getCoordsArray(ds, ox, oy, sx, sy, newcoords.fromRastertoLL, 1)
         value = data.flatten()
         value = value - trim
         value = value / vscale
@@ -198,8 +198,8 @@ class Tile:
         return round(x), round(y)
 
     def fromMaptoMC(self, ds, mapx, mapy):
-        MCx = mapx / self.scale
-        MCz = -1 * mapy / self.scale
+        MCx = -1 * mapy / self.scale
+        MCz = mapx / self.scale
         return MCx, MCz
 
     def fromRastertoMC(self, ds, x, y):
