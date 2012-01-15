@@ -57,11 +57,11 @@ class Tile:
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
         # create the tile directory if necessary
-        tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
-        cleanmkdir(tiledir)
+        self.tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
+        cleanmkdir(self.tiledir)
 
         # build a Minecraft world via pymclevel from blocks and data
-        self.world = mclevel.MCInfdevOldLevel(tiledir, create=True)
+        self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
         tilebox = box.BoundingBox((self.offsetx, 0, self.offsety), (self.size, Tile.chunkHeight, self.size))
         self.world.createChunksInBox(tilebox)
 
