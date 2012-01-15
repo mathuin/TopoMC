@@ -21,3 +21,19 @@ def ds(filename):
     ds.transforms = newcoords.getTransforms(ds)
     return ds
 
+def setspawnandsave(world, point):
+    """Sets the spawn point and player point in the world and saves the world."""
+    world.setPlayerPosition(tuple(point))
+    spawn = point
+    spawn[1] += 2
+    world.setPlayerSpawnPosition(tuple(spawn))
+    sizeOnDisk = 0
+    # NB: numchunks is calculable = (region.tilesize/chunkWidth)*(region.tilesize/chunkWidth)
+    numchunks = 0
+    for i, cPos in enumerate(world.allChunks, 1):
+        ch = world.getChunk(*cPos);
+        numchunks += 1
+        sizeOnDisk += ch.compressedSize();
+    world.SizeOnDisk = sizeOnDisk
+    world.saveInPlace()
+    

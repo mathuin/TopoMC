@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
+import logging
+logging.basicConfig(level=logging.WARNING)
 from newregion import Region
 from newtile import Tile
+from newutils import setspawnandsave
 import sys
 import argparse
 import os
@@ -36,49 +39,28 @@ def main(argv):
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 
-
     # generate overall world
     worlddir = os.path.join('Worlds', args.name)
     world = mclevel.MCInfdevOldLevel(worlddir, create=True)
     peak = [0, 0, 0]
 
     # generate individual tiles
-    # if I ever get this blessed thing to work,
-    # use a callback to return the peak
-    # AND add the world to the uberworld
-    # ... that will save a loop at the least!
+    print "Now building %d tiles" % ((myRegion.txmax-myRegion.txmin)*(myRegion.tymax-myRegion.tymin))
     tiles = [(myRegion, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
     # single process version - works
     for tile in tiles:
-        myTile = Tile(tile[0], tile[1], tile[2])
-        myTile.build()
+        (myRegion, tilex, tiley) = tile
+        print "building tile %d, %d" % (tilex-myRegion.txmin, tiley-myRegion.tymin)
+        myTile = Tile(myRegion, tilex, tiley)
+        mypeak = myTile.build()
+        if (mypeak[1] > peak[1]):
+            print "new peak: ", mypeak
+            peak = mypeak
+        myWorld = mclevel.MCInfdevOldLevel(myTile.tiledir, create=False)
+        world.copyBlocksFrom(myWorld, myWorld.bounds, myWorld.bounds.origin)
 
-    # merge individual worlds into it
-    for tilex in xrange(myRegion.txmin, myRegion.txmax):
-        for tiley in xrange(myRegion.tymin, myRegion.tymax):
-            tiledir = os.path.join('Tiles', myRegion.name, '%dx%d' % (tilex, tiley))
-            peakfile = file(os.path.join(tiledir, 'Tile.yaml'))
-            newpeak = yaml.load(peakfile)
-            peakfile.close()
-            if (newpeak.peak[1] > peak[1]):
-                peak = newpeak.peak
-            tileworld = mclevel.MCInfdevOldLevel(tiledir, create=False)
-            world.copyBlocksFrom(tileworld, tileworld.bounds, tileworld.bounds.origin)
-            tileworld = False
-
-    world.setPlayerPosition(tuple(peak))
-    spawn = peak
-    spawn[1] += 2
-    world.setPlayerSpawnPosition(tuple(spawn))
-    sizeOnDisk = 0
-    # NB: numchunks is calculable = (region.tilesize/chunkWidth)*(region.tilesize/chunkWidth)
-    numchunks = 0
-    for i, cPos in enumerate(world.allChunks, 1):
-        ch = world.getChunk(*cPos);
-        numchunks += 1
-        sizeOnDisk += ch.compressedSize();
-    world.SizeOnDisk = sizeOnDisk
-    world.saveInPlace()
+    # tie up loose ends
+    setspawnandsave(world, peak)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

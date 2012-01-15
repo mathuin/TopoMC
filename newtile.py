@@ -16,7 +16,7 @@ import numpy
 import newcoords
 import invdisttree
 #import newterrain
-from newutils import cleanmkdir, ds
+from newutils import cleanmkdir, ds, setspawnandsave
 from timer import timer
 
 import sys
@@ -117,28 +117,17 @@ class Tile:
             self.templayers(realx, realz, elval, columns)
             
         # stick the player and the spawn at the peak
-        self.world.setPlayerPosition(tuple(self.peak))
-        spawn = self.peak
-        spawn[1] += 2
-        self.world.setPlayerSpawnPosition(tuple(spawn))
-
-        # write world
-        sizeOnDisk = 0
-        # NB: numchunks is calculable = (self.size/chunkWidth)*(self.size/chunkWidth)
-        numchunks = 0
-        for i, cPos in enumerate(self.world.allChunks, 1):
-            ch = self.world.getChunk(*cPos);
-            numchunks += 1
-            sizeOnDisk += ch.compressedSize();
-        self.world.SizeOnDisk = sizeOnDisk
-        self.world.saveInPlace()
+        setspawnandsave(self.world, self.peak)
 
         # write Tile.yaml with relevant data (peak at least)
         # NB: world is not dump-friendly. :-)
         del self.world
-        stream = file(os.path.join(tiledir, 'Tile.yaml'), 'w')
+        stream = file(os.path.join(self.tiledir, 'Tile.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
+
+        # return peak
+        return self.peak
     
     # duplicates region.ds
     @staticmethod
@@ -189,28 +178,45 @@ class Tile:
                 top -= layer
         [ self.world.setBlockAt(x, y, z, block) for (x, y, z, block) in blocks ]
 
-    # NEED TO REIMPLEMENT SETBLOCKSAT AND FRIENDS
-    def fromMCtoMap(self, ds, MCx, MCy):
+    # these are Tile-based coords functions because they use self.scale
+    def fromMCtoMap(self, ds, MCx, MCz):
         """Used with getCoordsArray to transform from Minecraft units to map units."""
+        #     north  south  east  west
+        # alb  y+     y-     x+    x-
+        #  MC  z-     z+     x+    x-
         mapx = MCx * self.scale
-        mapy = MCy * self.scale
+        mapy = MCz * self.scale * -1
         return mapx, mapy
 
-    def fromMCtoLL(self, ds, MCx, MCy):
-        mapx, mapy = self.fromMCtoMap(ds, MCx, MCy)
+    def fromMCtoLL(self, ds, MCx, MCz):
+        mapx, mapy = self.fromMCtoMap(ds, MCx, MCz)
         pnt1, pnt0 = newcoords.fromMaptoLL(ds, mapx, mapy)
         return pnt1, pnt0
 
-    def fromMCtoRaster(self, ds, MCx, MCy):
-        mapx, mapy = self.fromMCtoMap(ds, MCx, MCy)
+    def fromMCtoRaster(self, ds, MCx, MCz):
+        mapx, mapy = self.fromMCtoMap(ds, MCx, MCz)
         x, y = newcoords.fromMaptoRaster(ds, mapx, mapy)
         return round(x), round(y)
+
+    def fromMaptoMC(self, ds, mapx, mapy):
+        MCx = mapx / self.scale
+        MCz = -1 * mapy / self.scale
+        return MCx, MCz
+
+    def fromRastertoMC(self, ds, x, y):
+        mapx, mapy = newcoords.fromRastertoMap(ds, x, y)
+        MCx, MCz = self.fromMaptoMC(ds, mapx, mapy)
+        return MCx, MCz
+
+    def fromLLtoMC(self, ds, lat, lon):
+        mapx, mapy = newcoords.fromLLtoMap(ds, lat, lon)
+        MCx, MCz = self.fromMaptoMC(ds, mapx, mapy)
 
 def checkTile():
     """Checks tile code."""
 
     # assume newregion.py passed its checks
-    yamlfile = file(os.path.join('Regions', 'Test', 'Region.yaml'))
+    yamlfile = file(os.path.join('Regions', 'BI30', 'Region.yaml'))
     Test = yaml.load(yamlfile)
     yamlfile.close()
 

@@ -57,7 +57,7 @@ def main(argv):
     myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, tilesize=args.tilesize, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
 
     # temporary
-    print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin-1)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin-1)*myRegion.tilesize)
+    print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin)*myRegion.tilesize)
 
     if (args.doMaps):
         print "Downloading files..."
