@@ -39,14 +39,15 @@ class Tile:
         # today we assume that's already been done.
         # snag stuff from the region first
         self.name = region.name
-        self.size = region.tilesize
+        self.mcsize = region.tilesize
         self.scale = region.scale
+        self.mapsize = region.tilesize * region.scale
         self.lcfile = region.mapfile(region.lclayer)
         self.elfile = region.mapfile(region.ellayer)
         self.tilex = tilex
         self.tiley = tiley
-        self.offsetx = self.tilex * self.size
-        self.offsety = self.tiley * self.size
+        self.mapoffsetx = self.tilex * self.mapsize
+        self.mapoffsety = self.tiley * self.mapsize
 
         if (self.tilex < region.txmin) or (self.tilex >= region.txmax):
             raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, region.txmin, region.txmax)
@@ -60,11 +61,6 @@ class Tile:
         self.tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
         cleanmkdir(self.tiledir)
 
-        # build a Minecraft world via pymclevel from blocks and data
-        self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
-        tilebox = box.BoundingBox((self.offsetx, 0, self.offsety), (self.size, Tile.chunkHeight, self.size))
-        self.world.createChunksInBox(tilebox)
-
         # build inverse distance trees for landcover and elevation
         # FIXME: we currently read in the entire world
         lcds = ds(self.lcfile)
@@ -73,7 +69,24 @@ class Tile:
         lcidt = self.getIDT(lcds, nodata=11)
         # FIXME: need 'vscale=SOMETHINGSANE' here
         elidt = self.getIDT(elds, vscale=self.scale)
+
+        # calculate Minecraft corners
+        mcoffset = self.fromMaptoMC(lcds, self.mapoffsetx, self.mapoffsety)
+        mcfar = self.fromMaptoMC(lcds, self.mapoffsetx+self.mapsize, self.mapoffsety+self.mapsize)
+        mcoffsetx = min(mcoffset[0], mcfar[0])
+        mcoffsetz = min(mcoffset[1], mcfar[1])
+        mcfarx = max(mcoffset[0], mcfar[0])
+        mcfarz = max(mcoffset[1], mcfar[1])
+        mcsizex = mcfarx - mcoffsetx
+        mcsizez = mcfarz - mcoffsetz
+        if mcsizex < 0 or mcsizez < 0:
+            raise AttributeError, 'negative sizes are bad'
         
+        # build a Minecraft world via pymclevel from blocks and data
+        self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
+        tilebox = box.BoundingBox((mcoffsetx, 0, mcoffsetz), (mcsizex, Tile.chunkHeight, mcsizez))
+        self.world.createChunksInBox(tilebox)
+
         # fun with coordinates
         #print "upper left:", newcoords.fromRastertoMap(lcds, 0, 0)
         #print "lower left:",  newcoords.fromRastertoMap(lcds, 0, lcds.RasterYSize)
@@ -81,41 +94,46 @@ class Tile:
         #print "lower right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, lcds.RasterYSize)
 
         # the base array
-        # the offsets are Minecraft units
+        # the offsets are map units
         # the size is tilesize
         # the contents are latlongs
-        baseshape = (self.size, self.size)
-        basearray = newcoords.getCoordsArray(lcds, self.offsetx, self.offsety, self.size, self.size, self.fromMCtoLL)
+        llshape = (self.mcsize, self.mcsize)
+        llarray = newcoords.getCoordsArray(lcds, self.tilex*self.mcsize, self.tiley*self.mcsize, self.mcsize, self.mcsize, newcoords.fromMaptoLL, self.scale)
+
+        # the Minecraft coordinate translation
+        # NB: very suspicious values coming from this sigh!
+        mcarray = newcoords.getCoordsArray(lcds, self.tilex*self.mcsize, self.tiley*self.mcsize, self.mcsize, self.mcsize, self.fromMaptoMC, self.scale)
 
         # generate landcover and elevation arrays
-        lcarray = lcidt(basearray, nnear=8, eps=0.1, majority=True)
-        lcarray.resize(baseshape)
+        lcarray = lcidt(llarray, nnear=8, eps=0.1, majority=True)
+        lcarray.resize(llshape)
         
-        elarray = elidt(basearray, nnear=8, eps=0.1)
-        elarray.resize(baseshape)
+        elarray = elidt(llarray, nnear=8, eps=0.1)
+        elarray.resize(llshape)
         
         # bathymetry and crust go here 
 
         # do the terrain thing (no trees, ore or building)
         self.peak = [0, 0, 0]
 
-        for myx, myz in product(xrange(self.size), xrange(self.size)):
+        for myx, myz in product(xrange(self.mcsize), xrange(self.mcsize)):
+            mcindex = myx+self.mcsize*myz
+            mcx = int(mcarray[mcindex][0])
+            mcz = int(mcarray[mcindex][1])
             lcval = int(lcarray[myx, myz])
             elval = int(elarray[myx, myz])
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
-            realx = myx + self.offsetx
-            realel = elval + Tile.sealevel
-            realz = myz + self.offsety
+            mcel = elval + Tile.sealevel
             if elval > self.peak[1]:
-                self.peak = [realx, realel, realz]
+                self.peak = [mcx, mcel, mcz]
             #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
             # FIXME: for now, dirt or no dirt, to the appropriate altitude
             if (lcval == 11):
                 columns = [crustval, self.world.materials.Sand.ID, bathyval, self.world.materials.Water.ID]
             else:
                 columns = [crustval, self.world.materials.Dirt.ID]
-            self.templayers(realx, realz, elval, columns)
+            self.templayers(mcx, mcz, mcel, columns)
             
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)
@@ -132,21 +150,21 @@ class Tile:
     
     #@staticmethod due to raster
     @timer()
-    def getIDT(self, ds, nodata=None, vscale=1, trim=0):
+    def getIDT(self, ds, nodata=None, vscale=1, trim=0, all=False):
         """Get inverse distance tree based on dataset."""
-        origin = self.fromMCtoRaster(ds, self.offsetx-self.size, self.offsety-self.size)
-        print "origin is %d, %d" % (origin[0], origin[1])
-        far = self.fromMCtoRaster(ds, self.offsetx+self.size*3, self.offsety+self.size*3)
-        print "far is %d, %d" % (far[0], far[1])
-        ox = int(max(0, min(origin[0], far[0])))
-        oy = int(max(0, min(origin[1], far[1])))
-        fx = int(min(ds.RasterXSize, max(origin[0], far[0])))
-        fy = int(min(ds.RasterYSize, max(origin[1], far[1])))
+        offset = newcoords.fromMaptoRaster(ds, self.mapoffsetx-self.mapsize, self.mapoffsety-self.mapsize)
+        far = newcoords.fromMaptoRaster(ds, self.mapoffsetx+self.mapsize*2, self.mapoffsety+self.mapsize*2)
+        ox = int(max(0, min(offset[0], far[0])))
+        oy = int(max(0, min(offset[1], far[1])))
+        fx = int(min(ds.RasterXSize, max(offset[0], far[0])))
+        fy = int(min(ds.RasterYSize, max(offset[1], far[1])))
         sx = fx - ox
         sy = fy - oy
-        print "o = (%d, %d), f = (%d, %d), s = (%s, %s)" % (ox, oy, fx, fy, sx, sy)
-	print "was (0, 0, %d, %d) now is (%d, %d, %d, %d)" % (ds.RasterXSize, ds.RasterYSize, ox, oy, sx, sy)
-        (ox, oy, sx, sy) = (0, 0, ds.RasterXSize, ds.RasterYSize)
+        if all==True:
+            print "o = (%d, %d), f = (%d, %d), s = (%s, %s)" % (ox, oy, fx, fy, sx, sy)
+            print "was (0, 0, %d, %d) now is (%d, %d, %d, %d)" % (ds.RasterXSize, ds.RasterYSize, ox, oy, sx, sy)
+            print " - would have loaded only %d percent!" % (100 * (sx * sy) / (ds.RasterXSize * ds.RasterYSize))
+            (ox, oy, sx, sy) = (0, 0, ds.RasterXSize, ds.RasterYSize)
         band = ds.GetRasterBand(1)
         data = band.ReadAsArray(ox, oy, sx, sy)
         if (nodata != None):

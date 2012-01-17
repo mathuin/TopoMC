@@ -137,10 +137,6 @@ class Region:
         lcxmin = ((self.txmin - 1) * realsize)
         lcymax = ((self.tymax + 1) * realsize)
         lcymin = ((self.tymin - 1) * realsize)
-        self.imagexmax = self.txmax * realsize
-        self.imagexmin = self.txmin * realsize
-        self.imageymax = self.tymax * realsize
-        self.imageymin = self.tymin * realsize
 
         # now convert back from Albers to WGS84
         ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
@@ -164,12 +160,6 @@ class Region:
         # check availability of product IDs and identify specific layer IDs
         self.lclayer = self.checkavail(landcoverIDs)
         self.ellayer = self.checkavail(elevationIDs)
-
-        # transform the maxmins here
-        self.txmax = int(ceil(-1 * mymin / realsize))
-        self.tymax = int(ceil(mxmax / realsize))
-        self.txmin = int(floor(-1 * mymax / realsize))
-        self.tymin = int(floor(mxmin / realsize))
 
         # write the values to the file
         stream = file(os.path.join(self.regiondir, 'Region.yaml'), 'w')
