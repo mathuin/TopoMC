@@ -135,17 +135,17 @@ class Tile:
         for myx, myz in product(xrange(self.mcsize), xrange(self.mcsize)):
             if False:
                 mcindex = myx+self.mcsize*myz
-                mcx = mcarray[mcindex][0]
-                mcz = mcarray[mcindex][1]
+                mcx = int(mcarray[mcindex][0])
+                mcz = int(mcarray[mcindex][1])
             else:
-                mcx = myx + mcoffsetx
-                mcz = myz + mcoffsetz
+                mcx = int(myx + mcoffsetx)
+                mcz = int(myz + mcoffsetz)
             lcval = int(lcarray[myx, myz])
             elval = int(elarray[myx, myz])
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
             mcel = elval + Tile.sealevel
-            if elval > self.peak[1]:
+            if mcel > self.peak[1]:
                 self.peak = [mcx, mcel, mcz]
             #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
             # FIXME: for now, dirt or no dirt, to the appropriate altitude
