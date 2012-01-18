@@ -44,8 +44,8 @@ class Tile:
         self.mapsize = region.tilesize * region.scale
         self.lcfile = region.mapfile(region.lclayer)
         self.elfile = region.mapfile(region.ellayer)
-        self.tilex = tilex
-        self.tiley = tiley
+        self.tilex = int(tilex)
+        self.tiley = int(tiley)
         self.mapoffsetx = self.tilex * self.mapsize
         self.mapoffsety = self.tiley * self.mapsize
 
