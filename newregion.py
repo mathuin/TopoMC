@@ -46,9 +46,8 @@ class Region:
     scale = 6
     # product types in order of preference
     landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
-    #elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
+    elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
     #elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
-    elevationIDs = ['NED', 'ND3', 'ND9', 'NAK']
 
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, lcIDs=None, elIDs=None, debug=False):
         """Create a region based on lat-longs and other parameters."""

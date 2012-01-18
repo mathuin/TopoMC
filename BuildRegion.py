@@ -14,6 +14,7 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 from multiprocessing import Pool
+from itertools import product
 
 sys.path.append('..')
 from pymclevel import mclevel, box
@@ -49,17 +50,17 @@ def main(argv):
     # use a callback to return the peak
     # AND add the world to the uberworld
     # ... that will save a loop at the least!
-    tiles = [(myRegion, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
+    tiles = [(tilex, tiley) for tilex, tiley in product(xrange(myRegion.txmin, myRegion.txmax), xrange(myRegion.tymin, myRegion.tymax))]
     if False:
         # single process version - works
         for tile in tiles:
-            (myRegion, tilex, tiley) = tile
+            (tilex, tiley) = tile
             myTile = Tile(myRegion, tilex, tiley)
             myTile.build()
     else:
         # multi-process ... let's see...
         pool = Pool()
-        tasks = ["./BuildTile.py %s %d %d" % (myRegion.name, tilex, tiley) for tilex in xrange(myRegion.txmin, myRegion.txmax) for tiley in xrange(myRegion.tymin, myRegion.tymax)]
+        tasks = ["./BuildTile.py %s %d %d" % (myRegion.name, tilex, tiley) for (tilex, tiley) in tiles]
         results = pool.map(os.system, tasks)
         peaks = [x for x in results]
         pool = None

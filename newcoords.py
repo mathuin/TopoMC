@@ -29,7 +29,7 @@ def getCoordsArray(ds, xmin, ymin, xsize, ysize, func, scale=1):
 def fromRastertoMap(ds, x, y):
     dfGeoX = ds.transforms[2][0] + ds.transforms[2][1] * x + ds.transforms[2][2] * y
     dfGeoY = ds.transforms[2][3] + ds.transforms[2][4] * x + ds.transforms[2][5] * y
-    return dfGeoX, dfGeoY
+    return round(dfGeoX), round(dfGeoY)
 
 def fromMaptoLL(ds, dfGeoX, dfGeoY):
     pnt = ds.transforms[0].TransformPoint(dfGeoX, dfGeoY, 0)
@@ -45,7 +45,7 @@ def getLatLong(ds, x, y):
 
 def fromLLtoMap(ds, lat, lon):
     pnt = ds.transforms[1].TransformPoint(lon, lat, 0)
-    return pnt[0], pnt[1]
+    return round(pnt[0]), round(pnt[1])
 
 def fromMaptoRaster(ds, pnt0, pnt1):
     x = (pnt0 - ds.transforms[2][0])/ds.transforms[2][1]

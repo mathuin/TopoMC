@@ -54,6 +54,22 @@ class Tile:
         if (self.tiley < region.tymin) or (self.tiley >= region.tymax):
             raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, region.tymin, region.tymax)
 
+        # testing MC->Map transformations
+        # okay, here's what we've learned.
+        # map coords    lat longs    mc coords
+        #  X+   Y=      LA-  LO++     X+  Z=   (goes east!)
+        #  X=   Y+      LA++ LO+      X=  Z-   (goes north!)
+        # so now figure out which value goes north-south and which goes east-west
+        # but this is crazy.
+        # if True use test transformations
+        self.rotate = True
+        # if True, exchange X and Y/Z
+        self.exchange = True
+        # if True, negate the indicated value
+        # NB: this takes place *after* exchange
+        self.negatefirst = True
+        self.negatelast = True
+
     @timer()
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
@@ -117,9 +133,13 @@ class Tile:
         self.peak = [0, 0, 0]
 
         for myx, myz in product(xrange(self.mcsize), xrange(self.mcsize)):
-            mcindex = myx+self.mcsize*myz
-            mcx = int(mcarray[mcindex][0])
-            mcz = int(mcarray[mcindex][1])
+            if False:
+                mcindex = myx+self.mcsize*myz
+                mcx = mcarray[mcindex][0]
+                mcz = mcarray[mcindex][1]
+            else:
+                mcx = myx + mcoffsetx
+                mcz = myz + mcoffsetz
             lcval = int(lcarray[myx, myz])
             elval = int(elarray[myx, myz])
             bathyval = 3 # FIXME
@@ -180,7 +200,7 @@ class Tile:
     def templayers(self, x, z, elval, column):
         """Attempt to do layers."""
         blocks = []
-        top = Tile.sealevel+elval
+        top = elval
         overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
         column.insert(0, self.world.materials.Bedrock.ID)
         column.insert(1, top-overstone-1)
@@ -201,9 +221,21 @@ class Tile:
     # these are Tile-based coords functions because they use self.scale
     def fromMCtoMap(self, ds, MCx, MCz):
         """Used with getCoordsArray to transform from Minecraft units to map units."""
-        mapx = MCz * self.scale
-        mapy = MCx * self.scale * -1
-        return mapx, mapy
+        if self.rotate == True:
+            if self.exchange == True:
+                mapx = MCz * self.scale
+                mapy = MCx * self.scale
+            else:
+                mapx = MCx * self.scale
+                mapy = MCz * self.scale
+            if self.negatefirst == True:
+                mapx = -1 * mapx
+            if self.negatelast == True:
+                mapy = -1 * mapy
+        else:
+            mapx = MCx * self.scale
+            mapy = MCz * self.scale
+        return round(mapx), round(mapy)
 
     def fromMCtoLL(self, ds, MCx, MCz):
         mapx, mapy = self.fromMCtoMap(ds, MCx, MCz)
@@ -213,12 +245,25 @@ class Tile:
     def fromMCtoRaster(self, ds, MCx, MCz):
         mapx, mapy = self.fromMCtoMap(ds, MCx, MCz)
         x, y = newcoords.fromMaptoRaster(ds, mapx, mapy)
-        return round(x), round(y)
+        return x, y
 
     def fromMaptoMC(self, ds, mapx, mapy):
-        MCx = -1 * mapy / self.scale
-        MCz = mapx / self.scale
-        return MCx, MCz
+        if self.rotate == True:
+            if self.exchange == True:
+                MCx = mapy / self.scale
+                MCz = mapx / self.scale
+            else:
+                MCx = mapx / self.scale
+                MCz = mapy / self.scale
+            # negate ones are backwards for obvious reasons
+            if self.negatefirst == True:
+                MCz = -1 * MCz
+            if self.negatelast == True:
+                MCx = -1 * MCx
+        else:
+            MCx = mapx / self.scale
+            MCz = mapy / self.scale
+        return round(MCx), round(MCz)
 
     def fromRastertoMC(self, ds, x, y):
         mapx, mapy = newcoords.fromRastertoMap(ds, x, y)
@@ -228,6 +273,7 @@ class Tile:
     def fromLLtoMC(self, ds, lat, lon):
         mapx, mapy = newcoords.fromLLtoMap(ds, lat, lon)
         MCx, MCz = self.fromMaptoMC(ds, mapx, mapy)
+        return MCx, MCz
 
 def checkTile():
     """Checks tile code."""

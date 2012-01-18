@@ -24,7 +24,7 @@ def main(argv):
     yamlfile.close()
 
     # build the tile
-    myTile = Tile(myRegion, int(tilex), int(tiley))
+    myTile = Tile(myRegion, tilex, tiley)
     myTile.build()
     
 if __name__ == '__main__':
