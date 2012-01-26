@@ -9,7 +9,7 @@ import logging
 def checkElevationIDs(string):
     """Checks to see if the given product IDs are valid."""
     givenIDs = string.split(',')
-    validIDs = [ ID for ID in givenIDs if ID in Region.elevationIDs ]
+    validIDs = [ ID for ID in givenIDs if ID in Region.productIDs['elevation'] ]
     if validIDs == givenIDs:
         return givenIDs
     else:
@@ -18,7 +18,7 @@ def checkElevationIDs(string):
 def checkLandcoverIDs(string):
     """Checks to see if the given product IDs are valid."""
     givenIDs = string.split(',')
-    validIDs = [ ID for ID in givenIDs if ID in Region.landcoverIDs ]
+    validIDs = [ ID for ID in givenIDs if ID in Region.productIDs['landcover'] ]
     if validIDs == givenIDs:
         return givenIDs
     else:
@@ -30,8 +30,8 @@ def main(argv):
     # ./GetRegion.py --name BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
 
     # defaults
-    default_elevationIDs = ','.join(Region.elevationIDs)
-    default_landcoverIDs = ','.join(Region.landcoverIDs)
+    default_elevationIDs = ','.join(Region.productIDs['elevation'])
+    default_landcoverIDs = ','.join(Region.productIDs['landcover'])
 
     # parse options and get results
     parser = argparse.ArgumentParser(description='Create regions and download files from USGS.')

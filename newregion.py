@@ -37,19 +37,49 @@ class Region:
     # coordinate systems
     wgs84 = 4326
     albers = 102039
-
+    t_srs = "+proj=aea +datum=NAD83 +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +units=m"
+    
     # sadness
     zipfileBroken = False
 
     # default values
     tilesize = 256
     scale = 6
-    # product types in order of preference
-    landcoverIDs = ['L07', 'L04', 'L01', 'L92', 'L6L']
-    elevationIDs = ['ND9', 'ND3', 'NED', 'NAK']
-    #elevationIDs = ['ND3', 'NED', 'NAK', 'ND9']
+    vscale = 6
+    trim = 0
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, lcIDs=None, elIDs=None, debug=False):
+    # product types in order of preference
+    productIDs = { 'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
+                   'landcover': ['L07', 'L04', 'L01', 'L92', 'L6L' ]}
+
+    # nodata values
+    nodatavals = { 'elevation': [-340282346638528859811704183484516925440.000, 0],
+                   'landcover': [255, 11] }
+
+    # image types
+    # NB: only tif is known to work here
+    imageTypes = { 'tif': ['02'],
+                   'arc': ['01'],
+                   'bil': ['03'],
+                   'GridFloat': ['05'],
+                   'IMG': ['12'],
+                   'bil_16int': ['15'] }
+
+    # meta types
+    # NB: currently ignored
+    metaTypes = { 'ALL': ['A'],
+                  'FAQ': ['F'],
+                  'HTML': ['H'],
+                  'SGML': ['S'],
+                  'TXT': ['T'],
+                  'XML': ['X'] }
+
+    # compression types
+    # NB: zipfile module broken so tgz recommended
+    compressionTypes = { 'tgz': ['T'],
+                         'zip': ['Z'] }
+
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, lcIDs=None, elIDs=None, debug=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
@@ -69,18 +99,30 @@ class Region:
         self.scale = scale
         self.mult = 30 / scale
 
+        # for now just let vscale through
+        if vscale == None:
+            vscale = Region.vscale
+        else:
+            pass
+
+        # for now just let trim through
+        if trim == None:
+            trim = Region.trim
+        else:
+            pass
+
         # specified IDs must be in region list
         if lcIDs == None:
-            landcoverIDs = Region.landcoverIDs
+            landcoverIDs = Region.productIDs['landcover']
         else:
-            landcoverIDs = [ ID for ID in lcIDs if ID in Region.landcoverIDs ]
+            landcoverIDs = [ ID for ID in lcIDs if ID in Region.productIDs['landcover'] ]
             if landcoverIDs == []:
                 raise AttributeError, 'invalid landcover ID'
 
         if elIDs == None:
-            elevationIDs = Region.elevationIDs
+            elevationIDs = Region.productIDs['elevation']
         else:
-            elevationIDs = [ ID for ID in elIDs if ID in Region.elevationIDs ]
+            elevationIDs = [ ID for ID in elIDs if ID in Region.productIDs['elevation'] ]
             if elevationIDs == []:
                 raise AttributeError, 'invalid elevation ID'
 
@@ -132,19 +174,19 @@ class Region:
         # add border
         # NB: this is ideal but not what's transmitted
         # should be albersxmax maybe?  mcxmax?
-        lcxmax = ((self.txmax + 1) * realsize)
-        lcxmin = ((self.txmin - 1) * realsize)
-        lcymax = ((self.tymax + 1) * realsize)
-        lcymin = ((self.tymin - 1) * realsize)
+        self.lcxmax = ((self.txmax + 1) * realsize)
+        self.lcxmin = ((self.txmin - 1) * realsize)
+        self.lcymax = ((self.tymax + 1) * realsize)
+        self.lcymin = ((self.tymin - 1) * realsize)
 
         # now convert back from Albers to WGS84
-        ULdict = {'X_Value': lcxmin, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+        ULdict = {'X_Value': self.lcxmin, 'Y_Value': self.lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        URdict = {'X_Value': lcxmax, 'Y_Value': lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+        URdict = {'X_Value': self.lcxmax, 'Y_Value': self.lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        LLdict = {'X_Value': lcxmin, 'Y_Value': lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+        LLdict = {'X_Value': self.lcxmin, 'Y_Value': self.lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        LRdict = {'X_Value': lcxmax, 'Y_Value': lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+        LRdict = {'X_Value': self.lcxmax, 'Y_Value': self.lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
         (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
         # select maximum values for elevation extents
@@ -168,53 +210,35 @@ class Region:
     @staticmethod
     def decodeLayerID(layerID):
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
-        # NB: convert this to dicts
         productID = layerID[0]+layerID[1]+layerID[2]
-        if (productID in Region.landcoverIDs):
-            pType = "landcover"
-        elif (productID in Region.elevationIDs):
-            pType = "elevation"
-        else:
+        try:
+            pType = [ product for product in Region.productIDs.keys() if productID in Region.productIDs[product] ][0]
+        except IndexError:
             raise AttributeError, 'Invalid productID %s' % productID
 
         imagetype = layerID[3]+layerID[4]
-        # only 02-GeoTIFF (tif) known to work
-        if (imagetype == "02"):
-            iType = "tif"
-        elif (imagetype == "01"):
-            iType = "arc"
-        elif (imagetype == "03"):
-            iType = "bil"
-        elif (imagetype == "05"):
-            iType = "GridFloat"
-        elif (imagetype == "12"):
-            iType = "IMG"
-        elif (imagetype == "15"):
-            iType = "bil_16int"
-        else:
+        try:
+            iType = [ image for image in Region.imageTypes.keys() if imagetype in Region.imageTypes[image] ][0]
+        except IndexError:
             raise AttributeError, 'Invalid imagetype %s' % imagetype
         
         metatype = layerID[5]
-        if (metatype == "A"):
-            mType = "ALL"
-        elif (metatype == "F"):
-            mType = "FAQ"
-        elif (metatype == "H"):
-            mType = "HTML"
-        elif (metatype == "S"):
-            mType = "SGML"
-        elif (metatype == "T"):
-            mType = "TXT"
-        elif (metatype == "X"):
-            mType = "XML"
-        else:
+        try:
+            mType = [ meta for meta in Region.metaTypes.keys() if metatype in Region.metaTypes[meta] ][0]
+        except IndexError:
             raise AttributeError, 'Invalid metatype %s' % metatype
 
         compressiontype = layerID[6]
+        try:
+            mType = [ compression for compression in Region.compressionTypes.keys() if compressiontype in Region.compressionTypes[compression] ][0]
+        except IndexError:
+            raise AttributeError, 'Invalid compressiontype %s' % compressiontype
+
+        compressiontype = layerID[6]
         if (compressiontype == "T"):
-            cType = "TGZ"
+            cType = "tgz"
         elif (compressiontype == "Z"):
-            cType = "ZIP"
+            cType = "zip"
         else:
             raise AttributeError, 'Invalid compressiontype %s' % compressiontype
         
@@ -258,6 +282,7 @@ class Region:
         except IndexError:
             raise AttributeError, "No products are available for this location!"
         # check download options
+        # NB: integrate with new types seen above
         OFgood = [u'GeoTIFF']
         MFgood = [u'HTML', u'ALL', u'FAQ', u'SGML', u'TXT', u'XML']
         CFgood = [u'TGZ', u'ZIP']
@@ -426,37 +451,29 @@ class Region:
                 compimage = os.path.join(compbase, "%s.%s" % (compbase, iType))
                 cleanmkdir(datasubdir)
                 if (Region.zipfileBroken == False):
-                    if (cType == "TGZ"):
+                    if (cType == "tgz"):
                         cFile = tarfile.open(fullfile)
-                    elif (cType == "ZIP"):
+                    elif (cType == "zip"):
                         cFile = zipfile.ZipFile(fullfile)
                     cFile.extract(compimage, layerdir)
                     cFile.close()
                 else:
-                    if (cType == "TGZ"):
+                    if (cType == "tgz"):
                         cFile = tarfile.open(fullfile)
                         cFile.extract(compimage, layerdir)
-                    elif (cType == "ZIP"):
+                    elif (cType == "zip"):
                         omfgcompimage = "\\".join([compbase, "%s.%s" % (compbase, iType)])
                         os.mkdir(os.path.dirname(os.path.join(datasubdir,compimage)))
                         cFile = zipfile.ZipFile(fullfile)
                         cFile.extract(omfgcompimage, datasubdir)
                         os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layerdir,compimage))
                     cFile.close()
-            os.system("cd %s && gdalbuildvrt -resolution highest %s.vrt */*.%s >/dev/null && gdal_translate %s.vrt %s.%s >/dev/null" % (layerdir, layerID, iType, layerID, layerID, iType))
-
-    def warpelevation(self):
-        """Warp elevation file to match landcover file."""
-        lcimage = self.mapfile(self.lclayer)
-        elimage = self.mapfile(self.ellayer)
-        elimageorig = "%s-orig" % elimage
-        os.rename(elimage, elimageorig)
-        prffd = NamedTemporaryFile(delete=False)
-        prfname = prffd.name
-        prffd.close()
-        os.system('gdalinfo %s | sed -e "1,/Coordinate System is:/d" -e "/Origin =/,\$d" | xargs echo > %s' % (lcimage, prfname))
-        os.system('gdalwarp -srcnodata -340282346638528859811704183484516925440.000 -dstnodata 0 -t_srs %s -r cubic %s %s >/dev/null' % (prfname, elimageorig, elimage))
-        os.remove(prfname)
+            vrtfile = '%s.vrt' % layerID
+            imagefile = '%s.%s' % (layerID, iType)
+            buildvrtcmd = 'gdalbuildvrt -resolution highest %s */*.%s >/dev/null' % (vrtfile, iType)
+            # NB: possibly do vscale here with gdal_translate!
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -srcnodata %f -dstnodata %d %s %s' % (Region.t_srs, self.scale, self.scale, self.lcxmin, self.lcymin, self.lcxmax, self.lcymax, Region.nodatavals[pType][0], Region.nodatavals[pType][1], vrtfile, imagefile)
+            os.system('cd %s && %s && %s' % (layerdir, buildvrtcmd, warpcmd))
 
     def getfiles(self):
         """Get files from USGS."""
@@ -466,7 +483,6 @@ class Region:
             for downloadURL in downloadURLs[layerID]:
                 self.downloadfile(layerID, downloadURL)
         self.extractfiles()
-        self.warpelevation()
         
 def checkRegion():
     epsilon = 0.000001 # comparing floating point with equals is wrong
@@ -528,7 +544,6 @@ def checkRegion():
         elimageorig = '%s-orig' % elimage
         assert os.path.exists(lcimage), 'getfiles: lcimage %s does not exist' % lcimage
         assert os.path.exists(elimage), 'getfiles: elimage %s does not exist' % elimage
-        assert os.path.exists(elimageorig), 'getfiles: elimageorig %s does not exist' % elimageorig
     except AssertionError, e:
         print 'getfiles check failed:', e
     else:

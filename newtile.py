@@ -14,7 +14,6 @@ from itertools import product
 import numpy
 
 import newcoords
-import invdisttree
 #import newterrain
 from newutils import cleanmkdir, ds, setspawnandsave
 from timer import timer
@@ -41,11 +40,17 @@ class Tile:
         self.name = region.name
         self.mcsize = region.tilesize
         self.scale = region.scale
+        self.vscale = region.vscale
+        self.trim = region.trim
         self.mapsize = region.tilesize * region.scale
         self.lcfile = region.mapfile(region.lclayer)
         self.elfile = region.mapfile(region.ellayer)
         self.tilex = int(tilex)
         self.tiley = int(tiley)
+        self.txmin = region.txmin
+        self.txmax = region.txmax
+        self.tymin = region.tymin
+        self.tymax = region.tymax
         self.mapoffsetx = self.tilex * self.mapsize
         self.mapoffsety = self.tiley * self.mapsize
 
@@ -54,22 +59,6 @@ class Tile:
         if (self.tiley < region.tymin) or (self.tiley >= region.tymax):
             raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, region.tymin, region.tymax)
 
-        # testing MC->Map transformations
-        # okay, here's what we've learned.
-        # map coords    lat longs    mc coords
-        #  X+   Y=      LA-  LO++     X+  Z=   (goes east!)
-        #  X=   Y+      LA++ LO+      X=  Z-   (goes north!)
-        # so now figure out which value goes north-south and which goes east-west
-        # but this is crazy.
-        # if True use test transformations
-        self.rotate = True
-        # if True, exchange X and Y/Z
-        self.exchange = True
-        # if True, negate the indicated value
-        # NB: this takes place *after* exchange
-        self.negatefirst = True
-        self.negatelast = True
-
     @timer()
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
@@ -77,18 +66,27 @@ class Tile:
         self.tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
         cleanmkdir(self.tiledir)
 
-        # build inverse distance trees for landcover and elevation
-        # FIXME: we currently read in the entire world
+        # load landcover and elevation arrays
         lcds = ds(self.lcfile)
         elds = ds(self.elfile)
-        # landcover nodata is 11
-        lcidt = self.getIDT(lcds, nodata=11)
-        # FIXME: need 'vscale=SOMETHINGSANE' here
-        elidt = self.getIDT(elds, vscale=self.scale)
+        # NB: implement vscale somewhere like terrain maybe?
+        sx = self.mcsize
+        sy = self.mcsize
+        ox = (self.tilex-self.txmin+1)*self.mcsize
+        oy = (self.tiley-self.tymin+1)*self.mcsize
+        lcarray = lcds.ReadAsArray(ox, oy, sx, sy)
+        elarray = elds.ReadAsArray(ox, oy, sx, sy)
+
+        # so if this is tilex tiley, then map corners are
+        # tilex*mapsize, tiley*mapsize
+        # but map is already scaled!
+        # so it's (tilex*mcsize, tiley*mcsize)
 
         # calculate Minecraft corners
-        mcoffset = self.fromMaptoMC(lcds, self.mapoffsetx, self.mapoffsety)
-        mcfar = self.fromMaptoMC(lcds, self.mapoffsetx+self.mapsize, self.mapoffsety+self.mapsize)
+        #mcoffset = self.NEWfromMaptoMC(self.mapoffsetx, self.mapoffsety)
+        #mcfar = self.NEWfromMaptoMC(self.mapoffsetx+self.mapsize, self.mapoffsety+self.mapsize)
+        mcoffset = (self.tilex*self.mcsize, self.tiley*self.mcsize)
+        mcfar = ((self.tilex+1)*self.mcsize, (self.tiley+1)*self.mcsize)
         mcoffsetx = min(mcoffset[0], mcfar[0])
         mcoffsetz = min(mcoffset[1], mcfar[1])
         mcfarx = max(mcoffset[0], mcfar[0])
@@ -103,45 +101,16 @@ class Tile:
         tilebox = box.BoundingBox((mcoffsetx, 0, mcoffsetz), (mcsizex, Tile.chunkHeight, mcsizez))
         self.world.createChunksInBox(tilebox)
 
-        # fun with coordinates
-        #print "upper left:", newcoords.fromRastertoMap(lcds, 0, 0)
-        #print "lower left:",  newcoords.fromRastertoMap(lcds, 0, lcds.RasterYSize)
-        #print "upper right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, 0)
-        #print "lower right:", newcoords.fromRastertoMap(lcds, lcds.RasterXSize, lcds.RasterYSize)
-
-        # the base array
-        # the offsets are map units
-        # the size is tilesize
-        # the contents are latlongs
-        llshape = (self.mcsize, self.mcsize)
-        llarray = newcoords.getCoordsArray(lcds, self.tilex*self.mcsize, self.tiley*self.mcsize, self.mcsize, self.mcsize, newcoords.fromMaptoLL, self.scale)
-
-        # the Minecraft coordinate translation
-        # NB: very suspicious values coming from this sigh!
-        mcarray = newcoords.getCoordsArray(lcds, self.tilex*self.mcsize, self.tiley*self.mcsize, self.mcsize, self.mcsize, self.fromMaptoMC, self.scale)
-
-        # generate landcover and elevation arrays
-        lcarray = lcidt(llarray, nnear=8, eps=0.1, majority=True)
-        lcarray.resize(llshape)
-        
-        elarray = elidt(llarray, nnear=8, eps=0.1)
-        elarray.resize(llshape)
-        
         # bathymetry and crust go here 
 
         # do the terrain thing (no trees, ore or building)
         self.peak = [0, 0, 0]
 
         for myx, myz in product(xrange(self.mcsize), xrange(self.mcsize)):
-            if False:
-                mcindex = myx+self.mcsize*myz
-                mcx = int(mcarray[mcindex][0])
-                mcz = int(mcarray[mcindex][1])
-            else:
-                mcx = int(myx + mcoffsetx)
-                mcz = int(myz + mcoffsetz)
-            lcval = int(lcarray[myx, myz])
-            elval = int(elarray[myx, myz])
+            mcx = int(mcoffsetx+myx)
+            mcz = int(mcoffsetz+myz)
+            lcval = int(lcarray[myz, myx])
+            elval = int((elarray[myz, myx]-self.trim)/self.vscale)
             bathyval = 3 # FIXME
             crustval = 5 # FIXME
             mcel = elval + Tile.sealevel
@@ -167,36 +136,13 @@ class Tile:
 
         # return peak
         return self.peak
-    
-    #@staticmethod due to raster
-    @timer()
-    def getIDT(self, ds, nodata=None, vscale=1, trim=0, all=False):
-        """Get inverse distance tree based on dataset."""
-        offset = newcoords.fromMaptoRaster(ds, self.mapoffsetx-self.mapsize, self.mapoffsety-self.mapsize)
-        far = newcoords.fromMaptoRaster(ds, self.mapoffsetx+self.mapsize*2, self.mapoffsety+self.mapsize*2)
-        ox = int(max(0, min(offset[0], far[0])))
-        oy = int(max(0, min(offset[1], far[1])))
-        fx = int(min(ds.RasterXSize, max(offset[0], far[0])))
-        fy = int(min(ds.RasterYSize, max(offset[1], far[1])))
-        sx = fx - ox
-        sy = fy - oy
-        if all==True:
-            print "o = (%d, %d), f = (%d, %d), s = (%s, %s)" % (ox, oy, fx, fy, sx, sy)
-            print "was (0, 0, %d, %d) now is (%d, %d, %d, %d)" % (ds.RasterXSize, ds.RasterYSize, ox, oy, sx, sy)
-            print " - would have loaded only %d percent!" % (100 * (sx * sy) / (ds.RasterXSize * ds.RasterYSize))
-            (ox, oy, sx, sy) = (0, 0, ds.RasterXSize, ds.RasterYSize)
-        band = ds.GetRasterBand(1)
-        data = band.ReadAsArray(ox, oy, sx, sy)
-        if (nodata != None):
-            fromnodata = band.GetNoDataValue()
-            data[data == fromnodata] = nodata
-        latlong = newcoords.getCoordsArray(ds, ox, oy, sx, sy, newcoords.fromRastertoLL, 1)
-        value = data.flatten()
-        value = value - trim
-        value = value / vscale
-        IDT = invdisttree.Invdisttree(latlong, value)
-        return IDT
 
+    def NEWfromMaptoMC(self, x, y):
+        return (y / self.scale, -1 * x / self.scale)
+
+    def NEWfromMCtoMap(self, x, z):
+        return (-1 * z * self.scale, x * self.scale)
+        
     def templayers(self, x, z, elval, column):
         """Attempt to do layers."""
         blocks = []
@@ -218,80 +164,23 @@ class Tile:
                 top -= layer
         [ self.world.setBlockAt(x, y, z, block) for (x, y, z, block) in blocks ]
 
-    # these are Tile-based coords functions because they use self.scale
-    def fromMCtoMap(self, ds, MCx, MCz):
-        """Used with getCoordsArray to transform from Minecraft units to map units."""
-        if self.rotate == True:
-            if self.exchange == True:
-                mapx = MCz * self.scale
-                mapy = MCx * self.scale
-            else:
-                mapx = MCx * self.scale
-                mapy = MCz * self.scale
-            if self.negatefirst == True:
-                mapx = -1 * mapx
-            if self.negatelast == True:
-                mapy = -1 * mapy
-        else:
-            mapx = MCx * self.scale
-            mapy = MCz * self.scale
-        return round(mapx), round(mapy)
-
-    def fromMCtoLL(self, ds, MCx, MCz):
-        mapx, mapy = self.fromMCtoMap(ds, MCx, MCz)
-        pnt1, pnt0 = newcoords.fromMaptoLL(ds, mapx, mapy)
-        return pnt1, pnt0
-
-    def fromMCtoRaster(self, ds, MCx, MCz):
-        mapx, mapy = self.fromMCtoMap(ds, MCx, MCz)
-        x, y = newcoords.fromMaptoRaster(ds, mapx, mapy)
-        return x, y
-
-    def fromMaptoMC(self, ds, mapx, mapy):
-        if self.rotate == True:
-            if self.exchange == True:
-                MCx = mapy / self.scale
-                MCz = mapx / self.scale
-            else:
-                MCx = mapx / self.scale
-                MCz = mapy / self.scale
-            # negate ones are backwards for obvious reasons
-            if self.negatefirst == True:
-                MCz = -1 * MCz
-            if self.negatelast == True:
-                MCx = -1 * MCx
-        else:
-            MCx = mapx / self.scale
-            MCz = mapy / self.scale
-        return round(MCx), round(MCz)
-
-    def fromRastertoMC(self, ds, x, y):
-        mapx, mapy = newcoords.fromRastertoMap(ds, x, y)
-        MCx, MCz = self.fromMaptoMC(ds, mapx, mapy)
-        return MCx, MCz
-
-    def fromLLtoMC(self, ds, lat, lon):
-        mapx, mapy = newcoords.fromLLtoMap(ds, lat, lon)
-        MCx, MCz = self.fromMaptoMC(ds, mapx, mapy)
-        return MCx, MCz
-
 def checkTile():
     """Checks tile code."""
 
     # assume newregion.py passed its checks
-    yamlfile = file(os.path.join('Regions', 'BI30', 'Region.yaml'))
-    Test = yaml.load(yamlfile)
+    yamlfile = file(os.path.join('Regions', 'Test2', 'Region.yaml'))
+    Test2 = yaml.load(yamlfile)
     yamlfile.close()
 
     try:
-        myTile = Tile(Test, Test.txmin-1, Test.tymin-1)
+        myTile = Tile(Test2, Test2.txmin-1, Test2.tymin-1)
     except AttributeError:
         print "out of bounds tile check passed"
     else:
         print "out of bounds tile check failed"
 
     # create the tile
-    myTile = Tile(Test, Test.txmin, Test.tymin)
+    myTile = Tile(Test2, Test2.txmin, Test2.tymin)
 
     # build the world corresponding to the tile
     myTile.build()
