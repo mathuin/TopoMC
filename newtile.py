@@ -13,13 +13,15 @@ import os
 from itertools import product
 import numpy
 
-#import newterrain
+from newl01 import L01_Terrain
 from newutils import cleanmkdir, ds, setspawnandsave
 from timer import timer
+from memoize import memoize
 
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, box
+from pymclevel.materials import alphaMaterials
 
 class Tile:
     """Tiles are the base render object.  or something."""
@@ -80,6 +82,8 @@ class Tile:
         # bathymetry and crust go here 
 
         # do the terrain thing (no trees, ore or building)
+        # FIXME: hardcoded for now
+        myterrain = L01_Terrain()
         self.peak = [0, 0, 0]
 
         for myx, myz in product(xrange(self.size), xrange(self.size)):
@@ -91,12 +95,11 @@ class Tile:
             crustval = Tile.crustwidth # FIXME
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
-            #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
-            # FIXME: for now, dirt or no dirt, to the appropriate altitude
-            if (lcval == 11):
-                columns = [crustval, self.world.materials.Sand.ID, bathyval, self.world.materials.Water.ID]
-            else:
-                columns = [crustval, self.world.materials.Dirt.ID]
+            # if (lcval == 11):
+            #     columns = [crustval, self.world.materials.Sand.ID, bathyval, self.world.materials.Water.ID]
+            # else:
+            #     columns = [crustval, self.world.materials.Dirt.ID]
+            columns = myterrain.place(lcval, crustval, bathyval)
             self.templayers(mcx, mcy, mcz, columns)
             
         # stick the player and the spawn at the peak
@@ -112,14 +115,27 @@ class Tile:
         # return peak
         return self.peak
 
+
+    @staticmethod
+    @memoize()
+    def materialNamed(string):
+        "Returns block ID for block with name given in string."
+        return [v.ID for v in alphaMaterials.allBlocks if v.name==string][0]
+
+    @staticmethod
+    @memoize()
+    def names(blockID):
+        "Returns block name for given block ID."
+        return alphaMaterials.names[blockID][0]
+
     def templayers(self, x, y, z, column):
         """Attempt to do layers."""
         blocks = []
         top = y
         overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
-        column.insert(0, self.world.materials.Bedrock.ID)
+        column.insert(0, 'Bedrock')
         column.insert(1, top-overstone-1)
-        column.insert(2, self.world.materials.Stone.ID)
+        column.insert(2, 'Stone')
         while (len(column) > 0 or top > 0):
             # better be a block
             block = column.pop()
@@ -131,7 +147,7 @@ class Tile:
             if (layer > 0):
                 [blocks.append((x, y, z, block)) for y in xrange(top-layer,top)]
                 top -= layer
-        [ self.world.setBlockAt(x, y, z, block) for (x, y, z, block) in blocks ]
+        [ self.world.setBlockAt(x, y, z, Tile.materialNamed(block)) for (x, y, z, block) in blocks ]
 
 def checkTile():
     """Checks tile code."""
