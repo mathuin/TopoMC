@@ -68,7 +68,7 @@ def main(argv):
     # merge individual worlds into it
     for tilex in xrange(myRegion.txmin, myRegion.txmax):
         for tiley in xrange(myRegion.tymin, myRegion.tymax):
-            tiledir = os.path.join('Tiles', myRegion.name, '%dx%d' % (tilex, tiley))
+            tiledir = os.path.join('Regions', myRegion.name, 'Tiles', '%dx%d' % (tilex, tiley))
             peakfile = file(os.path.join(tiledir, 'Tile.yaml'))
             newpeak = yaml.load(peakfile)
             peakfile.close()

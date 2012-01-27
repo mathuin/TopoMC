@@ -54,7 +54,7 @@ class Tile:
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
         # create the tile directory if necessary
-        self.tiledir = os.path.join('Tiles', self.name, '%dx%d' % (self.tilex, self.tiley))
+        self.tiledir = os.path.join('Regions', self.name, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
         cleanmkdir(self.tiledir)
 
         # load landcover and elevation arrays

@@ -162,7 +162,7 @@ class Region:
         self.regiondir = os.path.join('Regions', self.name)
         cleanmkdir(self.regiondir)
 
-        self.mapsdir = os.path.join('Datasets', self.name)
+        self.mapsdir = os.path.join('Regions', self.name, 'Datasets')
         cleanmkdir(self.mapsdir)
 
         # these are the latlong values
