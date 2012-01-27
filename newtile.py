@@ -13,7 +13,6 @@ import os
 from itertools import product
 import numpy
 
-import newcoords
 #import newterrain
 from newutils import cleanmkdir, ds, setspawnandsave
 from timer import timer
@@ -25,11 +24,7 @@ from pymclevel import mclevel, box
 class Tile:
     """Tiles are the base render object.  or something."""
 
-    # stuff that should come from pymclevel
-    chunkHeight = mclevel.MCInfdevOldLevel.Height # 128 actually
-    chunkWidth = 16 # hardcoded in InfdevChunk actually
-    sealevel = 64
-    maxdepth = 32
+    # stuff that should come from pymclevel    
     crustwidth = 3
 
     def __init__(self, region, tilex, tiley):
@@ -38,21 +33,17 @@ class Tile:
         # today we assume that's already been done.
         # snag stuff from the region first
         self.name = region.name
-        self.mcsize = region.tilesize
-        self.scale = region.scale
+        self.size = region.tilesize
         self.vscale = region.vscale
         self.trim = region.trim
-        self.mapsize = region.tilesize * region.scale
+        self.sealevel = region.sealevel
+        self.maxdepth = region.maxdepth
         self.lcfile = region.mapfile(region.lclayer)
         self.elfile = region.mapfile(region.ellayer)
         self.tilex = int(tilex)
         self.tiley = int(tiley)
         self.txmin = region.txmin
-        self.txmax = region.txmax
         self.tymin = region.tymin
-        self.tymax = region.tymax
-        self.mapoffsetx = self.tilex * self.mapsize
-        self.mapoffsety = self.tiley * self.mapsize
 
         if (self.tilex < region.txmin) or (self.tilex >= region.txmax):
             raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, region.txmin, region.txmax)
@@ -70,35 +61,20 @@ class Tile:
         lcds = ds(self.lcfile)
         elds = ds(self.elfile)
         # NB: implement vscale somewhere like terrain maybe?
-        sx = self.mcsize
-        sy = self.mcsize
-        ox = (self.tilex-self.txmin+1)*self.mcsize
-        oy = (self.tiley-self.tymin+1)*self.mcsize
+        sx = self.size
+        sy = self.size
+        ox = (self.tilex-self.txmin+1)*self.size
+        oy = (self.tiley-self.tymin+1)*self.size
         lcarray = lcds.ReadAsArray(ox, oy, sx, sy)
         elarray = elds.ReadAsArray(ox, oy, sx, sy)
 
-        # so if this is tilex tiley, then map corners are
-        # tilex*mapsize, tiley*mapsize
-        # but map is already scaled!
-        # so it's (tilex*mcsize, tiley*mcsize)
-
         # calculate Minecraft corners
-        #mcoffset = self.NEWfromMaptoMC(self.mapoffsetx, self.mapoffsety)
-        #mcfar = self.NEWfromMaptoMC(self.mapoffsetx+self.mapsize, self.mapoffsety+self.mapsize)
-        mcoffset = (self.tilex*self.mcsize, self.tiley*self.mcsize)
-        mcfar = ((self.tilex+1)*self.mcsize, (self.tiley+1)*self.mcsize)
-        mcoffsetx = min(mcoffset[0], mcfar[0])
-        mcoffsetz = min(mcoffset[1], mcfar[1])
-        mcfarx = max(mcoffset[0], mcfar[0])
-        mcfarz = max(mcoffset[1], mcfar[1])
-        mcsizex = mcfarx - mcoffsetx
-        mcsizez = mcfarz - mcoffsetz
-        if mcsizex < 0 or mcsizez < 0:
-            raise AttributeError, 'negative sizes are bad'
+        mcoffsetx = self.tilex * self.size
+        mcoffsetz = self.tiley * self.size
         
         # build a Minecraft world via pymclevel from blocks and data
         self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
-        tilebox = box.BoundingBox((mcoffsetx, 0, mcoffsetz), (mcsizex, Tile.chunkHeight, mcsizez))
+        tilebox = box.BoundingBox((mcoffsetx, 0, mcoffsetz), (self.size, self.world.Height, self.size))
         self.world.createChunksInBox(tilebox)
 
         # bathymetry and crust go here 
@@ -106,23 +82,22 @@ class Tile:
         # do the terrain thing (no trees, ore or building)
         self.peak = [0, 0, 0]
 
-        for myx, myz in product(xrange(self.mcsize), xrange(self.mcsize)):
+        for myx, myz in product(xrange(self.size), xrange(self.size)):
             mcx = int(mcoffsetx+myx)
             mcz = int(mcoffsetz+myz)
+            mcy = int(((elarray[myz, myx]-self.trim)/self.vscale)+self.sealevel)
             lcval = int(lcarray[myz, myx])
-            elval = int((elarray[myz, myx]-self.trim)/self.vscale)
-            bathyval = 3 # FIXME
-            crustval = 5 # FIXME
-            mcel = elval + Tile.sealevel
-            if mcel > self.peak[1]:
-                self.peak = [mcx, mcel, mcz]
+            bathyval = self.maxdepth # FIXME
+            crustval = Tile.crustwidth # FIXME
+            if mcy > self.peak[1]:
+                self.peak = [mcx, mcy, mcz]
             #processTerrain(lcval, myx, myz, elval, bathyval, crustval)
             # FIXME: for now, dirt or no dirt, to the appropriate altitude
             if (lcval == 11):
                 columns = [crustval, self.world.materials.Sand.ID, bathyval, self.world.materials.Water.ID]
             else:
                 columns = [crustval, self.world.materials.Dirt.ID]
-            self.templayers(mcx, mcz, mcel, columns)
+            self.templayers(mcx, mcy, mcz, columns)
             
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)
@@ -137,16 +112,10 @@ class Tile:
         # return peak
         return self.peak
 
-    def NEWfromMaptoMC(self, x, y):
-        return (y / self.scale, -1 * x / self.scale)
-
-    def NEWfromMCtoMap(self, x, z):
-        return (-1 * z * self.scale, x * self.scale)
-        
-    def templayers(self, x, z, elval, column):
+    def templayers(self, x, y, z, column):
         """Attempt to do layers."""
         blocks = []
-        top = elval
+        top = y
         overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
         column.insert(0, self.world.materials.Bedrock.ID)
         column.insert(1, top-overstone-1)

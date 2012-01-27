@@ -18,10 +18,10 @@ from time import sleep
 from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
-
-import newcoords
-import invdisttree
 from newutils import cleanmkdir, ds
+import sys
+sys.path.append('..')
+from pymclevel import mclevel
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
@@ -47,13 +47,20 @@ class Region:
     scale = 6
     vscale = 6
     trim = 0
+    sealevel = 64
+    maxdepth = 32
+
+    # tileheight is height of map in Minecraft units (128, sigh)
+    tileheight = mclevel.MCInfdevOldLevel.Height
+    # headroom is room between top of terrain and top of map
+    headroom = 16
 
     # product types in order of preference
     productIDs = { 'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
-                   'landcover': ['L07', 'L04', 'L01', 'L92', 'L6L' ]}
+                   'landcover': ['L07', 'L04', 'L01', 'L92', 'L6L']}
 
     # nodata values
-    nodatavals = { 'elevation': [-340282346638528859811704183484516925440.000, 0],
+    nodatavals = { 'elevation': [-340282346638528859811704183484516925440, 0],
                    'landcover': [255, 11] }
 
     # image types
@@ -79,11 +86,13 @@ class Region:
     compressionTypes = { 'tgz': ['T'],
                          'zip': ['Z'] }
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, lcIDs=None, elIDs=None, debug=False):
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, debug=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
 
+        # tile must be an even multiple of chunk width
+        # chunkWidth not defined in pymclevel but is hardcoded everywhere
         if tilesize == None:
             tilesize = Region.tilesize
         else:
@@ -91,38 +100,61 @@ class Region:
                 raise AttributeError, 'bad tilesize %s' % tilesize
         self.tilesize = tilesize
 
+        # scale can be any positive integer
         if scale == None:
             scale = Region.scale
         else:
-            if (30 % scale != 0):
+            if (scale > 0):
+                self.scale = int(scale)
+            else:
                 raise AttributeError, 'bad scale %s' % scale
-        self.scale = scale
-        self.mult = 30 / scale
 
-        # for now just let vscale through
-        if vscale == None:
-            vscale = Region.vscale
+        # sealevel 
+        if sealevel == None:
+            sealevel = Region.sealevel
         else:
-            pass
+            minsealevel = 2
+            maxsealevel = Region.tileheight - Region.headroom
+            self.sealevel = min(max(sealevel, minsealevel), maxsealevel)
 
-        # for now just let trim through
+        # maxdepth depends upon sealevel
+        if maxdepth == None:
+            maxdepth = Region.maxdepth
+        else:
+            minmaxdepth = 1
+            maxmaxdepth = self.sealevel - 1
+            self.maxdepth = min(max(maxdepth, minmaxdepth), maxmaxdepth)
+
+        # trim and vscale are not checked until after files are retrieved
         if trim == None:
             trim = Region.trim
         else:
-            pass
+            self.trim = trim
+
+        if vscale == None:
+            vscale = Region.vscale
+        else:
+            self.vscale = vscale
+
+        # disable overly dense elevation products
+        self.productIDs = Region.productIDs
+        if (scale > 5):
+            self.productIDs['elevation'].remove('ND9')
+        if (scale > 15):
+            self.productIDs['elevation'].remove('ND3')
 
         # specified IDs must be in region list
         if lcIDs == None:
-            landcoverIDs = Region.productIDs['landcover']
+            landcoverIDs = self.productIDs['landcover']
         else:
-            landcoverIDs = [ ID for ID in lcIDs if ID in Region.productIDs['landcover'] ]
+            landcoverIDs = [ ID for ID in lcIDs if ID in self.productIDs['landcover'] ]
             if landcoverIDs == []:
                 raise AttributeError, 'invalid landcover ID'
 
         if elIDs == None:
-            elevationIDs = Region.productIDs['elevation']
+            elevationIDs = self.productIDs['elevation']
         else:
-            elevationIDs = [ ID for ID in elIDs if ID in Region.productIDs['elevation'] ]
+            elevationIDs = [ ID for ID in elIDs if ID in self.productIDs['elevation'] ]
             if elevationIDs == []:
                 raise AttributeError, 'invalid elevation ID'
 
@@ -202,17 +234,20 @@ class Region:
         self.lclayer = self.checkavail(landcoverIDs)
         self.ellayer = self.checkavail(elevationIDs)
 
+        # write yaml file
+        self.writeyaml()
+
+    def writeyaml(self):
         # write the values to the file
         stream = file(os.path.join(self.regiondir, 'Region.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
 
-    @staticmethod
-    def decodeLayerID(layerID):
+    def decodeLayerID(self, layerID):
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
         productID = layerID[0]+layerID[1]+layerID[2]
         try:
-            pType = [ product for product in Region.productIDs.keys() if productID in Region.productIDs[product] ][0]
+            pType = [ product for product in self.productIDs.keys() if productID in self.productIDs[product] ][0]
         except IndexError:
             raise AttributeError, 'Invalid productID %s' % productID
 
@@ -246,7 +281,7 @@ class Region:
 
     def mapfile(self, layer):
         """Generate map file based on layer"""
-        return os.path.join(self.mapsdir, layer, '%s.%s' % (layer, Region.decodeLayerID(layer)[1]))
+        return os.path.join(self.mapsdir, layer, '%s.%s' % (layer, self.decodeLayerID(layer)[1]))
 
     def checkavail(self, productlist):
         """Check availability with web service."""
@@ -340,7 +375,7 @@ class Region:
         """Actually download the file at the URL."""
         # FIXME: extract try/expect around urlopen
         # FIXME: consider breaking apart further
-        (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
+        (pType, iType, mType, cType) = self.decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
         cleanmkdir(layerdir)
 
@@ -440,7 +475,7 @@ class Region:
         if layerIDs == []:
             raise IOError, 'No files found'
         for layerID in layerIDs:
-            (pType, iType, mType, cType) = Region.decodeLayerID(layerID)
+            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
             filesuffix = cType.lower()
             layerdir = os.path.join(self.mapsdir, layerID)
             compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
@@ -472,7 +507,7 @@ class Region:
             imagefile = '%s.%s' % (layerID, iType)
             buildvrtcmd = 'gdalbuildvrt -resolution highest %s */*.%s >/dev/null' % (vrtfile, iType)
             # NB: possibly do vscale here with gdal_translate!
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -srcnodata %f -dstnodata %d %s %s' % (Region.t_srs, self.scale, self.scale, self.lcxmin, self.lcymin, self.lcxmax, self.lcymax, Region.nodatavals[pType][0], Region.nodatavals[pType][1], vrtfile, imagefile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -srcnodata %d -dstnodata %d %s %s' % (Region.t_srs, self.scale, self.scale, self.lcxmin, self.lcymin, self.lcxmax, self.lcymax, Region.nodatavals[pType][0], Region.nodatavals[pType][1], vrtfile, imagefile)
             os.system('cd %s && %s && %s' % (layerdir, buildvrtcmd, warpcmd))
 
     def getfiles(self):
@@ -483,6 +518,42 @@ class Region:
             for downloadURL in downloadURLs[layerID]:
                 self.downloadfile(layerID, downloadURL)
         self.extractfiles()
+
+        # update trim and vscale
+        elds = ds(self.mapfile(self.ellayer))
+        elband = elds.GetRasterBand(1)
+        elmin = elband.GetMinimum()
+        elmax = elband.GetMaximum()
+        if elmin is None or elmax is None:
+            (elmin, elmax) = elband.ComputeRasterMinMax(False)
+        elmin = int(elmin)
+        elmax = int(elmax)
+
+        # trim depends upon minelev
+        mintrim = Region.trim
+	# what if the minimum elevation is below sea level?!
+        maxtrim = max(elmin, mintrim)
+        oldtrim = self.trim
+        print "mintrim is %d, maxtrim is %d, oldtrim is %d" % (mintrim, maxtrim, oldtrim)
+        if (oldtrim > maxtrim or oldtrim < mintrim):
+            print "warning: trim value %d outside %d-%d range" % (oldtrim, mintrim, maxtrim)
+        self.trim = int(min(max(oldtrim, mintrim), maxtrim))
+
+        # vscale depends on sealevel, trim and elmax
+        # NB: no maximum vscale, the sky's the limit (hah!)
+        eltrimmed = elmax - self.trim
+        print "eltrimmed is %d" % eltrimmed
+        elroom = Region.tileheight - Region.headroom - self.sealevel
+        print "elroom is %d" % elroom
+        minvscale = eltrimmed / elroom
+        oldvscale = self.vscale
+        print "minvscale is %d, oldvscale is %d" % (minvscale, oldvscale)
+        if (oldvscale < minvscale):
+            print "warning: vscale value %d smaller than minimum value %d" % (oldvscale, minvscale)
+        self.vscale = int(max(oldvscale, minvscale))
+
+        # write yaml file
+        self.writeyaml()
         
 def checkRegion():
     epsilon = 0.000001 # comparing floating point with equals is wrong

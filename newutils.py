@@ -1,9 +1,8 @@
 # utils module
 import os
 import shutil
-from osgeo import gdal
+from osgeo import gdal, osr
 from osgeo.gdalconst import GA_ReadOnly
-import newcoords
 
 def cleanmkdir(dir):
     """Cleans out existing directory and rebuilds."""
@@ -18,7 +17,15 @@ def cleanmkdir(dir):
 def ds(filename):
     """Return dataset including transforms."""
     ds = gdal.Open(filename, GA_ReadOnly)
-    ds.transforms = newcoords.getTransforms(ds)
+
+    Projection = ds.GetProjectionRef()
+    Proj = osr.SpatialReference(Projection)
+    LatLong = Proj.CloneGeogCS()
+    Trans = osr.CoordinateTransformation(Proj, LatLong)
+    ArcTrans = osr.CoordinateTransformation(LatLong, Proj)
+    GeoTrans = ds.GetGeoTransform()
+
+    ds.transforms = (Trans, ArcTrans, GeoTrans)
     return ds
 
 def setspawnandsave(world, point):

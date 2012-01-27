@@ -40,12 +40,15 @@ def main(argv):
     parser.add_argument('--xmin', required=True, type=float, help='westernmost longitude (west is negative)')
     parser.add_argument('--ymax', required=True, type=float, help='northernmost latitude (south is negative)')
     parser.add_argument('--ymin', required=True, type=float, help='southernmost longitude (south is negative)')
-    parser.add_argument('--scale', type=int, help='scale value')
-    parser.add_argument('--tilesize', type=int, help='tilesize value')
+    parser.add_argument('--tilesize', type=int, help='tilesize value (default %d)' % Region.tilesize)
+    parser.add_argument('--scale', type=int, help='scale value (default %d)' % Region.scale)
+    parser.add_argument('--vscale', type=int, help='vscale value (default %d)' % Region.vscale)
+    parser.add_argument('--trim', type=int, help='trim value (default %d)' % Region.trim)
+    parser.add_argument('--sealevel', type=int, help='sealevel value (default %d)' % Region.sealevel)
+    parser.add_argument('--maxdepth', type=int, help='maxdepth value (default %d)' % Region.maxdepth)
     parser.add_argument('--elevationIDs', default=default_elevationIDs, type=checkElevationIDs, help='ordered list of product IDs (default %s)' % default_elevationIDs)
     parser.add_argument('--landcoverIDs', default=default_landcoverIDs, type=checkLandcoverIDs, help='ordered list of product IDs (default %s)' % default_landcoverIDs)
     parser.add_argument('--debug', action='store_true', help='enable debug output')
-    parser.add_argument('--disable-maps', action='store_false', dest='doMaps', default=True, help="disables maps retrieval when not necessary")
     args = parser.parse_args()
 
     # enable debug
@@ -54,14 +57,15 @@ def main(argv):
 
     # create the region
     print "Creating new region %s..." % args.name
-    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, tilesize=args.tilesize, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
+    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
 
     # temporary
-    print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin)*myRegion.tilesize)
+    if (args.debug):
+        print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin)*myRegion.tilesize)
 
-    if (args.doMaps):
-        print "Downloading files..."
-        myRegion.getfiles()
+    print "Downloading files..."
+    myRegion.getfiles()
+    if (args.debug):
         lcds = ds(myRegion.mapfile(myRegion.lclayer))
         print "The landcover file has dimensions %d x %d" % (lcds.RasterXSize, lcds.RasterYSize)
         elds = ds(myRegion.mapfile(myRegion.ellayer))
