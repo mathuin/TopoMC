@@ -24,6 +24,7 @@ from pymclevel import mclevel, box
 from pymclevel.materials import alphaMaterials
 
 from newbathy import getBathy
+from newcrust import getCrust
 
 class Tile:
     """Tiles are the base render object.  or something."""
@@ -72,13 +73,16 @@ class Tile:
         lcarray = lcds.ReadAsArray(ox, oy, sx, sy)
         elarray = elds.ReadAsArray(ox, oy, sx, sy)
 
-        # bathymetry and crust go here 
+        # bathymetry 
         depthox = ox - self.maxdepth
         depthoy = oy - self.maxdepth
         depthsx = self.size + 2*self.maxdepth
         depthsy = self.size + 2*self.maxdepth
         deptharray = lcds.ReadAsArray(depthox, depthoy, depthsx, depthsy)
         bathyarray = getBathy(deptharray, self.size, self.maxdepth)
+
+        # crust
+        crustarray = getCrust(self.size)
 
         # calculate Minecraft corners
         mcoffsetx = self.tilex * self.size
@@ -100,7 +104,7 @@ class Tile:
             mcy = int(((elarray[myz, myx]-self.trim)/self.vscale)+self.sealevel)
             lcval = int(lcarray[myz, myx])
             bathyval = int(bathyarray[myz, myx])
-            crustval = Tile.crustwidth # FIXME
+            crustval = int(crustarray[myz, myx])
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
             # if (lcval == 11):
