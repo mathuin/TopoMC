@@ -545,7 +545,7 @@ class Region:
         print "eltrimmed is %d" % eltrimmed
         elroom = Region.tileheight - Region.headroom - self.sealevel
         print "elroom is %d" % elroom
-        minvscale = eltrimmed / elroom
+        minvscale = ceil(eltrimmed / elroom)
         oldvscale = self.vscale
         print "minvscale is %d, oldvscale is %d" % (minvscale, oldvscale)
         if (oldvscale < minvscale):
