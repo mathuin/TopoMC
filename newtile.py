@@ -23,6 +23,8 @@ sys.path.append('..')
 from pymclevel import mclevel, box
 from pymclevel.materials import alphaMaterials
 
+from newbathy import getBathy
+
 class Tile:
     """Tiles are the base render object.  or something."""
 
@@ -63,12 +65,20 @@ class Tile:
         lcds = ds(self.lcfile)
         elds = ds(self.elfile)
         # NB: implement vscale somewhere like terrain maybe?
-        sx = self.size
-        sy = self.size
         ox = (self.tilex-self.txmin+1)*self.size
         oy = (self.tiley-self.tymin+1)*self.size
+        sx = self.size
+        sy = self.size
         lcarray = lcds.ReadAsArray(ox, oy, sx, sy)
         elarray = elds.ReadAsArray(ox, oy, sx, sy)
+
+        # bathymetry and crust go here 
+        depthox = ox - self.maxdepth
+        depthoy = oy - self.maxdepth
+        depthsx = self.size + 2*self.maxdepth
+        depthsy = self.size + 2*self.maxdepth
+        deptharray = lcds.ReadAsArray(depthox, depthoy, depthsx, depthsy)
+        bathyarray = getBathy(deptharray, self.size, self.maxdepth)
 
         # calculate Minecraft corners
         mcoffsetx = self.tilex * self.size
@@ -78,8 +88,6 @@ class Tile:
         self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
         tilebox = box.BoundingBox((mcoffsetx, 0, mcoffsetz), (self.size, self.world.Height, self.size))
         self.world.createChunksInBox(tilebox)
-
-        # bathymetry and crust go here 
 
         # do the terrain thing (no trees, ore or building)
         # FIXME: hardcoded for now
@@ -91,7 +99,7 @@ class Tile:
             mcz = int(mcoffsetz+myz)
             mcy = int(((elarray[myz, myx]-self.trim)/self.vscale)+self.sealevel)
             lcval = int(lcarray[myz, myx])
-            bathyval = self.maxdepth # FIXME
+            bathyval = int(bathyarray[myz, myx])
             crustval = Tile.crustwidth # FIXME
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
