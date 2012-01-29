@@ -47,35 +47,36 @@ class Tile:
         self.elfile = region.mapfile(region.ellayer)
         self.tilex = int(tilex)
         self.tiley = int(tiley)
-        self.txmin = region.txmin
-        self.tymin = region.tymin
+        self.tiles = region.tiles
 
-        if (self.tilex < region.txmin) or (self.tilex >= region.txmax):
-            raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, region.txmin, region.txmax)
-        if (self.tiley < region.tymin) or (self.tiley >= region.tymax):
-            raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, region.tymin, region.tymax)
+        if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
+            raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
+        if (self.tiley < self.tiles['ymin']) or (self.tiley >= self.tiles['ymax']):
+            raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, self.tiles['ymin'], self.tiles['ymax'])
+
+        # create the tile directory if necessary
+        self.tiledir = os.path.join(region.regiondir, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
+        cleanmkdir(self.tiledir)
 
     @timer()
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
-        # create the tile directory if necessary
-        self.tiledir = os.path.join('Regions', self.name, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
-        cleanmkdir(self.tiledir)
 
         # load landcover and elevation arrays
         lcds = ds(self.lcfile)
         elds = ds(self.elfile)
-        # NB: implement vscale somewhere like terrain maybe?
-        ox = (self.tilex-self.txmin+1)*self.size
-        oy = (self.tiley-self.tymin+1)*self.size
+        ox = (self.tilex-self.tiles['xmin'])*self.size
+        oy = (self.tiley-self.tiles['ymin'])*self.size
         sx = self.size
         sy = self.size
-        lcarray = lcds.ReadAsArray(ox, oy, sx, sy)
+        # landcover currently has offset of maxdepth
+        lcarray = lcds.ReadAsArray(ox+self.maxdepth, oy+self.maxdepth, sx, sy)
         elarray = elds.ReadAsArray(ox, oy, sx, sy)
+        elarray = ((elarray - self.trim)/self.vscale)+self.sealevel
 
         # bathymetry 
-        depthox = ox - self.maxdepth
-        depthoy = oy - self.maxdepth
+        depthox = ox
+        depthoy = oy
         depthsx = self.size + 2*self.maxdepth
         depthsy = self.size + 2*self.maxdepth
         deptharray = lcds.ReadAsArray(depthox, depthoy, depthsx, depthsy)
@@ -101,7 +102,7 @@ class Tile:
         for myx, myz in product(xrange(self.size), xrange(self.size)):
             mcx = int(mcoffsetx+myx)
             mcz = int(mcoffsetz+myz)
-            mcy = int(((elarray[myz, myx]-self.trim)/self.vscale)+self.sealevel)
+            mcy = int(elarray[myz, myx])
             lcval = int(lcarray[myz, myx])
             bathyval = int(bathyarray[myz, myx])
             crustval = int(crustarray[myz, myx])

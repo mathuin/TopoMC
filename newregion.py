@@ -166,10 +166,7 @@ class Region:
         cleanmkdir(self.mapsdir)
 
         # these are the latlong values
-        llxmax = max(xmax, xmin)
-        llxmin = min(xmax, xmin)
-        llymax = max(ymax, ymin)
-        llymin = min(ymax, ymin)
+        self.llextents = { 'xmax': max(xmax, xmin), 'xmin': min(xmax, xmin), 'ymax': max(ymax, ymin), 'ymin': min(ymax, ymin) }
 
         # access the web service
         # NB: raise hell if it is inaccessible
@@ -179,13 +176,13 @@ class Region:
         Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
 
         # convert from WGS84 to Albers
-        ULdict = {'X_Value': llxmin, 'Y_Value': llymin, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
+        ULdict = {'X_Value': self.llextents['xmin'], 'Y_Value': self.llextents['ymin'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        URdict = {'X_Value': llxmax, 'Y_Value': llymin, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
+        URdict = {'X_Value': self.llextents['xmax'], 'Y_Value': self.llextents['ymin'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        LLdict = {'X_Value': llxmin, 'Y_Value': llymax, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
+        LLdict = {'X_Value': self.llextents['xmin'], 'Y_Value': self.llextents['ymax'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        LRdict = {'X_Value': llxmax, 'Y_Value': llymax, 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
+        LRdict = {'X_Value': self.llextents['xmax'], 'Y_Value': self.llextents['ymax'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
         (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
         # select maximum values for landcover extents
@@ -198,41 +195,35 @@ class Region:
 
         # calculate tile edges
         realsize = self.scale * self.tilesize
-        self.txmax = int(ceil(mxmax / realsize))
-        self.tymax = int(ceil(mymax / realsize))
-        self.txmin = int(floor(mxmin / realsize))
-        self.tymin = int(floor(mymin / realsize))
+        self.tiles = { 'xmax': int(ceil(mxmax / realsize)), 'xmin': int(floor(mxmin / realsize)), 'ymax': int(ceil(mymax / realsize)), 'ymin': int(floor(mymin / realsize)) }
 
-        # add border
-        # NB: this is ideal but not what's transmitted
-        # should be albersxmax maybe?  mcxmax?
-        self.lcxmax = ((self.txmax + 1) * realsize)
-        self.lcxmin = ((self.txmin - 1) * realsize)
-        self.lcymax = ((self.tymax + 1) * realsize)
-        self.lcymin = ((self.tymin - 1) * realsize)
+        self.albersextents = { 'landcover': dict(), 'elevation': dict() }
+        self.wgs84extents = { 'landcover': dict(), 'elevation': dict() }
+
+        # landcover has a maxdepth-sized border
+        self.albersextents['elevation'] = { 'xmax': self.tiles['xmax'] * realsize, 'xmin': self.tiles['xmin'] * realsize, 'ymax': self.tiles['ymax'] * realsize, 'ymin': self.tiles['ymin'] * realsize }
+        borderwidth = self.maxdepth * self.scale
+        self.albersextents['landcover'] = { 'xmax': self.albersextents['elevation']['xmax'] + borderwidth, 'xmin': self.albersextents['elevation']['xmin'] - borderwidth, 'ymax': self.albersextents['elevation']['ymax'] + borderwidth, 'ymin': self.albersextents['elevation']['ymin'] - borderwidth }
 
         # now convert back from Albers to WGS84
-        ULdict = {'X_Value': self.lcxmin, 'Y_Value': self.lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-        (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        URdict = {'X_Value': self.lcxmax, 'Y_Value': self.lcymin, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-        (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        LLdict = {'X_Value': self.lcxmin, 'Y_Value': self.lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-        (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        LRdict = {'X_Value': self.lcxmax, 'Y_Value': self.lcymax, 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-        (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
+        for maptype in ['landcover', 'elevation']:
+            ULdict = {'X_Value': self.albersextents[maptype]['xmin'], 'Y_Value': self.albersextents[maptype]['ymin'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+            (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
+            URdict = {'X_Value': self.albersextents[maptype]['xmax'], 'Y_Value': self.albersextents[maptype]['ymin'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+            (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
+            LLdict = {'X_Value': self.albersextents[maptype]['xmin'], 'Y_Value': self.albersextents[maptype]['ymax'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+            (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
+            LRdict = {'X_Value': self.albersextents[maptype]['xmax'], 'Y_Value': self.albersextents[maptype]['ymax'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
+            (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
 
-        # select maximum values for elevation extents
-        xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
-        yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
-        # NB: these are what's used for both!
-        self.mapxmax = max(xfloat)
-        self.mapxmin = min(xfloat)
-        self.mapymax = max(yfloat)
-        self.mapymin = min(yfloat)
+            # select maximum values
+            xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
+            yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
+            self.wgs84extents[maptype] = { 'xmax': max(xfloat), 'xmin': min(xfloat), 'ymax': max(yfloat), 'ymin': min(yfloat) }
 
         # check availability of product IDs and identify specific layer IDs
-        self.lclayer = self.checkavail(landcoverIDs)
-        self.ellayer = self.checkavail(elevationIDs)
+        self.lclayer = self.checkavail(landcoverIDs, 'landcover')
+        self.ellayer = self.checkavail(elevationIDs, 'elevation')
 
         # write yaml file
         self.writeyaml()
@@ -283,8 +274,10 @@ class Region:
         """Generate map file based on layer"""
         return os.path.join(self.mapsdir, layer, '%s.%s' % (layer, self.decodeLayerID(layer)[1]))
 
-    def checkavail(self, productlist):
+    def checkavail(self, productlist, maptype):
         """Check availability with web service."""
+        mapextents = self.wgs84extents[maptype]
+
         # access the web service to check availability
         wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
         clientInv = suds.client.Client(wsdlInv)
@@ -300,7 +293,7 @@ class Region:
             raise AttributeError, "No attributes found"
     
         # return_attributes arguments dictionary
-        rAdict = {'Attribs': ','.join(attributes), 'XMin': self.mapxmin, 'XMax': self.mapxmax, 'YMin': self.mapymin, 'YMax': self.mapymax, 'EPSG': Region.wgs84}
+        rAdict = {'Attribs': ','.join(attributes), 'XMin': mapextents['xmin'], 'XMax': mapextents['xmax'], 'YMin': mapextents['ymin'], 'YMax': mapextents['ymax'], 'EPSG': Region.wgs84}
         rAatts = clientInv.service.return_Attributes(**rAdict)
         # store offered products in a list
         offered = []
@@ -358,7 +351,9 @@ class Region:
 
         # we now iterate through layerIDs
         for layerID in layerIDs:
-            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (self.mapymax, self.mapymin, self.mapxmin, self.mapxmax, layerID, 250) # can be 100, 15, 25, 50, 75, 250
+            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
+            mapextents = self.wgs84extents[pType]
+            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250) # can be 100, 15, 25, 50, 75, 250
 
             response = clientRequest.service.processAOI2(xmlString)
 
@@ -507,7 +502,9 @@ class Region:
             imagefile = '%s.%s' % (layerID, iType)
             buildvrtcmd = 'gdalbuildvrt -resolution highest %s */*.%s >/dev/null' % (vrtfile, iType)
             # NB: possibly do vscale here with gdal_translate!
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -srcnodata %d -dstnodata %d %s %s' % (Region.t_srs, self.scale, self.scale, self.lcxmin, self.lcymin, self.lcxmax, self.lcymax, Region.nodatavals[pType][0], Region.nodatavals[pType][1], vrtfile, imagefile)
+            mapextents = self.albersextents[pType]
+            (srcnodata, dstnodata) = Region.nodatavals[pType]
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -srcnodata %d -dstnodata %d %s %s' % (Region.t_srs, self.scale, self.scale, mapextents['xmin'], mapextents['ymin'], mapextents['xmax'], mapextents['ymax'], srcnodata, dstnodata, vrtfile, imagefile)
             os.system('cd %s && %s && %s' % (layerdir, buildvrtcmd, warpcmd))
 
     def getfiles(self):
@@ -534,7 +531,6 @@ class Region:
 	# what if the minimum elevation is below sea level?!
         maxtrim = max(elmin, mintrim)
         oldtrim = self.trim
-        print "mintrim is %d, maxtrim is %d, oldtrim is %d" % (mintrim, maxtrim, oldtrim)
         if (oldtrim > maxtrim or oldtrim < mintrim):
             print "warning: trim value %d outside %d-%d range" % (oldtrim, mintrim, maxtrim)
         self.trim = int(min(max(oldtrim, mintrim), maxtrim))
@@ -542,12 +538,9 @@ class Region:
         # vscale depends on sealevel, trim and elmax
         # NB: no maximum vscale, the sky's the limit (hah!)
         eltrimmed = elmax - self.trim
-        print "eltrimmed is %d" % eltrimmed
         elroom = Region.tileheight - Region.headroom - self.sealevel
-        print "elroom is %d" % elroom
         minvscale = ceil(eltrimmed / elroom)
         oldvscale = self.vscale
-        print "minvscale is %d, oldvscale is %d" % (minvscale, oldvscale)
         if (oldvscale < minvscale):
             print "warning: vscale value %d smaller than minimum value %d" % (oldvscale, minvscale)
         self.vscale = int(max(oldvscale, minvscale))
