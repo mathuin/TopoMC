@@ -23,9 +23,6 @@ sys.path.append('..')
 from pymclevel import mclevel, box
 from pymclevel.materials import alphaMaterials
 
-from newbathy import getBathy
-from newcrust import getCrust
-
 class Tile:
     """Tiles are the base render object.  or something."""
 
@@ -39,15 +36,11 @@ class Tile:
         # snag stuff from the region first
         self.name = region.name
         self.size = region.tilesize
-        self.vscale = region.vscale
-        self.trim = region.trim
-        self.sealevel = region.sealevel
-        self.maxdepth = region.maxdepth
-        self.lcfile = region.mapfile(region.lclayer)
-        self.elfile = region.mapfile(region.ellayer)
+        self.mapname = region.mapname
         self.tilex = int(tilex)
         self.tiley = int(tiley)
         self.tiles = region.tiles
+        self.rasters = region.rasters
 
         if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
             raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
@@ -62,28 +55,18 @@ class Tile:
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
 
-        # load landcover and elevation arrays
-        lcds = ds(self.lcfile)
-        elds = ds(self.elfile)
+        # calculate offsets
         ox = (self.tilex-self.tiles['xmin'])*self.size
         oy = (self.tiley-self.tiles['ymin'])*self.size
         sx = self.size
         sy = self.size
-        # landcover currently has offset of maxdepth
-        lcarray = lcds.ReadAsArray(ox+self.maxdepth, oy+self.maxdepth, sx, sy)
-        elarray = elds.ReadAsArray(ox, oy, sx, sy)
-        elarray = ((elarray - self.trim)/self.vscale)+self.sealevel
 
-        # bathymetry 
-        depthox = ox
-        depthoy = oy
-        depthsx = self.size + 2*self.maxdepth
-        depthsy = self.size + 2*self.maxdepth
-        deptharray = lcds.ReadAsArray(depthox, depthoy, depthsx, depthsy)
-        bathyarray = getBathy(deptharray, self.size, self.maxdepth)
-
-        # crust
-        crustarray = getCrust(self.size)
+        # load arrays from map file
+        mapds = ds(self.mapname)
+        lcarray = mapds.GetRasterBand(self.rasters['landcover']).ReadAsArray(ox, oy, sx, sy)
+        elarray = mapds.GetRasterBand(self.rasters['elevation']).ReadAsArray(ox, oy, sx, sy)
+        bathyarray = mapds.GetRasterBand(self.rasters['bathy']).ReadAsArray(ox, oy, sx, sy)
+        crustarray = mapds.GetRasterBand(self.rasters['crust']).ReadAsArray(ox, oy, sx, sy)
 
         # calculate Minecraft corners
         mcoffsetx = self.tilex * self.size
@@ -95,7 +78,7 @@ class Tile:
         self.world.createChunksInBox(tilebox)
 
         # do the terrain thing (no trees, ore or building)
-        # FIXME: hardcoded for now
+        # FIXME: Region.buildmap() will have to transform from real L01 to "my new class"
         myterrain = L01_Terrain()
         self.peak = [0, 0, 0]
 
@@ -108,10 +91,6 @@ class Tile:
             crustval = int(crustarray[myz, myx])
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
-            # if (lcval == 11):
-            #     columns = [crustval, self.world.materials.Sand.ID, bathyval, self.world.materials.Water.ID]
-            # else:
-            #     columns = [crustval, self.world.materials.Dirt.ID]
             columns = myterrain.place(lcval, crustval, bathyval)
             self.templayers(mcx, mcy, mcz, columns)
             

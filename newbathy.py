@@ -4,35 +4,35 @@ from numpy import zeros, uint8
 from itertools import product
 from math import hypot
 from invdisttree import Invdisttree
+from timer import timer
 
-def getBathy(deptharray, tilesize, maxdepth):
+@timer()
+def getBathy(deptharray, maxdepth):
     """Generates rough bathymetric values based on proximity to terrain."""
-    depthshape = deptharray.shape
-    depthedge = tilesize + 2 * maxdepth
-    if depthshape[0] != depthedge or depthshape[1] != depthedge:
-        raise AttributeError, "deptharray is wrong shape"
+    (depthz, depthx) = deptharray.shape
+    xsize = depthx - 2 * maxdepth
+    zsize = depthz - 2 * maxdepth
     setWater = set([11, 12])
-    bathyarray = zeros((tilesize, tilesize), dtype=uint8)
-    bigDry = [[x, z] for x, z in product(xrange(depthedge), xrange(depthedge)) if deptharray[x, z] not in setWater]
+    bathyarray = zeros((zsize, xsize), dtype=uint8)
+    bigFull = [[z, x] for z, x in product(xrange(depthz), xrange(depthx))]
+    bigDry = [[z, x] for [z, x] in bigFull if deptharray[z, x] not in setWater]
     # if no land in range at all...
     if (len(bigDry) == 0):
         bathyarray += maxdepth
         return bathyarray
-    bigXValues = [x for x, z in bigDry]
-    bigZValues = [z for x, z in bigDry]
-    bigXIDT = Invdisttree(bigDry, bigXValues)
+    bigZValues, bigXValues = zip(*bigDry)
     bigZIDT = Invdisttree(bigDry, bigZValues)
-    bigFull = [[x, z] for x, z in product(xrange(depthedge), xrange(depthedge))]
-    bigXNear = bigXIDT(bigFull, nnear=1, eps=0.1)
-    bigXNear.resize(depthshape)
+    bigXIDT = Invdisttree(bigDry, bigXValues)
     bigZNear = bigZIDT(bigFull, nnear=1, eps=0.1)
-    bigZNear.resize(depthshape)
+    bigZNear.resize((depthz, depthx))
+    bigXNear = bigXIDT(bigFull, nnear=1, eps=0.1)
+    bigXNear.resize((depthz, depthx))
     # do it!
-    for x, z in product(xrange(maxdepth,tilesize+maxdepth), xrange(maxdepth,tilesize+maxdepth)):
-        if deptharray[x, z] in setWater:
-            bigX = bigXNear[x, z]
-            bigZ = bigZNear[x, z]
-            bathyarray[x-maxdepth, z-maxdepth] = min(maxdepth, hypot((bigX-x), (bigZ-z)))
+    for z, x in product(xrange(maxdepth,zsize+maxdepth), xrange(maxdepth,xsize+maxdepth)):
+        if deptharray[z, x] in setWater:
+            bigZ = bigZNear[z, x]
+            bigX = bigXNear[z, x]
+            bathyarray[z-maxdepth, x-maxdepth] = min(maxdepth, hypot((bigZ-z), (bigX-x)))
     return bathyarray
     
 

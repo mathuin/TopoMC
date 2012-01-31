@@ -26,6 +26,7 @@ def ds(filename):
     GeoTrans = ds.GetGeoTransform()
 
     ds.transforms = (Trans, ArcTrans, GeoTrans)
+    ds.geotrans = ds.GetGeoTransform()
     return ds
 
 def setspawnandsave(world, point):

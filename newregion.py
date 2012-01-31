@@ -23,6 +23,14 @@ import sys
 sys.path.append('..')
 from pymclevel import mclevel
 
+from osgeo import gdal, osr
+from osgeo.gdalconst import GDT_Int16
+from invdisttree import Invdisttree
+from newbathy import getBathy
+from newcrust import getCrust
+import numpy
+from itertools import product
+
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
     def http_error_302(self, req, fp, code, msg, headers):
@@ -38,6 +46,9 @@ class Region:
     wgs84 = 4326
     albers = 102039
     t_srs = "+proj=aea +datum=NAD83 +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +units=m"
+
+    # raster layer order
+    rasters = {'landcover': 1, 'elevation': 2, 'bathy': 3, 'crust': 4}
     
     # sadness
     zipfileBroken = False
@@ -58,10 +69,6 @@ class Region:
     # product types in order of preference
     productIDs = { 'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
                    'landcover': ['L07', 'L04', 'L01', 'L92', 'L6L']}
-
-    # nodata values
-    nodatavals = { 'elevation': [-340282346638528859811704183484516925440, 0],
-                   'landcover': [255, 11] }
 
     # image types
     # NB: only tif is known to work here
@@ -164,6 +171,8 @@ class Region:
 
         self.mapsdir = os.path.join('Regions', self.name, 'Datasets')
         cleanmkdir(self.mapsdir)
+
+        self.mapname = os.path.join(self.regiondir, 'Map.tif')
 
         # these are the latlong values
         self.llextents = { 'xmax': max(xmax, xmin), 'xmin': min(xmax, xmin), 'ymax': max(ymax, ymin), 'ymin': min(ymax, ymin) }
@@ -269,10 +278,6 @@ class Region:
             raise AttributeError, 'Invalid compressiontype %s' % compressiontype
         
         return (pType, iType, mType, cType)
-
-    def mapfile(self, layer):
-        """Generate map file based on layer"""
-        return os.path.join(self.mapsdir, layer, '%s.%s' % (layer, self.decodeLayerID(layer)[1]))
 
     def checkavail(self, productlist, maptype):
         """Check availability with web service."""
@@ -463,7 +468,7 @@ class Region:
             endPos = result.find("</ns:return>")
             status = result[startPos:endPos]
 
-    def extractfiles(self):
+    def buildvrts(self):
         """Extracts image files and merges as necessary."""
 
         layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
@@ -499,13 +504,8 @@ class Region:
                         os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layerdir,compimage))
                     cFile.close()
             vrtfile = '%s.vrt' % layerID
-            imagefile = '%s.%s' % (layerID, iType)
-            buildvrtcmd = 'gdalbuildvrt -resolution highest %s */*.%s >/dev/null' % (vrtfile, iType)
-            # NB: possibly do vscale here with gdal_translate!
-            mapextents = self.albersextents[pType]
-            (srcnodata, dstnodata) = Region.nodatavals[pType]
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -srcnodata %d -dstnodata %d %s %s' % (Region.t_srs, self.scale, self.scale, mapextents['xmin'], mapextents['ymin'], mapextents['xmax'], mapextents['ymax'], srcnodata, dstnodata, vrtfile, imagefile)
-            os.system('cd %s && %s && %s' % (layerdir, buildvrtcmd, warpcmd))
+            buildvrtcmd = 'gdalbuildvrt %s */*.%s >/dev/null' % (vrtfile, iType)
+            os.system('cd %s && %s' % (layerdir, buildvrtcmd))
 
     def getfiles(self):
         """Get files from USGS."""
@@ -514,17 +514,34 @@ class Region:
         for layerID in downloadURLs.keys():
             for downloadURL in downloadURLs[layerID]:
                 self.downloadfile(layerID, downloadURL)
-        self.extractfiles()
+        self.buildvrts()
+
+    def buildmap(self):
+        """Use downloaded files and other parameters to build multi-raster map."""
+
+        # warp elevation data into new format
+        # NB: can't do this to landcover until mode algorithm is supported
+        elvrt = os.path.join(self.mapsdir, self.ellayer, '%s.vrt' % (self.ellayer)) 
+        elfile = os.path.join(self.mapsdir, self.ellayer, '%s.tif' % (self.ellayer))
+        elextents = self.albersextents['elevation']
+        warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s' % (elfile, Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
+        os.system("%s" % warpcmd)
+
+        elds = ds(elfile)
+        elgeotrans = elds.geotrans
+        elband = elds.GetRasterBand(1)
+        elarray = elband.ReadAsArray(0, 0, elds.RasterXSize, elds.RasterYSize)
+        (elysize, elxsize) = elarray.shape
 
         # update trim and vscale
-        elds = ds(self.mapfile(self.ellayer))
-        elband = elds.GetRasterBand(1)
         elmin = elband.GetMinimum()
         elmax = elband.GetMaximum()
         if elmin is None or elmax is None:
             (elmin, elmax) = elband.ComputeRasterMinMax(False)
         elmin = int(elmin)
         elmax = int(elmax)
+        elband = None
+        elds = None
 
         # trim depends upon minelev
         mintrim = Region.trim
@@ -545,8 +562,75 @@ class Region:
             print "warning: vscale value %d smaller than minimum value %d" % (oldvscale, minvscale)
         self.vscale = int(max(oldvscale, minvscale))
 
-        # write yaml file
-        self.writeyaml()
+        # GeoTIFF
+        # four bands: landcover, elevation, bathy, crust
+        # data type is GDT_Int16 (elevation can be negative)
+        driver = gdal.GetDriverByName("GTiff")
+        mapds = driver.Create(self.mapname, elxsize, elysize, len(Region.rasters), GDT_Int16)
+        # overall map transform should match elevation map transform
+        mapds.SetGeoTransform(elgeotrans)
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4(Region.t_srs)
+        mapds.SetProjection(srs.ExportToWkt())
+
+        # modify elarray and save it as raster band 2
+        actualel = ((elarray - self.trim)/self.vscale)+self.sealevel
+        mapds.GetRasterBand(Region.rasters['elevation']).WriteArray(actualel)
+        elarray = None
+        actualel = None
+
+        # generate crust and save it as raster band 4
+        crustarray = getCrust(mapds.RasterXSize, mapds.RasterYSize)
+        mapds.GetRasterBand(Region.rasters['crust']).WriteArray(crustarray)
+        crustarray = None
+
+        # read landcover array
+        lcvrt = os.path.join(self.mapsdir, self.lclayer, '%s.vrt' % (self.lclayer)) 
+        lcfile = os.path.join(self.mapsdir, self.lclayer, '%s.tif' % (self.lclayer))
+        # here are the things that need to happen
+        lcextents = self.albersextents['landcover']
+
+        # if True, use new code, if False, use gdalwarp
+        if True:
+            # 1. the new file must be read into an array and flattened
+            vrtds = ds(lcvrt)
+            vrtband = vrtds.GetRasterBand(1)
+            values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
+            values = values.flatten()
+            vrtband = None
+            # 2. a new array of original scale coordinates must be created
+            vrtxrange = [vrtds.geotrans[0] + vrtds.geotrans[1] * x for x in xrange(vrtds.RasterXSize)]
+            vrtyrange = [vrtds.geotrans[3] + vrtds.geotrans[5] * y for y in xrange(vrtds.RasterYSize)]
+            vrtds = None
+            coords = numpy.array([(x, y) for y in vrtyrange for x in vrtxrange])
+            # 3. an inverse distance tree must be built from that
+            lcIDT = Invdisttree(coords, values)
+            # 4. a new array of goal scale coordinates must be made
+            # landcover extents are used for the bathy depth array
+            # yes, it's confusing.  sorry.
+            depthxlen = int((lcextents['xmax']-lcextents['xmin'])/self.scale)
+            depthylen = int((lcextents['ymax']-lcextents['ymin'])/self.scale)
+            depthxrange = [lcextents['xmin'] + self.scale * x for x in xrange(depthxlen)]
+            depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
+            depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
+            # 5. the desired output comes from that inverse distance tree
+            deptharray = lcIDT(depthbase, nnear=11, majority=True)
+            deptharray.resize((depthylen, depthxlen))
+            lcIDT = None
+        else:
+            warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (lcfile, Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
+            os.system("%s" % warpcmd)
+            lcds = ds(lcfile)
+            lcband = lcds.GetRasterBand(1)
+            # depth array is entire landcover region, landcover array is subset
+            deptharray = lcband.ReadAsArray(0, 0, lcds.RasterXSize, lcds.RasterYSize)
+        lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
+        bathyarray = getBathy(deptharray, self.maxdepth)
+        mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
+        mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)
+
+        # close the dataset
+        mapds = None
         
 def checkRegion():
     epsilon = 0.000001 # comparing floating point with equals is wrong

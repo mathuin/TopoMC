@@ -66,6 +66,7 @@ def main(argv):
         pool = None
 
     # merge individual worlds into it
+    print "Merging %d tiles into one world..." % len(tiles)
     for tile in tiles:
         (tilex, tiley) = tile
         tiledir = os.path.join('Regions', myRegion.name, 'Tiles', '%dx%d' % (tilex, tiley))

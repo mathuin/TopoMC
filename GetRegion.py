@@ -59,18 +59,10 @@ def main(argv):
     print "Creating new region %s..." % args.name
     myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
 
-    # temporary
-    if (args.debug):
-        print "For scale %d, the region you have selected will have origin %d x %d and size %d x %d" % (myRegion.scale, myRegion.txmin*myRegion.tilesize, myRegion.tymin*myRegion.tilesize, (myRegion.txmax-myRegion.txmin)*myRegion.tilesize, (myRegion.tymax-myRegion.tymin)*myRegion.tilesize)
-
     print "Downloading files..."
     myRegion.getfiles()
-    if (args.debug):
-        lcds = ds(myRegion.mapfile(myRegion.lclayer))
-        print "The landcover file has dimensions %d x %d" % (lcds.RasterXSize, lcds.RasterYSize)
-        elds = ds(myRegion.mapfile(myRegion.ellayer))
-        print "The elevation file has dimensions %d x %d" % (elds.RasterXSize, elds.RasterYSize)
-    
+    myRegion.buildmap()
+
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
 
