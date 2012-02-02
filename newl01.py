@@ -83,17 +83,17 @@ class L01_Terrain(Terrain):
     # 41: deciduous forest 
     # (100% redwood for us)
     def L01_41(x, y, z, crustval, bathyval):
-        return Terrain.placeforest(x, y, z, crustval, 100)
+        return Terrain.placeforest(x, y, z, crustval, 'Redwood')
 
     # 42: evergreen forest
     # (0% redwood for us so 100% birch)
     def L01_42(x, y, z, crustval, bathyval):
-        return Terrain.placeforest(x, y, z, crustval, 0)
+        return Terrain.placeforest(x, y, z, crustval, 'Birch')
 
     # 43: mixed forest
     # (50% redwood for us so 50% birch)
     def L01_43(x, y, z, crustval, bathyval):
-        return Terrain.placeforest(x, y, z, crustval, 50)
+        return Terrain.placeforest(x, y, z, crustval, ['Redwood', 'Birch'])
 
     # 50: shrubland
 

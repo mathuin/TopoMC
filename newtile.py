@@ -14,14 +14,14 @@ from itertools import product
 import numpy
 
 from newl01 import L01_Terrain
-from newutils import cleanmkdir, ds, setspawnandsave
+from newutils import cleanmkdir, ds, setspawnandsave, materialNamed
 from timer import timer
 from memoize import memoize
 
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, box
-from pymclevel.materials import alphaMaterials
+from newtree import Tree, treeObjs
 
 class Tile:
     """Tiles are the base render object.  or something."""
@@ -40,7 +40,6 @@ class Tile:
         self.tilex = int(tilex)
         self.tiley = int(tiley)
         self.tiles = region.tiles
-        self.rasters = region.rasters
 
         if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
             raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
@@ -63,10 +62,10 @@ class Tile:
 
         # load arrays from map file
         mapds = ds(self.mapname)
-        lcarray = mapds.GetRasterBand(self.rasters['landcover']).ReadAsArray(ox, oy, sx, sy)
-        elarray = mapds.GetRasterBand(self.rasters['elevation']).ReadAsArray(ox, oy, sx, sy)
-        bathyarray = mapds.GetRasterBand(self.rasters['bathy']).ReadAsArray(ox, oy, sx, sy)
-        crustarray = mapds.GetRasterBand(self.rasters['crust']).ReadAsArray(ox, oy, sx, sy)
+        lcarray = mapds.GetRasterBand(Region.rasters['landcover']).ReadAsArray(ox, oy, sx, sy)
+        elarray = mapds.GetRasterBand(Region.rasters['elevation']).ReadAsArray(ox, oy, sx, sy)
+        bathyarray = mapds.GetRasterBand(Region.rasters['bathy']).ReadAsArray(ox, oy, sx, sy)
+        crustarray = mapds.GetRasterBand(Region.rasters['crust']).ReadAsArray(ox, oy, sx, sy)
 
         # calculate Minecraft corners
         mcoffsetx = self.tilex * self.size
@@ -81,6 +80,8 @@ class Tile:
         # FIXME: Region.buildmap() will have to transform from real L01 to "my new class"
         myterrain = L01_Terrain()
         self.peak = [0, 0, 0]
+        self.treeobjs = dict([(tree.name, tree) for tree in treeObjs])
+        self.trees = dict([(name, list()) for name in self.treeobjs])
 
         for myx, myz in product(xrange(self.size), xrange(self.size)):
             mcx = int(mcoffsetx+myx)
@@ -91,35 +92,39 @@ class Tile:
             crustval = int(crustarray[myz, myx])
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
-            (blocks, datas) = myterrain.place(mcx, mcy, mcz, lcval, crustval, bathyval)
-            [ self.world.setBlockAt(mcx, y, mcz, Tile.materialNamed(block)) for (y, block) in blocks if block != 'Air' ]
+            (blocks, datas, tree) = myterrain.place(mcx, mcy, mcz, lcval, crustval, bathyval)
+            [ self.world.setBlockAt(mcx, y, mcz, materialNamed(block)) for (y, block) in blocks if block != 'Air' ]
             [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
-            
+            # if trees are placed, elevation cannot be changed
+            if tree:
+                coords = [mcx, mcy, mcz]
+                if (myx < Tree.treeWidth+1 or (self.size-myx) < Tree.treeWidth+1 or
+                    myz < Tree.treeWidth+1 or (self.size-myz) < Tree.treeWidth+1):
+                    # tree is too close to the edge, plant it later
+                    try:
+                        self.trees[tree]
+                    except KeyError:
+                        self.trees[tree] = []
+                    self.trees[tree].append(coords)
+                else:
+                    # plant it now!
+                    (blocks, datas) = self.treeobjs[tree](coords)
+                    [ self.world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
+                    [ self.world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)
 
         # write Tile.yaml with relevant data (peak at least)
         # NB: world is not dump-friendly. :-)
         del self.world
+        # neither is treeobjs!
+        del self.treeobjs
         stream = file(os.path.join(self.tiledir, 'Tile.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
 
         # return peak
         return self.peak
-
-
-    @staticmethod
-    @memoize()
-    def materialNamed(string):
-        "Returns block ID for block with name given in string."
-        return [v.ID for v in alphaMaterials.allBlocks if v.name==string][0]
-
-    @staticmethod
-    @memoize()
-    def names(blockID):
-        "Returns block name for given block ID."
-        return alphaMaterials.names[blockID][0]
 
 def checkTile():
     """Checks tile code."""

@@ -1,4 +1,4 @@
-from random import random
+from random import random, choice
 #from newtree import placeTree, treeProb, forestProb
 
 class Terrain():
@@ -8,6 +8,12 @@ class Terrain():
     # local constants
     tallgrassProb = 0.05
 
+    # tree constants
+    # move to newtree.py
+    treeProb = 0.001
+    forestProb = 0.03
+    # add a list of valid trees here
+
     # corresponds to landcover product ID
     key = 'XXX'
     # key: landcover value
@@ -16,92 +22,67 @@ class Terrain():
     # NB: must be defined *after* productID-specific methods!
     terdict = dict()
 
+    # helper methods
+    @staticmethod
+    def placetree(treeProb, whichTree):
+        # two possibilities for whichTree:
+        # string: 100% this kind of tree
+        # list: equal chances on which kind of tree
+        treeType = choice(whichTree) if type(whichTree) is list else whichTree
+        return treeType if random() < treeProb else None
+
     # common Terrain methods
+    # all Terrain methods accept (x, y, z, crustval) at least
+    # all Terrain methods return (y, column, tree)
+    # y: integer level for top of the column (usually unmodified)
+    # column: list of counts and blocks with optional data
+    # tree: either a type of tree or None
     @staticmethod
     def placedirt(x, y, z, crustval):
-        return (y, [crustval, 'Dirt'])
+        return (y, [crustval, 'Dirt'], None)
 
     @staticmethod
     def placewater(x, y, z, crustval, bathyval, ice=False):
         newcrustval = int(max(0, crustval-(bathyval/2)))
-        return (y, [newcrustval, 'Sand', bathyval-1, 'Water', 1, 'Ice' if ice else 'Water'])
+        return (y, [newcrustval, 'Sand', bathyval-1, 'Water', 1, 'Ice' if ice else 'Water'], None)
 
     @staticmethod
     def placedeveloped(x, y, z, crustval, stoneProb=0):
-        if (random() < stoneProb):
-            blockType = 'Stone'
-        else:
-            blockType = 'Grass'
-            #placeTree(x, z, y, treeProb, 'Regular')
-            # FIXME: add tall grass probability
-        return (y, [crustval, 'Dirt', 1, blockType])
+        # possibly place tall grass?
+        (blockType, tree) = ('Stone', None) if random() < stoneProb else ('Grass', Terrain.placetree(Terrain.treeProb, 'Regular'))
+        return (y, [crustval, 'Dirt', 1, blockType], tree)
 
     @staticmethod
     def placedesert(x, y, z, crustval, stoneProb=0):
-        if (random() < stoneProb):
-            blockType = 'Stone'
-        else:
-            blockType = 'Sand'
-            #placeTree(x, z, y, treeProb, 'Cactus')
-            # what about sugar cane?
-        return (y, [crustval, 'Sand', 2, blockType])
+        choices = ['Cactus', 'Cactus', 'Cactus', 'Sugar Cane']
+        (blockType, tree) = ('Stone', None) if random() < stoneProb else ('Sand', Terrain.placetree(Terrain.treeProb, choices))
+        return (y, [crustval, 'Sand', 2, blockType], tree)
     
     @staticmethod
-    def placeforest(x, y, z, crustval, redwoodProb):
-        if (random() < redwoodProb):
-            treeType = 'Redwood'
-        else:
-            treeType = 'Birch'
-        #placeTree(x, z, y, forestProb, treeType)
-        return (y, [crustval, 'Dirt', 1, 'Grass'])
+    def placeforest(x, y, z, crustval, trees):
+        tree = Terrain.placetree(Terrain.forestProb, trees)
+        return (y, [crustval, 'Dirt', 1, 'Grass'], tree)
 
     @staticmethod
     def placeshrubland(x, y, z, crustval, stoneProb):
-        if (random() < stoneProb):
-            blockType = 'Stone'
-        else:
-            blockType = 'Grass'
-            #placeTree(x, z, y, treeProb, 'Shrub')
-        return (y, [crustval, 'Dirt', 1, blockType])
+        (blockType, tree) = ('Stone', None) if random() < stoneProb else ('Grass', Terrain.placetree(Terrain.treeProb, 'Shrub'))
+        return (y, [crustval, 'Dirt', 1, blockType], tree)
 
     @staticmethod
     def placegrass(x, y, z, crustval, tallgrassProb=0.05):
         if (random() < tallgrassProb):
-            topping = random()
-            if (topping < 0.80):
-                capblock = ('Tall Grass', 1)
-            elif (topping < 0.90):
-                capblock = 'Flower'
-            else:
-                capblock = 'Rose'
-            return (y+1, [crustval, 'Dirt', 1, 'Grass', 1, capblock])
+            # 80% Tall Grass, 10% Flower, 10% Rose
+            choices = [('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1), 'Flower', 'Rose']
+            return (y+1, [crustval, 'Dirt', 1, 'Grass', 1, choice(choices)], None)
         else:
-            return (y, [crustval, 'Dirt', 1, 'Grass'])
+            return (y, [crustval, 'Dirt', 1, 'Grass'], None)
 
     @staticmethod
     def placecrops(x, y, z, crustval):
-        # for now always crops, possibly add in sugar cane
-        # to be "proper" it should be done in groups
-        # Okay, new crops approach: repeating patterns.
-        # level y:
-        # 0 1 2 3 4 5 0 1 2 3 4 5
-        # f f w f f c f f w f f c
-        # except every 10 when it is:
-        # c c w c c c c c w c c c
-        # level y+1:
-        # W W a W W a a M a P a a
-        # except every 10 when it is:
-        # a s c S a a a s c S a a
-        # key:
-        # f = farmland
-        # w = water
-        # c = cobblestone
-        # W = wheat (full height)
-        # M = melon (full height)
-        # P = pumpkin (full height)
-        # a = air
-        # s = cobble stair facing right
-        # S = cobble stair facing left
+        # a repeating pattern
+        # two rows of wheat, a row of water, two rows of wheat, a road, 
+        # two rows for melons, a row of water, two rows for pumpkins, a road
+        # with crossroads every ten blocks
         farm = [
             [1, 'Farmland', 1, ('Crops', 7)], 
             [1, 'Farmland', 1, ('Crops', 7)], 
@@ -136,7 +117,7 @@ class Terrain():
         layout = path if z % 10 == 0 else farm
         column = [crustval, 'Dirt'] + layout[x % farmwidth]
 
-        return (y+1, column)
+        return (y+1, column, None)
 
     # method that actually places terrain
     def place(self, x, y, z, lcval, crustval, bathyval):
@@ -146,7 +127,7 @@ class Terrain():
             self.terdict[lcval]
         except KeyError:
             print "lcval value %s not found!" % lcval
-        (y, column) = self.terdict.get(lcval, self.terdict[0])(x, y, z, crustval, bathyval)
+        (y, column, tree) = self.terdict.get(lcval, self.terdict[0])(x, y, z, crustval, bathyval)
         # now 
         merged = [ (x, 0) if type(x) is str else x for x in column ]
         blocks = []
@@ -169,6 +150,6 @@ class Terrain():
                 [blocks.append((y, block)) for y in xrange(top-layer,top)]
                 [datas.append((y, data)) for y in xrange(top-layer,top)]
                 top -= layer
-        return blocks, datas
+        return blocks, datas, tree
 
 

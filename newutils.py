@@ -3,6 +3,10 @@ import os
 import shutil
 from osgeo import gdal, osr
 from osgeo.gdalconst import GA_ReadOnly
+from memoize import memoize
+import sys
+sys.path.append('..')
+from pymclevel.materials import alphaMaterials
 
 def cleanmkdir(dir):
     """Cleans out existing directory and rebuilds."""
@@ -17,15 +21,6 @@ def cleanmkdir(dir):
 def ds(filename):
     """Return dataset including transforms."""
     ds = gdal.Open(filename, GA_ReadOnly)
-
-    Projection = ds.GetProjectionRef()
-    Proj = osr.SpatialReference(Projection)
-    LatLong = Proj.CloneGeogCS()
-    Trans = osr.CoordinateTransformation(Proj, LatLong)
-    ArcTrans = osr.CoordinateTransformation(LatLong, Proj)
-    GeoTrans = ds.GetGeoTransform()
-
-    ds.transforms = (Trans, ArcTrans, GeoTrans)
     ds.geotrans = ds.GetGeoTransform()
     return ds
 
@@ -44,4 +39,14 @@ def setspawnandsave(world, point):
         sizeOnDisk += ch.compressedSize();
     world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
-    
+
+@memoize()
+def materialNamed(string):
+    "Returns block ID for block with name given in string."
+    return [v.ID for v in alphaMaterials.allBlocks if v.name==string][0]
+
+@memoize()
+def names(blockID):
+    "Returns block name for given block ID."
+    return alphaMaterials.names[blockID][0]
+

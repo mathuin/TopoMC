@@ -4,7 +4,7 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 from newregion import Region
 from newtile import Tile
-from newutils import setspawnandsave
+from newutils import setspawnandsave, materialNamed
 import sys
 import argparse
 import os
@@ -15,6 +15,7 @@ except ImportError:
     from yaml import Loader, Dumper
 from multiprocessing import Pool
 from itertools import product
+from newtree import Tree, treeObjs
 
 sys.path.append('..')
 from pymclevel import mclevel, box
@@ -65,19 +66,43 @@ def main(argv):
         peaks = [x for x in results]
         pool = None
 
+    # tree variables
+    treeobjs = dict([(tree.name, tree) for tree in treeObjs])
+    trees = dict([(name, list()) for name in treeobjs])
+
     # merge individual worlds into it
     print "Merging %d tiles into one world..." % len(tiles)
     for tile in tiles:
         (tilex, tiley) = tile
         tiledir = os.path.join('Regions', myRegion.name, 'Tiles', '%dx%d' % (tilex, tiley))
-        peakfile = file(os.path.join(tiledir, 'Tile.yaml'))
-        newpeak = yaml.load(peakfile)
-        peakfile.close()
-        if (newpeak.peak[1] > peak[1]):
-            peak = newpeak.peak
+        tilefile = file(os.path.join(tiledir, 'Tile.yaml'))
+        newtile = yaml.load(tilefile)
+        tilefile.close()
+        if (newtile.peak[1] > peak[1]):
+            peak = newtile.peak
+        for treetype in newtile.trees:
+            coords = newtile.trees[treetype]
+            try:
+                trees[treetype]
+            except KeyError:
+                trees[treetype] = []
+            for elem in coords:
+                trees[treetype].append(elem)
         tileworld = mclevel.MCInfdevOldLevel(tiledir, create=False)
         world.copyBlocksFrom(tileworld, tileworld.bounds, tileworld.bounds.origin)
         tileworld = False
+
+    # plant trees in our world
+    treeblocks = []
+    treedatas = []
+    for tree in trees:
+        coords = trees[tree]
+        for coord in coords:
+            (blocks, datas) = treeobjs[tree](coord)
+            treeblocks += blocks
+            treedatas += datas
+    [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in treeblocks if block != 'Air' ]
+    [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in treedatas if data != 0 ]
 
     # tie up loose ends
     setspawnandsave(world, peak)
