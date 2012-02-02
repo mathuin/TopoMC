@@ -596,6 +596,9 @@ class Region:
             vrtds = ds(lcvrt)
             vrtband = vrtds.GetRasterBand(1)
             values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
+            # nodata is treated as water, which is 11
+            vrtnodata = vrtband.GetNoDataValue()
+            values[values == vrtnodata] = 11
             values = values.flatten()
             vrtband = None
             # 2. a new array of original scale coordinates must be created

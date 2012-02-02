@@ -91,8 +91,9 @@ class Tile:
             crustval = int(crustarray[myz, myx])
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
-            columns = myterrain.place(lcval, crustval, bathyval)
-            self.templayers(mcx, mcy, mcz, columns)
+            (blocks, datas) = myterrain.place(mcx, mcy, mcz, lcval, crustval, bathyval)
+            [ self.world.setBlockAt(mcx, y, mcz, Tile.materialNamed(block)) for (y, block) in blocks if block != 'Air' ]
+            [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
             
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)
@@ -119,27 +120,6 @@ class Tile:
     def names(blockID):
         "Returns block name for given block ID."
         return alphaMaterials.names[blockID][0]
-
-    def templayers(self, x, y, z, column):
-        """Attempt to do layers."""
-        blocks = []
-        top = y
-        overstone = sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
-        column.insert(0, 'Bedrock')
-        column.insert(1, top-overstone-1)
-        column.insert(2, 'Stone')
-        while (len(column) > 0 or top > 0):
-            # better be a block
-            block = column.pop()
-            if (len(column) > 0):
-                layer = column.pop()
-            else:
-                layer = top
-            # now do something
-            if (layer > 0):
-                [blocks.append((x, y, z, block)) for y in xrange(top-layer,top)]
-                top -= layer
-        [ self.world.setBlockAt(x, y, z, Tile.materialNamed(block)) for (x, y, z, block) in blocks ]
 
 def checkTile():
     """Checks tile code."""
