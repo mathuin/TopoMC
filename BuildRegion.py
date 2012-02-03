@@ -30,6 +30,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description='Builds Minecraft worlds from regions.')
     parser.add_argument('--name', required=True, type=str, help='name of the region to be built')
     parser.add_argument('--debug', action='store_true', help='enable debug output')
+    parser.add_argument('--single', action='store_true', help='enable single-threaded mode for debugging or profiling')
     args = parser.parse_args()
 
     # enable debug
@@ -53,7 +54,7 @@ def main(argv):
     # AND add the world to the uberworld
     # ... that will save a loop at the least!
     tiles = [(tilex, tiley) for tilex, tiley in product(xrange(myRegion.tiles['xmin'], myRegion.tiles['xmax']), xrange(myRegion.tiles['ymin'], myRegion.tiles['ymax']))]
-    if False:
+    if args.single:
         # single process version - works
         for tile in tiles:
             (tilex, tiley) = tile
