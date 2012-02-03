@@ -105,27 +105,11 @@ def main(argv):
 
     # plant trees in our world
     print "Planting trees at the region level..."
-    treeblocks = []
-    treedatas = []
-    for tree in trees:
-        coords = trees[tree]
-        for coord in coords:
-            (blocks, datas) = treeobjs[tree](coord)
-            treeblocks += blocks
-            treedatas += datas
-    [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in treeblocks if block != 'Air' ]
-    [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in treedatas if data != 0 ]
+    Tree.placetreesinregion(trees, treeobjs, world)
 
     # deposit ores in our world
     print "Depositing ores at the region level..."
-    for ore in ores:
-        coords = ores[ore]
-        orename = materialNamed(oreobjs[ore].name)
-        if 'Stone' in [ names(world.blockAt(x, y, z)) for x, y, z in coords ]:
-            for coord in coords:
-                (x, y, z) = coord
-                if names(world.blockAt(x, y, z)) not in oreDQ:
-                    world.setBlockAt(x, y, z, orename)
+    Ore.placeoreinregion(ores, oreobjs, world)
 
     # tie up loose ends
     setspawnandsave(world, peak)

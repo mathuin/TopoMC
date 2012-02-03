@@ -71,12 +71,12 @@ class Tile:
         crustarray = mapds.GetRasterBand(Region.rasters['crust']).ReadAsArray(ox, oy, sx, sy)
 
         # calculate Minecraft corners
-        mcoffsetx = self.tilex * self.size
-        mcoffsetz = self.tiley * self.size
+        self.mcoffsetx = self.tilex * self.size
+        self.mcoffsetz = self.tiley * self.size
         
         # build a Minecraft world via pymclevel from blocks and data
         self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
-        tilebox = box.BoundingBox((mcoffsetx, 0, mcoffsetz), (self.size, self.world.Height, self.size))
+        tilebox = box.BoundingBox((self.mcoffsetx, 0, self.mcoffsetz), (self.size, self.world.Height, self.size))
         self.world.createChunksInBox(tilebox)
 
         # do the terrain thing (no trees, ore or building)
@@ -87,8 +87,8 @@ class Tile:
         self.trees = dict([(name, list()) for name in treeobjs])
 
         for myx, myz in product(xrange(self.size), xrange(self.size)):
-            mcx = int(mcoffsetx+myx)
-            mcz = int(mcoffsetz+myz)
+            mcx = int(self.mcoffsetx+myx)
+            mcz = int(self.mcoffsetz+myz)
             mcy = int(elarray[myz, myx])
             lcval = int(lcarray[myz, myx])
             bathyval = int(bathyarray[myz, myx])
@@ -100,51 +100,10 @@ class Tile:
             [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
             # if trees are placed, elevation cannot be changed
             if tree:
-                coords = [mcx, mcy, mcz]
-                if (myx < Tree.treeWidth+1 or (self.size-myx) < Tree.treeWidth+1 or
-                    myz < Tree.treeWidth+1 or (self.size-myz) < Tree.treeWidth+1):
-                    # tree is too close to the edge, plant it later
-                    try:
-                        self.trees[tree]
-                    except KeyError:
-                        self.trees[tree] = []
-                    self.trees[tree].append(coords)
-                else:
-                    # plant it now!
-                    (blocks, datas) = treeobjs[tree](coords)
-                    [ self.world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
-                    [ self.world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
+                Tree.placetreeintile(self, tree, mcx, mcy, mcz)
 
         # now that terrain and trees are done, place ore
-        oreobjs = dict([(ore.name, ore) for ore in oreObjs])
-        self.ores = dict([(name, list()) for name in oreobjs])
-
-        oreblocks = []
-        for ore in oreobjs:
-            extent = cbrt(oreobjs[ore].size)*2
-            maxy = pow(2,oreobjs[ore].depth)
-            numrounds = int(oreobjs[ore].rounds * (self.size/16) * (self.size/16))
-            orename = materialNamed(oreobjs[ore].name)
-            for oreround in xrange(numrounds):
-                orex = randint(0, self.size)
-                orey = randint(0, maxy)
-                orez = randint(0, self.size)
-                coords = [orex+mcoffsetx, orey, orez+mcoffsetz]
-                if (orex < extent or (self.size-orex) < extent or
-                    orez < extent or (self.size-orez) < extent):
-                    try:
-                        self.ores[ore]
-                    except KeyError:
-                        self.ores[ore] = []
-                    self.ores[ore].append(coords)
-                else:
-                    oreCoords = oreobjs[ore](coords)
-                    if 'Stone' in [ names(self.world.blockAt(x, y, z)) for x, y, z in oreCoords ]:
-                        # place the ore everywhere except where we shouldn't
-                        for coord in oreCoords:
-                            (x, y, z) = coord
-                            if names(self.world.blockAt(x, y, z)) not in oreDQ:
-                                self.world.setBlockAt(x, y, z, orename)
+        Ore.placeoreintile(self)
 
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)

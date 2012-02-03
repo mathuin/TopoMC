@@ -4,6 +4,7 @@ from math import hypot
 import numpy
 from random import randint
 from itertools import product
+from newutils import materialNamed
 
 class Tree:
     """Each type of tree will be an instance of this class."""
@@ -57,7 +58,7 @@ class Tree:
         # cactus and sugarcane have no patterns
         if self.pattern == None:
             blocks = [ (x, base+y, z, self.data) for y in xrange(height) ]
-            datas = [ (x, base+y, z, 0) for y in xrange(height) ]
+            datas = []
         else:
             blocks = []
             datas = []
@@ -71,9 +72,41 @@ class Tree:
                     blocks.append((myleafx, myleafy, myleafz, 'Leaves'))
                     datas.append((myleafx, myleafy, myleafz, self.data))
             for y in xrange(base,base+height):
-                blocks.append((myleafx, myleafy, myleafz, 'Wood'))
-                datas.append((myleafx, myleafy, myleafz, self.data))
+                blocks.append((x, y, z, 'Wood'))
+                datas.append((x, y, z, self.data))
         return blocks, datas
+
+    @staticmethod
+    def placetreeintile(tile, tree, mcx, mcy, mcz):
+        coords = [mcx, mcy, mcz]
+        myx = tile.mcoffsetx - mcx
+        myz = tile.mcoffsetx - mcz
+        if (myx < Tree.treeWidth+1 or (tile.size-myx) < Tree.treeWidth+1 or
+            myz < Tree.treeWidth+1 or (tile.size-myz) < Tree.treeWidth+1):
+            # tree is too close to the edge, plant it later
+            try:
+                tile.trees[tree]
+            except KeyError:
+                tile.trees[tree] = []
+            tile.trees[tree].append(coords)
+        else:
+            # plant it now!
+            (blocks, datas) = treeobjs[tree](coords)
+            [ tile.world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
+            [ tile.world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
+
+    @staticmethod
+    def placetreesinregion(trees, treeobjs, world):
+        treeblocks = []
+        treedatas = []
+        for tree in trees:
+            coords = trees[tree]
+            for coord in coords:
+                (blocks, datas) = treeobjs[tree](coord)
+                treeblocks += blocks
+                treedatas += datas
+        [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in treeblocks if block != 'Air' ]
+        [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in treedatas if data != 0 ]
 
 treeObjs = [ 
     Tree('Cactus', None, 'Cactus', [3, 3, 3]), 

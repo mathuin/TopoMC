@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
+import logging
+logging.basicConfig(level=logging.WARNING)
 from newregion import Region
 from newutils import ds
 import sys
 import argparse
-import logging
 
 def checkElevationIDs(string):
     """Checks to see if the given product IDs are valid."""
