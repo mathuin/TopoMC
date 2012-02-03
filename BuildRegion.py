@@ -4,7 +4,7 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 from newregion import Region
 from newtile import Tile
-from newutils import setspawnandsave, materialNamed
+from newutils import setspawnandsave, materialNamed, names
 import sys
 import argparse
 import os
@@ -16,6 +16,7 @@ except ImportError:
 from multiprocessing import Pool
 from itertools import product
 from newtree import Tree, treeObjs
+from newore import Ore, oreObjs, oreDQ
 
 sys.path.append('..')
 from pymclevel import mclevel, box
@@ -66,9 +67,11 @@ def main(argv):
         peaks = [x for x in results]
         pool = None
 
-    # tree variables
+    # tree and ore variables
     treeobjs = dict([(tree.name, tree) for tree in treeObjs])
     trees = dict([(name, list()) for name in treeobjs])
+    oreobjs = dict([(ore.name, ore) for ore in oreObjs])
+    ores = dict([(name, list()) for name in oreobjs])
 
     # merge individual worlds into it
     print "Merging %d tiles into one world..." % len(tiles)
@@ -88,11 +91,20 @@ def main(argv):
                 trees[treetype] = []
             for elem in coords:
                 trees[treetype].append(elem)
+        for oretype in newtile.ores:
+            coords = newtile.ores[oretype]
+            try:
+                ores[oretype]
+            except KeyError:
+                ores[oretype] = []
+            for elem in coords:
+                ores[oretype].append(elem)
         tileworld = mclevel.MCInfdevOldLevel(tiledir, create=False)
         world.copyBlocksFrom(tileworld, tileworld.bounds, tileworld.bounds.origin)
         tileworld = False
 
     # plant trees in our world
+    print "Planting trees at the region level..."
     treeblocks = []
     treedatas = []
     for tree in trees:
@@ -103,6 +115,17 @@ def main(argv):
             treedatas += datas
     [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in treeblocks if block != 'Air' ]
     [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in treedatas if data != 0 ]
+
+    # deposit ores in our world
+    print "Depositing ores at the region level..."
+    for ore in ores:
+        coords = ores[ore]
+        orename = materialNamed(oreobjs[ore].name)
+        if 'Stone' in [ names(world.blockAt(x, y, z)) for x, y, z in coords ]:
+            for coord in coords:
+                (x, y, z) = coord
+                if names(world.blockAt(x, y, z)) not in oreDQ:
+                    world.setBlockAt(x, y, z, orename)
 
     # tie up loose ends
     setspawnandsave(world, peak)

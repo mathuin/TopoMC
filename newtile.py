@@ -14,14 +14,17 @@ from itertools import product
 import numpy
 
 from newl01 import L01_Terrain
-from newutils import cleanmkdir, ds, setspawnandsave, materialNamed
+from newutils import cleanmkdir, ds, setspawnandsave, materialNamed, names
 from timer import timer
 from memoize import memoize
+from random import randint
 
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, box
 from newtree import Tree, treeObjs
+from newore import Ore, oreObjs, oreDQ
+from scipy.special import cbrt
 
 class Tile:
     """Tiles are the base render object.  or something."""
@@ -80,8 +83,8 @@ class Tile:
         # FIXME: Region.buildmap() will have to transform from real L01 to "my new class"
         myterrain = L01_Terrain()
         self.peak = [0, 0, 0]
-        self.treeobjs = dict([(tree.name, tree) for tree in treeObjs])
-        self.trees = dict([(name, list()) for name in self.treeobjs])
+        treeobjs = dict([(tree.name, tree) for tree in treeObjs])
+        self.trees = dict([(name, list()) for name in treeobjs])
 
         for myx, myz in product(xrange(self.size), xrange(self.size)):
             mcx = int(mcoffsetx+myx)
@@ -108,17 +111,47 @@ class Tile:
                     self.trees[tree].append(coords)
                 else:
                     # plant it now!
-                    (blocks, datas) = self.treeobjs[tree](coords)
+                    (blocks, datas) = treeobjs[tree](coords)
                     [ self.world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
                     [ self.world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
+
+        # now that terrain and trees are done, place ore
+        oreobjs = dict([(ore.name, ore) for ore in oreObjs])
+        self.ores = dict([(name, list()) for name in oreobjs])
+
+        oreblocks = []
+        for ore in oreobjs:
+            extent = cbrt(oreobjs[ore].size)*2
+            maxy = pow(2,oreobjs[ore].depth)
+            numrounds = int(oreobjs[ore].rounds * (self.size/16) * (self.size/16))
+            orename = materialNamed(oreobjs[ore].name)
+            for oreround in xrange(numrounds):
+                orex = randint(0, self.size)
+                orey = randint(0, maxy)
+                orez = randint(0, self.size)
+                coords = [orex+mcoffsetx, orey, orez+mcoffsetz]
+                if (orex < extent or (self.size-orex) < extent or
+                    orez < extent or (self.size-orez) < extent):
+                    try:
+                        self.ores[ore]
+                    except KeyError:
+                        self.ores[ore] = []
+                    self.ores[ore].append(coords)
+                else:
+                    oreCoords = oreobjs[ore](coords)
+                    if 'Stone' in [ names(self.world.blockAt(x, y, z)) for x, y, z in oreCoords ]:
+                        # place the ore everywhere except where we shouldn't
+                        for coord in oreCoords:
+                            (x, y, z) = coord
+                            if names(self.world.blockAt(x, y, z)) not in oreDQ:
+                                self.world.setBlockAt(x, y, z, orename)
+
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)
 
         # write Tile.yaml with relevant data (peak at least)
         # NB: world is not dump-friendly. :-)
         del self.world
-        # neither is treeobjs!
-        del self.treeobjs
         stream = file(os.path.join(self.tiledir, 'Tile.yaml'), 'w')
         yaml.dump(self, stream)
         stream.close()
