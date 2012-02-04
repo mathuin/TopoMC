@@ -49,6 +49,7 @@ def main(argv):
     parser.add_argument('--maxdepth', type=int, help='maxdepth value (default %d)' % Region.maxdepth)
     parser.add_argument('--elevationIDs', default=default_elevationIDs, type=checkElevationIDs, help='ordered list of product IDs (default %s)' % default_elevationIDs)
     parser.add_argument('--landcoverIDs', default=default_landcoverIDs, type=checkLandcoverIDs, help='ordered list of product IDs (default %s)' % default_landcoverIDs)
+    parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help='disable ore generation')
     parser.add_argument('--debug', action='store_true', help='enable debug output')
     args = parser.parse_args()
 
@@ -58,7 +59,7 @@ def main(argv):
 
     # create the region
     print "Creating new region %s..." % args.name
-    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs)
+    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs, doOre=args.doOre)
 
     print "Downloading files..."
     myRegion.getfiles()

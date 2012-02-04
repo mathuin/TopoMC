@@ -43,6 +43,7 @@ class Tile:
         self.tilex = int(tilex)
         self.tiley = int(tiley)
         self.tiles = region.tiles
+        self.doOre = region.doOre
 
         if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
             raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
@@ -103,7 +104,8 @@ class Tile:
                 Tree.placetreeintile(self, tree, mcx, mcy, mcz)
 
         # now that terrain and trees are done, place ore
-        Ore.placeoreintile(self)
+        if self.doOre:
+            Ore.placeoreintile(self)
 
         # stick the player and the spawn at the peak
         setspawnandsave(self.world, self.peak)

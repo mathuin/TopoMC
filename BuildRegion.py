@@ -90,16 +90,15 @@ def main(argv):
                 trees[treetype]
             except KeyError:
                 trees[treetype] = []
-            for elem in coords:
-                trees[treetype].append(elem)
-        for oretype in newtile.ores:
-            coords = newtile.ores[oretype]
-            try:
-                ores[oretype]
-            except KeyError:
-                ores[oretype] = []
-            for elem in coords:
-                ores[oretype].append(elem)
+            trees[treetype] += coords
+        if myRegion.doOre:
+            for oretype in newtile.ores:
+                coords = newtile.ores[oretype]
+                try:
+                    ores[oretype]
+                except KeyError:
+                    ores[oretype] = []
+                ores[oretype] += coords
         tileworld = mclevel.MCInfdevOldLevel(tiledir, create=False)
         world.copyBlocksFrom(tileworld, tileworld.bounds, tileworld.bounds.origin)
         tileworld = False
@@ -109,8 +108,9 @@ def main(argv):
     Tree.placetreesinregion(trees, treeobjs, world)
 
     # deposit ores in our world
-    print "Depositing ores at the region level..."
-    Ore.placeoreinregion(ores, oreobjs, world)
+    if myRegion.doOre:
+        print "Depositing ores at the region level..."
+        Ore.placeoreinregion(ores, oreobjs, world)
 
     # tie up loose ends
     setspawnandsave(world, peak)

@@ -93,7 +93,7 @@ class Region:
     compressionTypes = { 'tgz': ['T'],
                          'zip': ['Z'] }
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, debug=False):
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, debug=False, doOre=True):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
@@ -164,6 +164,9 @@ class Region:
             elevationIDs = [ ID for ID in elIDs if ID in self.productIDs['elevation'] ]
             if elevationIDs == []:
                 raise AttributeError, 'invalid elevation ID'
+
+        # enable or disable ore
+        self.doOre = doOre
 
         # crazy directory fun
         self.regiondir = os.path.join('Regions', self.name)

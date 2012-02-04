@@ -98,15 +98,15 @@ class Terrain():
             [1, 'Cobblestone', 1, 'Air'] ]
         path = [
             [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 1)], 
+            [1, 'Cobblestone', 1, ('Stone Stairs', 0)], 
             [1, 'Water', 1, 'Cobblestone' ],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 3)], 
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, 'Air'],
             [1, 'Cobblestone', 1, ('Stone Stairs', 1)], 
+            [1, 'Cobblestone', 1, 'Air'],
+            [1, 'Cobblestone', 1, 'Air'],
+            [1, 'Cobblestone', 1, 'Air'],
+            [1, 'Cobblestone', 1, ('Stone Stairs', 0)], 
             [1, 'Water', 1, 'Cobblestone' ],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 3)], 
+            [1, 'Cobblestone', 1, ('Stone Stairs', 1)], 
             [1, 'Cobblestone', 1, 'Air'],
             [1, 'Cobblestone', 1, 'Air'] ]
 
