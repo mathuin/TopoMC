@@ -1,5 +1,9 @@
 from random import random, choice
-#from newtree import placeTree, treeProb, forestProb
+import yaml
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
 
 class Terrain():
     """Base class for landcover definitions."""
@@ -22,6 +26,54 @@ class Terrain():
     # NB: must be defined *after* productID-specific methods!
     terdict = dict()
 
+    # structure methods
+    @staticmethod
+    def newstructure(layout, offset):
+        # NB: error checking needed
+        retval = dict()
+        retval['layout'] = layout
+        retval['offset'] = offset
+        # do speed testing
+        retval['width'] = len(layout)
+        retval['length'] = len(layout[0])
+        retval['height'] = Terrain.depth(layout[0][0])
+        Terrain.checkstructure(retval)
+        return retval
+
+    @staticmethod
+    def loadstructure(filename):
+        if filename==None:
+            raise AttributeError, "filename required"
+        stream = file(filename)
+        retval = yaml.load(stream)
+        stream.close()
+        return retval
+
+    @staticmethod
+    def savestructure(structure, filename):
+        if filename==None:
+            raise AttributeError, "filename required"
+        stream = file(filename, 'w')
+        yaml.dump(structure, stream)
+        stream.close()
+
+    @staticmethod
+    def checkstructure(structure, verbose=False):
+        if not all([len(row) == structure['length'] for row in structure['layout']]):
+            raise AttributeError, "not all rows are the same width"
+
+        if not all([Terrain.depth(col) == structure['height'] for row in structure['layout'] for col in row]):
+            raise AttributeError, "not all cols are the same height"
+
+        if verbose:
+            print "structure has dimensions %dX x %dY x %dZ" % (structure['length'], structure['height'], structure['width'])
+
+    @staticmethod
+    def placestructure(structure, x, y, z, crustval):
+        return (y + structure['height'] - structure['offset'], 
+                [crustval, 'Dirt'] + structure['layout'][z % structure['width']][x % structure['length']], 
+                None)
+        
     # helper methods
     @staticmethod
     def placetree(treeProb, whichTree):
@@ -43,14 +95,28 @@ class Terrain():
 
     @staticmethod
     def placewater(x, y, z, crustval, bathyval, ice=False):
+        # NB: no longer valid for 12!
         newcrustval = int(max(0, crustval-(bathyval/2)))
         return (y, [newcrustval, 'Sand', bathyval-1, 'Water', 1, 'Ice' if ice else 'Water'], None)
 
     @staticmethod
-    def placedeveloped(x, y, z, crustval, stoneProb=0):
+    def placeice(x, y, z, crustval):
+        return (y+1, [crustval, 'Dirt', 1, 'Snow Layer'], None)
+
+    @staticmethod
+    def placedevelopedsimple(x, y, z, crustval, stoneProb=0):
         # possibly place tall grass?
         (blockType, tree) = ('Stone', None) if random() < stoneProb else ('Grass', Terrain.placetree(Terrain.treeProb, 'Regular'))
         return (y, [crustval, 'Dirt', 1, blockType], tree)
+
+    @staticmethod
+    def placedeveloped(x, y, z, crustval, stoneProb=0):
+        try:
+            Terrain.structdev
+        except AttributeError:
+            Terrain.structdev = Terrain.loadstructure('structure-developed.yaml')
+        return Terrain.placestructure(Terrain.structdev, x, y, z, crustval)
+
 
     @staticmethod
     def placedesert(x, y, z, crustval, stoneProb=0):
@@ -79,46 +145,22 @@ class Terrain():
 
     @staticmethod
     def placecrops(x, y, z, crustval):
-        # a repeating pattern
-        # two rows of wheat, a row of water, two rows of wheat, a road, 
-        # two rows for melons, a row of water, two rows for pumpkins, a road
-        # with crossroads every ten blocks
-        farm = [
-            [1, 'Farmland', 1, ('Crops', 7)], 
-            [1, 'Farmland', 1, ('Crops', 7)], 
-            [1, 'Water', 1, 'Air'], 
-            [1, 'Farmland', 1, ('Crops', 7)], 
-            [1, 'Farmland', 1, ('Crops', 7)], 
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Farmland', 1, 'Air'],
-            [1, 'Farmland', 1, ('Melon Stem', 7)],
-            [1, 'Water', 1, 'Air'],
-            [1, 'Farmland', 1, ('Pumpkin Stem', 7)],
-            [1, 'Farmland', 1, 'Air'],
-            [1, 'Cobblestone', 1, 'Air'] ]
-        path = [
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 0)], 
-            [1, 'Water', 1, 'Cobblestone' ],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 1)], 
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 0)], 
-            [1, 'Water', 1, 'Cobblestone' ],
-            [1, 'Cobblestone', 1, ('Stone Stairs', 1)], 
-            [1, 'Cobblestone', 1, 'Air'],
-            [1, 'Cobblestone', 1, 'Air'] ]
+        try:
+            Terrain.structcrops
+        except AttributeError:
+            Terrain.structcrops = Terrain.loadstructure('structure-crops.yaml')
+        return Terrain.placestructure(Terrain.structcrops, x, y, z, crustval)
 
-        if len(farm) != len(path):
-            raise AttributeError, "farm and path lists not the same length"
-        else:
-            farmwidth = len(farm)
-        layout = path if z % 10 == 0 else farm
-        column = [crustval, 'Dirt'] + layout[x % farmwidth]
+    @staticmethod
+    def placecropssimple(x, y, z, crustval):
+        return (y+1, [crustval, 'Dirt', 1, 'Farmland', 1, ('Crops', 7)], None)
 
-        return (y+1, column, None)
-
+    @staticmethod
+    def depth(column):
+        """Calculate the Terrain.depth of the column."""
+        # NB: confirm that the column matches expectation
+        return sum([column[elem] for elem in xrange(len(column)) if elem % 2 == 0])
+        
     # method that actually places terrain
     def place(self, x, y, z, lcval, crustval, bathyval):
         if self.key == 'XXX' or self.terdict == {}:
@@ -133,10 +175,11 @@ class Terrain():
         blocks = []
         datas = []
         top = y
-        overstone = sum([merged[elem] for elem in xrange(len(merged)) if elem % 2 == 0])
+        overstone = Terrain.depth(merged)
         merged.insert(0, ('Bedrock', 0))
         merged.insert(1, top-overstone-1)
-        merged.insert(2, ('Stone', 0))
+        # using End Stone for placeholder
+        merged.insert(2, ('End Stone', 0))
         while (len(merged) > 0 or top > 0):
             # better be a block
             (block, data) = merged.pop()
