@@ -40,9 +40,9 @@ class L01_Terrain(Terrain):
         return Terrain.placewater(x, y, z, crustval, bathyval)
 
     # 12: perennial ice/snow
-    # (is this ever on mountaintops?)
+    # (is this ever on mountaintops?  yes!)
     def L01_12(x, y, z, crustval, bathyval):
-        return Terrain.placewater(x, y, z, crustval, bathyval, ice=True)
+        return Terrain.placeice(x, y, z, crustval)
 
     # 20: developed
 
