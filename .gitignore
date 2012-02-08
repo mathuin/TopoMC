@@ -1,3 +1,4 @@
 # ignore compiled Python files
 *.pyc
 *~
+structure-*.yaml
