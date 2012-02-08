@@ -14,7 +14,7 @@ from itertools import product
 import numpy
 
 from newl01 import L01_Terrain
-from newutils import cleanmkdir, ds, setspawnandsave, materialNamed, names
+from newutils import cleanmkdir, ds, setspawnandsave
 from timer import timer
 from memoize import memoize
 from random import randint
@@ -97,7 +97,7 @@ class Tile:
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
             (blocks, datas, tree) = myterrain.place(mcx, mcy, mcz, lcval, crustval, bathyval)
-            [ self.world.setBlockAt(mcx, y, mcz, materialNamed(block)) for (y, block) in blocks if block != 'Air' ]
+            [ self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0 ]
             [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
             # if trees are placed, elevation cannot be changed
             if tree:
