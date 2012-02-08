@@ -104,12 +104,12 @@ def main(argv):
         tileworld = False
 
     # plant trees in our world
-    print "Planting trees at the region level..."
+    print "Planting %d trees at the region level..." % sum([len(trees[treetype]) for treetype in trees])
     Tree.placetreesinregion(trees, treeobjs, world)
 
     # deposit ores in our world
     if myRegion.doOre:
-        print "Depositing ores at the region level..."
+        print "Depositing %d ores at the region level..." % sum([len(ores[oretype]) for oretype in ores])
         Ore.placeoreinregion(ores, oreobjs, world)
 
     # tie up loose ends
