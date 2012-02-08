@@ -255,11 +255,11 @@ class Terrain:
 
     # 71: grassland
     def seventyone(x, y, z, crustval, bathyval):
-        return Terrain.placegrass(x, y, z, crustva, tallgrassProb=0.10)
+        return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.10)
 
     # 81: pasture/hay
     def eightyone(x, y, z, crustval, bathyval):
-        return Terrain.placegrass(x, y, z, crustva, tallgrassProb=0.25)
+        return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.25)
 
     # 82: crops
     def eightytwo(x, y, z, crustval, bathyval):
