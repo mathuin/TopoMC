@@ -1,5 +1,6 @@
 from random import random, choice
 from newutils import materialNamed
+import os
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, schematic
@@ -59,7 +60,7 @@ class Terrain():
     def importstructurefromschematic(tag, offset=1):
         if tag==None:
             raise AttributeError, "tag required"
-        filename = '%s.schematic'
+        filename = '%s.schematic' % tag
         schem = mclevel.fromFile(filename)
         layout = [[Terrain.compressrow([(1, (int(schem.Blocks[elemX, elemZ, elemY]), int(schem.Data[elemX, elemZ, elemY]))) for elemY in xrange(schem.Height)]) for elemZ in xrange(schem.Length)] for elemX in xrange(schem.Width)]
         return Terrain.newstructure(layout, offset)
