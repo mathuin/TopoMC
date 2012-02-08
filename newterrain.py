@@ -41,18 +41,20 @@ class Terrain():
         return retval
 
     @staticmethod
-    def loadstructure(filename):
-        if filename==None:
-            raise AttributeError, "filename required"
+    def loadstructure(tag):
+        if tag==None:
+            raise AttributeError, "tag required"
+	filename = 'structure-%s.yaml' % tag
         stream = file(filename)
         retval = yaml.load(stream)
         stream.close()
         return retval
 
     @staticmethod
-    def savestructure(structure, filename):
-        if filename==None:
-            raise AttributeError, "filename required"
+    def savestructure(structure, tag):
+        if tag==None:
+            raise AttributeError, "tag required"
+	filename = 'structure-%s.yaml' % tag
         stream = file(filename, 'w')
         yaml.dump(structure, stream)
         stream.close()
