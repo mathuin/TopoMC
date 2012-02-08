@@ -13,7 +13,6 @@ import os
 from itertools import product
 import numpy
 
-from newl01 import L01_Terrain
 from newutils import cleanmkdir, ds, setspawnandsave
 from timer import timer
 from memoize import memoize
@@ -22,6 +21,7 @@ from random import randint
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, box
+from newterrain import Terrain
 from newtree import Tree, treeObjs
 from newore import Ore, oreObjs, oreDQ
 from scipy.special import cbrt
@@ -81,8 +81,6 @@ class Tile:
         self.world.createChunksInBox(tilebox)
 
         # do the terrain thing (no trees, ore or building)
-        # FIXME: Region.buildmap() will have to transform from real L01 to "my new class"
-        myterrain = L01_Terrain()
         self.peak = [0, 0, 0]
         treeobjs = dict([(tree.name, tree) for tree in treeObjs])
         self.trees = dict([(name, list()) for name in treeobjs])
@@ -96,7 +94,7 @@ class Tile:
             crustval = int(crustarray[myz, myx])
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
-            (blocks, datas, tree) = myterrain.place(mcx, mcy, mcz, lcval, crustval, bathyval)
+            (blocks, datas, tree) = Terrain.place(mcx, mcy, mcz, lcval, crustval, bathyval)
             [ self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0 ]
             [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
             # if trees are placed, elevation cannot be changed

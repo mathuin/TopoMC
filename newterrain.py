@@ -10,9 +10,15 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-class Terrain():
+class Terrain:
     """Base class for landcover definitions."""
-    # Each landcover class is a subclass of Terrain.
+
+    # terrain translation
+    # key = productID
+    # value = dict(key=old, value=new)
+    translate = { 'L01': { 32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91 },
+                  'L06': { 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 95: 91 },
+                  'L92': { 85: 21, 21: 22, 22: 24, 23: 25, 32: 31, 62: 82, 83: 82, 84: 82, 92: 90 } }
 
     # local constants
     tallgrassProb = 0.05
@@ -21,15 +27,6 @@ class Terrain():
     # move to newtree.py
     treeProb = 0.001
     forestProb = 0.03
-    # add a list of valid trees here
-
-    # corresponds to landcover product ID
-    key = 'XXX'
-    # key: landcover value
-    # value: productID-specific method calling Terrain methods
-    # (required default method with key of zero)
-    # NB: must be defined *after* productID-specific methods!
-    terdict = dict()
 
     # structure methods
     @staticmethod
@@ -156,8 +153,7 @@ class Terrain():
     
     @staticmethod
     def placeforest(x, y, z, crustval, trees):
-        tree = Terrain.placetree(Terrain.forestProb, trees)
-        return (y, [(crustval, 'Dirt'), (1, 'Grass')], tree)
+        return (y, [(crustval, 'Dirt'), (1, 'Grass')], Terrain.placetree(Terrain.forestProb, trees))
 
     @staticmethod
     def placeshrubland(x, y, z, crustval, stoneProb):
@@ -190,7 +186,7 @@ class Terrain():
 
     @staticmethod
     def depth(column):
-        """Calculate the Terrain.depth of the column."""
+        """Calculate the depth of the column."""
         # NB: confirm that the column matches expectation
         if type(column[0]) is tuple:
             pairs = column
@@ -200,15 +196,90 @@ class Terrain():
         retval = sum([pair[0] for pair in pairs])
         return retval
 
+    # valid terrain functions
+    # 0: default
+    def zero(x, y, z, crustval, bathyval):
+        return (y, [(crustval, 'Obsidian')], None)
+
+    # 11: water
+    def eleven(x, y, z, crustval, bathyval):
+        return Terrain.placewater(x, y, z, crustval, bathyval)
+
+    # 12: ice
+    def twelve(x, y, z, crustval, bathyval):
+        return Terrain.placeice(x, y, z, crustval)
+
+    # 21: developed/open-space (<20% developed)
+    def twentyone(x, y, z, crustval, bathyval):
+        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.1)
+
+    # 22: developed/low-intensity (20-49% developed)
+    def twentytwo(x, y, z, crustval, bathyval):
+        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.35)
+
+    # 23: developed/medium-intensity (50-79% developed)
+    def twentythree(x, y, z, crustval, bathyval):
+        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.65)
+
+    # 24: developed/high-intensity (80-100% developed)
+    def twentyfour(x, y, z, crustval, bathyval):
+        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.9)
+
+    # 25: commercial-industrial-transportation
+    def twentyfive(x, y, z, crustval, bathyval):
+        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=1)
+
+    # 31: barren land (rock/sand/clay)
+    def thirtyone(x, y, z, crustval, bathyval):
+        return Terrain.placedesert(x, y, z, crustval, stoneProb=0.50)
+
+    # 32: transitional
+    def thirtytwo(x, y, z, crustval, bathyval):
+        return Terrain.placedesert(x, y, z, crustval)
+
+    # 41: deciduous forest
+    def fortyone(x, y, z, crustval, bathyval):
+        return Terrain.placeforest(x, y, z, crustval, 'Redwood')
+
+    # 42: evergreen forest
+    def fortytwo(x, y, z, crustval, bathyval):
+        return Terrain.placeforest(x, y, z, crustval, 'Birch')
+
+    # 43: mixed forest
+    def fortythree(x, y, z, crustval, bathyval):
+        return Terrain.placeforest(x, y, z, crustval, ['Redwood', 'Birch'])
+
+    # 51: shrubland
+    def fiftyone(x, y, z, crustval, bathyval):
+        return Terrain.placeshrubland(x, y, z, crustval, stoneProb=0.25)
+
+    # 71: grassland
+    def seventyone(x, y, z, crustval, bathyval):
+        return Terrain.placegrass(x, y, z, crustva, tallgrassProb=0.10)
+
+    # 81: pasture/hay
+    def eightyone(x, y, z, crustval, bathyval):
+        return Terrain.placegrass(x, y, z, crustva, tallgrassProb=0.25)
+
+    # 82: crops
+    def eightytwo(x, y, z, crustval, bathyval):
+        return Terrain.placecrops(x, y, z, crustval)
+
+    # 91: wetlands
+    def ninetyone(x, y, z, crustval, bathyval):
+        return Terrain.placegrass(x, y, z, crustval)
+
+    # dictionary used by place
+    terdict = { 0: zero, 11: eleven, 12: twelve, 21: twentyone, 22: twentytwo, 23: twentythree, 24: twentyfour, 25: twentyfive, 31: thirtyone, 32: thirtytwo, 41: fortyone, 42: fortytwo, 43: fortythree, 51: fiftyone, 71: seventyone, 81: eightyone, 82: eightytwo, 91: ninetyone }
+
     # method that actually places terrain
-    def place(self, x, y, z, lcval, crustval, bathyval):
-        if self.key == 'XXX' or self.terdict == {}:
-            raise AttributeError, "terrain unpopulated"
+    @staticmethod
+    def place(x, y, z, lcval, crustval, bathyval):
         try:
-            self.terdict[lcval]
+            Terrain.terdict[lcval]
         except KeyError:
             print "lcval value %s not found!" % lcval
-        (y, column, tree) = self.terdict.get(lcval, self.terdict[0])(x, y, z, crustval, bathyval)
+        (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval)
         merged = [ (depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column ]
         blocks = []
         datas = []

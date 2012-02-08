@@ -19,6 +19,7 @@ from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
 from newutils import cleanmkdir, ds
+from newterrain import Terrain
 import sys
 sys.path.append('..')
 from pymclevel import mclevel
@@ -635,6 +636,19 @@ class Region:
 	projection = srs.ExportToWkt()
         bathyarray = getBathy(deptharray, self.maxdepth, geotrans, projection)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
+        # perform terrain translation
+        # NB: figure out why this doesn't work up above
+        lcpid = self.lclayer[:3]
+        if lcpid in Terrain.translate:
+            trans = Terrain.translate[lcpid]
+            for key in trans:
+                lcarray[lcarray == key] = 1000+trans[key]
+            lcarray[lcarray>1000] -= 1000
+            examples = numpy.unique(lcarray)
+            examples = examples.flatten()
+            for value in examples:
+                if value not in Terrain.terdict:
+                    print "bad value: ", value
         mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)
 
         # close the dataset
