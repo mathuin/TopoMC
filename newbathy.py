@@ -5,34 +5,31 @@ from itertools import product
 from math import hypot
 from invdisttree import Invdisttree
 from timer import timer
+from osgeo import gdal
 
 @timer()
-def getBathy(deptharray, maxdepth):
-    """Generates rough bathymetric values based on proximity to terrain."""
+def getBathy(deptharray, maxdepth, geotrans, projection):
+    # save deptharray as a dataset named depthds
     (depthz, depthx) = deptharray.shape
-    xsize = depthx - 2 * maxdepth
-    zsize = depthz - 2 * maxdepth
-    setWater = set([11, 12])
-    bathyarray = zeros((zsize, xsize), dtype=uint8)
-    bigFull = [[z, x] for z, x in product(xrange(depthz), xrange(depthx))]
-    bigDry = [[z, x] for [z, x] in bigFull if deptharray[z, x] not in setWater]
-    # if no land in range at all...
-    if (len(bigDry) == 0):
-        bathyarray += maxdepth
-        return bathyarray
-    bigZValues, bigXValues = zip(*bigDry)
-    bigZIDT = Invdisttree(bigDry, bigZValues)
-    bigXIDT = Invdisttree(bigDry, bigXValues)
-    bigZNear = bigZIDT(bigFull, nnear=1, eps=0.1)
-    bigZNear.resize((depthz, depthx))
-    bigXNear = bigXIDT(bigFull, nnear=1, eps=0.1)
-    bigXNear.resize((depthz, depthx))
-    # do it!
-    for z, x in product(xrange(maxdepth,zsize+maxdepth), xrange(maxdepth,xsize+maxdepth)):
-        if deptharray[z, x] in setWater:
-            bigZ = bigZNear[z, x]
-            bigX = bigXNear[z, x]
-            bathyarray[z-maxdepth, x-maxdepth] = min(maxdepth, hypot((bigZ-z), (bigX-x)))
+    drv = gdal.GetDriverByName('MEM')
+    depthds = drv.Create('', depthx, depthz, 1, gdal.GetDataTypeByName('Byte'))
+    depthds.SetGeoTransform(geotrans)
+    depthds.SetProjection(projection)
+    depthband = depthds.GetRasterBand(1)
+    depthband.WriteArray(deptharray)
+    # create a duplicate dataset called bathyds
+    bathyds = drv.Create('', depthx, depthz, 1, gdal.GetDataTypeByName('Byte'))
+    bathyds.SetGeoTransform(geotrans)
+    bathyds.SetProjection(projection)
+    bathyband = bathyds.GetRasterBand(1)
+    # run compute proximity
+    values = ','.join([str(x) for x in xrange(256) if x is not 11])
+    options = ['MAXDIST=%d' % maxdepth, 'NODATA=%d' % maxdepth, 'VALUES=%s' % values]
+    gdal.ComputeProximity(depthband, bathyband, options)
+    # extract array
+    bathyarray = bathyband.ReadAsArray(maxdepth, maxdepth, bathyds.RasterXSize-2*maxdepth, bathyds.RasterYSize-2*maxdepth)
+    bathyds = None
+    depthds = None
     return bathyarray
     
-
+    

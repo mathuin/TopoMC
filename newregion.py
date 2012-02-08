@@ -631,7 +631,9 @@ class Region:
             # depth array is entire landcover region, landcover array is subset
             deptharray = lcband.ReadAsArray(0, 0, lcds.RasterXSize, lcds.RasterYSize)
         lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
-        bathyarray = getBathy(deptharray, self.maxdepth)
+	geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
+	projection = srs.ExportToWkt()
+        bathyarray = getBathy(deptharray, self.maxdepth, geotrans, projection)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)
 
