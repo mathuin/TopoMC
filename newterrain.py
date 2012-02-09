@@ -95,7 +95,7 @@ class Terrain:
     @staticmethod
     def placestructure(structure, x, y, z, crustval):
         return (y + structure['height'] - structure['offset'], 
-                [(crustval, 'Dirt')] + structure['layout'][z % structure['width']][x % structure['length']], 
+                [(crustval, 'Dirt')] + structure['layout'][x % structure['length']][z % structure['width']],
                 None)
         
     # helper methods
