@@ -3,7 +3,6 @@
 import logging
 logging.basicConfig(level=logging.WARNING)
 from newregion import Region
-from newutils import ds
 import sys
 import argparse
 

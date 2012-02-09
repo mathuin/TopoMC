@@ -13,10 +13,12 @@ import os
 from itertools import product
 import numpy
 
-from newutils import cleanmkdir, ds, setspawnandsave
+from newutils import cleanmkdir, setspawnandsave
 from timer import timer
 from memoize import memoize
 from random import randint
+from osgeo import gdal
+from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 
 import sys
 sys.path.append('..')
@@ -65,7 +67,7 @@ class Tile:
         sy = self.size
 
         # load arrays from map file
-        mapds = ds(self.mapname)
+        mapds = gdal.Open(self.mapname, GA_ReadOnly)
         lcarray = mapds.GetRasterBand(Region.rasters['landcover']).ReadAsArray(ox, oy, sx, sy)
         elarray = mapds.GetRasterBand(Region.rasters['elevation']).ReadAsArray(ox, oy, sx, sy)
         bathyarray = mapds.GetRasterBand(Region.rasters['bathy']).ReadAsArray(ox, oy, sx, sy)

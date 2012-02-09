@@ -1,8 +1,6 @@
 # utils module
 import os
 import shutil
-from osgeo import gdal, osr
-from osgeo.gdalconst import GA_ReadOnly
 from memoize import memoize
 import sys
 sys.path.append('..')
@@ -17,12 +15,6 @@ def cleanmkdir(dir):
     else:
         raise IOError, '%s already exists' % dir
     return dir
-
-def ds(filename):
-    """Return dataset including transforms."""
-    ds = gdal.Open(filename, GA_ReadOnly)
-    ds.geotrans = ds.GetGeoTransform()
-    return ds
 
 def setspawnandsave(world, point):
     """Sets the spawn point and player point in the world and saves the world."""

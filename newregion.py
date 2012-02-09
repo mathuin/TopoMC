@@ -18,14 +18,14 @@ from time import sleep
 from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
-from newutils import cleanmkdir, ds
+from newutils import cleanmkdir
 from newterrain import Terrain
 import sys
 sys.path.append('..')
 from pymclevel import mclevel
 
 from osgeo import gdal, osr
-from osgeo.gdalconst import GDT_Int16
+from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 from invdisttree import Invdisttree
 from newbathy import getBathy
 from newcrust import getCrust
@@ -531,8 +531,8 @@ class Region:
         warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s' % (elfile, Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
         os.system("%s" % warpcmd)
 
-        elds = ds(elfile)
-        elgeotrans = elds.geotrans
+        elds = gdal.Open(elfile, GA_ReadOnly)
+        elgeotrans = elds.GetGeoTransform()
         elband = elds.GetRasterBand(1)
         elarray = elband.ReadAsArray(0, 0, elds.RasterXSize, elds.RasterYSize)
         (elysize, elxsize) = elarray.shape
@@ -597,7 +597,8 @@ class Region:
         # if True, use new code, if False, use gdalwarp
         if True:
             # 1. the new file must be read into an array and flattened
-            vrtds = ds(lcvrt)
+            vrtds = gdal.Open(lcvrt, GA_ReadOnly)
+            vrtgeotrans = vrtds.GetGeoTransform()
             vrtband = vrtds.GetRasterBand(1)
             values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
             # nodata is treated as water, which is 11
@@ -606,8 +607,8 @@ class Region:
             values = values.flatten()
             vrtband = None
             # 2. a new array of original scale coordinates must be created
-            vrtxrange = [vrtds.geotrans[0] + vrtds.geotrans[1] * x for x in xrange(vrtds.RasterXSize)]
-            vrtyrange = [vrtds.geotrans[3] + vrtds.geotrans[5] * y for y in xrange(vrtds.RasterYSize)]
+            vrtxrange = [vrtgeotrans[0] + vrtgeotrans[1] * x for x in xrange(vrtds.RasterXSize)]
+            vrtyrange = [vrtgeotrans[3] + vrtgeotrans[5] * y for y in xrange(vrtds.RasterYSize)]
             vrtds = None
             coords = numpy.array([(x, y) for y in vrtyrange for x in vrtxrange])
             # 3. an inverse distance tree must be built from that
@@ -627,7 +628,7 @@ class Region:
         else:
             warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (lcfile, Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
             os.system("%s" % warpcmd)
-            lcds = ds(lcfile)
+            lcds = gdal.Open(lcfile, GA_ReadOnly)
             lcband = lcds.GetRasterBand(1)
             # depth array is entire landcover region, landcover array is subset
             deptharray = lcband.ReadAsArray(0, 0, lcds.RasterXSize, lcds.RasterYSize)
