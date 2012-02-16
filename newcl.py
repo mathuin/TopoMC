@@ -75,7 +75,7 @@ class CL:
         else:
             self.usemajority = 0
 
-    def buildCL(self, coords, values, base):
+    def build(self, coords, values, base):
         (lenbase, null) = base.shape
         (lencoords, null) = coords.shape
         template = zeros((lenbase), dtype=int32)
