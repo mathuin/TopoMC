@@ -14,7 +14,7 @@ except ImportError:
 import logging
 logging.basicConfig(level=logging.INFO)
 #logging.getLogger('suds.client').setLevel(logging.DEBUG)
-from time import sleep
+from time import sleep, clock
 from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
@@ -28,9 +28,12 @@ from osgeo import gdal, osr
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 from invdisttree import Invdisttree
 from newbathy import getBathy
-from newcrust import getCrust
+from newcrust import Crust
 import numpy
 from itertools import product
+from random import uniform, randint
+#
+from newcl import CL
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
@@ -584,9 +587,11 @@ class Region:
         actualel = None
 
         # generate crust and save it as raster band 4
-        crustarray = getCrust(mapds.RasterXSize, mapds.RasterYSize)
+        newcrust = Crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=False)
+        crustarray = newcrust()
         mapds.GetRasterBand(Region.rasters['crust']).WriteArray(crustarray)
         crustarray = None
+        newcrust = None
 
         # read landcover array
         lcvrt = os.path.join(self.mapsdir, self.lclayer, '%s.vrt' % (self.lclayer)) 
@@ -596,6 +601,7 @@ class Region:
 
         # if True, use new code, if False, use gdalwarp
         if True:
+            initial = clock()
             # 1. the new file must be read into an array and flattened
             vrtds = gdal.Open(lcvrt, GA_ReadOnly)
             vrtgeotrans = vrtds.GetGeoTransform()
@@ -611,9 +617,7 @@ class Region:
             vrtyrange = [vrtgeotrans[3] + vrtgeotrans[5] * y for y in xrange(vrtds.RasterYSize)]
             vrtds = None
             coords = numpy.array([(x, y) for y in vrtyrange for x in vrtxrange])
-            # 3. an inverse distance tree must be built from that
-            lcIDT = Invdisttree(coords, values)
-            # 4. a new array of goal scale coordinates must be made
+            # 3. a new array of goal scale coordinates must be made
             # landcover extents are used for the bathy depth array
             # yes, it's confusing.  sorry.
             depthxlen = int((lcextents['xmax']-lcextents['xmin'])/self.scale)
@@ -621,10 +625,16 @@ class Region:
             depthxrange = [lcextents['xmin'] + self.scale * x for x in xrange(depthxlen)]
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
             depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
+            # 4. an inverse distance tree must be built from that
+            lcCL = CL(coords, values, depthbase, wantCL=False)
+            #lcIDT = Invdisttree(coords, values)
             # 5. the desired output comes from that inverse distance tree
-            deptharray = lcIDT(depthbase, nnear=11, majority=True)
+            #deptharray = lcIDT(depthbase, nnear=11, majority=True)
+            deptharray = lcCL()
             deptharray.resize((depthylen, depthxlen))
-            lcIDT = None
+            #lcIDT = None
+            lcCL = None
+            print "new code finished in %.2f seconds." % (clock()-initial)
         else:
             warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (lcfile, Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
             os.system("%s" % warpcmd)

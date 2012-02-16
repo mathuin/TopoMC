@@ -54,32 +54,13 @@ class Terrain:
         return retval
 
     @staticmethod
-    def importstructurefromschematic(tag, offset=1):
+    def importstructure(tag, offset=2):
         if tag==None:
             raise AttributeError, "tag required"
         filename = '%s.schematic' % tag
         schem = mclevel.fromFile(filename)
         layout = [[Terrain.compressrow([(1, (int(schem.Blocks[elemX, elemZ, elemY]), int(schem.Data[elemX, elemZ, elemY]))) for elemY in xrange(schem.Height)]) for elemZ in xrange(schem.Length)] for elemX in xrange(schem.Width)]
         return Terrain.newstructure(layout, offset)
-
-    @staticmethod
-    def loadstructure(tag):
-        if tag==None:
-            raise AttributeError, "tag required"
-	filename = 'structure-%s.yaml' % tag
-        stream = file(filename)
-        retval = yaml.load(stream)
-        stream.close()
-        return retval
-
-    @staticmethod
-    def savestructure(structure, tag):
-        if tag==None:
-            raise AttributeError, "tag required"
-	filename = 'structure-%s.yaml' % tag
-        stream = file(filename, 'w')
-        yaml.dump(structure, stream)
-        stream.close()
 
     @staticmethod
     def checkstructure(structure, verbose=False):
@@ -134,16 +115,74 @@ class Terrain:
         return (y, [(crustval, 'Dirt'), (1, blockType)], tree)
 
     @staticmethod
-    def placedeveloped(x, y, z, crustval, stoneProb=0):
+    def placeopenspace(x, y, z, crustval, stoneProb=0):
         try:
-            Terrain.structdev
+            Terrain.openspacestructure
         except AttributeError:
-            if os.path.exists('developed.schematic'):
-                Terrain.structdev = Terrain.importstructurefromschematic('developed')
+            if os.path.exists('Labyrinth.schematic'):
+                Terrain.openspacestructure = Terrain.importstructure('Labyrinth')
             else:
-                Terrain.structdev = Terrain.loadstructure('developed')
-        return Terrain.placestructure(Terrain.structdev, x, y, z, crustval)
+                # temporary placeholder
+                # when multiple structures for developed are placed
+                # random layouts with appropriate coverage will be built
+                Terrain.openspacestructure = Terrain.newstructure(layout=[[[(1, 'Stone')]]], offset=0)
+        return Terrain.placestructure(Terrain.openspacestructure, x, y, z, crustval)
 
+    @staticmethod
+    def placelowintensity(x, y, z, crustval, stoneProb=0):
+        try:
+            Terrain.lowintensitystructure
+        except AttributeError:
+            if os.path.exists('Neighborhood.schematic'):
+                Terrain.lowintensitystructure = Terrain.importstructure('Neighborhood')
+            else:
+                # temporary placeholder
+                # when multiple structures for developed are placed
+                # random layouts with appropriate coverage will be built
+                Terrain.lowintensitystructure = Terrain.newstructure(layout=[[[(1, 'Stone')]]], offset=0)
+        return Terrain.placestructure(Terrain.lowintensitystructure, x, y, z, crustval)
+
+    @staticmethod
+    def placemedintensity(x, y, z, crustval, stoneProb=0):
+        try:
+            Terrain.medintensitystructure
+        except AttributeError:
+            if os.path.exists('Apartments.schematic'):
+                Terrain.medintensitystructure = Terrain.importstructure('Apartments')
+            else:
+                # temporary placeholder
+                # when multiple structures for developed are placed
+                # random layouts with appropriate coverage will be built
+                Terrain.medintensitystructure = Terrain.newstructure(layout=[[[(1, 'Stone')]]], offset=0)
+        return Terrain.placestructure(Terrain.medintensitystructure, x, y, z, crustval)
+
+    @staticmethod
+    def placehighintensity(x, y, z, crustval, stoneProb=0):
+        try:
+            Terrain.highintensitystructure
+        except AttributeError:
+            if os.path.exists('Apartments.schematic'):
+                Terrain.highintensitystructure = Terrain.importstructure('Apartments')
+            else:
+                # temporary placeholder
+                # when multiple structures for developed are placed
+                # random layouts with appropriate coverage will be built
+                Terrain.highintensitystructure = Terrain.newstructure(layout=[[[(1, 'Stone')]]], offset=0)
+        return Terrain.placestructure(Terrain.highintensitystructure, x, y, z, crustval)
+
+    @staticmethod
+    def placecommercial(x, y, z, crustval, stoneProb=0):
+        try:
+            Terrain.commercialstructure
+        except AttributeError:
+            if os.path.exists('Commercial.schematic'):
+                Terrain.commercialstructure = Terrain.importstructure('Commercial')
+            else:
+                # temporary placeholder
+                # when multiple structures for developed are placed
+                # random layouts with appropriate coverage will be built
+                Terrain.commercialstructure = Terrain.newstructure(layout=[[[(1, 'Stone')]]], offset=0)
+        return Terrain.placestructure(Terrain.commercialstructure, x, y, z, crustval)
 
     @staticmethod
     def placedesert(x, y, z, crustval, stoneProb=0):
@@ -172,17 +211,26 @@ class Terrain:
     @staticmethod
     def placecrops(x, y, z, crustval):
         try:
-            Terrain.structcrops
+            Terrain.cropsstructure
         except AttributeError:
             if os.path.exists('crops.schematic'):
-                Terrain.structcrops = Terrain.importstructurefromschematic('crops')
+                Terrain.cropsstructure = Terrain.importstructure('crops')
             else:
-                Terrain.structcrops = Terrain.loadstructure('crops')
-        return Terrain.placestructure(Terrain.structcrops, x, y, z, crustval)
+                # a very simple substitute
+                Terrain.cropsstructure = Terrain.newstructure(layout=[[[(1, 'Farmland'), (1, ('Crops', 7))]]], offset=1)
+        return Terrain.placestructure(Terrain.cropsstructure, x, y, z, crustval)
 
     @staticmethod
-    def placecropssimple(x, y, z, crustval):
-        return (y+1, [(crustval, 'Dirt'), (1, 'Farmland'), (1, ('Crops', 7))], None)
+    def placefarm(x, y, z, crustval):
+        try:
+            Terrain.farmstructure
+        except AttributeError:
+            if os.path.exists('Farm.schematic'):
+                Terrain.farmstructure = Terrain.importstructure('Farm')
+            else:
+                # a very simple substitute
+                Terrain.cropsstructure = Terrain.newstructure(layout=[[[(1, 'Farmland'), (1, ('Crops', 7))]]], offset=1)
+        return Terrain.placestructure(Terrain.farmstructure, x, y, z, crustval)
 
     @staticmethod
     def depth(column):
@@ -211,23 +259,23 @@ class Terrain:
 
     # 21: developed/open-space (<20% developed)
     def twentyone(x, y, z, crustval, bathyval):
-        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.1)
+        return Terrain.placeopenspace(x, y, z, crustval, stoneProb=0.1)
 
     # 22: developed/low-intensity (20-49% developed)
     def twentytwo(x, y, z, crustval, bathyval):
-        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.35)
+        return Terrain.placelowintensity(x, y, z, crustval, stoneProb=0.35)
 
     # 23: developed/medium-intensity (50-79% developed)
     def twentythree(x, y, z, crustval, bathyval):
-        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.65)
+        return Terrain.placemedintensity(x, y, z, crustval, stoneProb=0.65)
 
     # 24: developed/high-intensity (80-100% developed)
     def twentyfour(x, y, z, crustval, bathyval):
-        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=0.9)
+        return Terrain.placehighintensity(x, y, z, crustval, stoneProb=0.9)
 
     # 25: commercial-industrial-transportation
     def twentyfive(x, y, z, crustval, bathyval):
-        return Terrain.placedeveloped(x, y, z, crustval, stoneProb=1)
+        return Terrain.placecommercial(x, y, z, crustval, stoneProb=1)
 
     # 31: barren land (rock/sand/clay)
     def thirtyone(x, y, z, crustval, bathyval):
@@ -255,15 +303,15 @@ class Terrain:
 
     # 71: grassland
     def seventyone(x, y, z, crustval, bathyval):
-        return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.10)
+        return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.75)
 
     # 81: pasture/hay
     def eightyone(x, y, z, crustval, bathyval):
-        return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.25)
+        return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.50)
 
     # 82: crops
     def eightytwo(x, y, z, crustval, bathyval):
-        return Terrain.placecrops(x, y, z, crustval)
+        return Terrain.placefarm(x, y, z, crustval)
 
     # 91: wetlands
     def ninetyone(x, y, z, crustval, bathyval):

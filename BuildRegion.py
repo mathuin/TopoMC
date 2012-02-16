@@ -43,6 +43,10 @@ def main(argv):
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 
+    # exit if map does not exist
+    if not os.path.exists(myRegion.mapname):
+        raise IOError, "no map file exists"
+
     # generate overall world
     worlddir = os.path.join('Worlds', args.name)
     world = mclevel.MCInfdevOldLevel(worlddir, create=True)
