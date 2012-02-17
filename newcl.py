@@ -32,7 +32,10 @@ class CL:
         template_buf = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY, size=template.nbytes)
         self.program.trim(self.queue, arrayin.shape, None, arrayin_buf, template_buf, int32(self.split))
         arrayout = empty_like(arrayin)
-        cl.enqueue_copy(self.queue, arrayout, template_buf)
+        try:
+            cl.enqueue_copy(self.queue, arrayout, template_buf)
+        except AttributeError:
+            cl.enqueue_read_buffer(self.queue, template_buf, arrayout).wait()
         # splitting is harder than I thought.
         for index, elem in enumerate(arrayout):
             splitkey = tuple([x for x in elem],)
@@ -92,7 +95,10 @@ class CL:
         template_buf = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY, size=template.nbytes)
         self.program.nearest(self.queue, base.shape, None, coords_buf, values_buf, base_buf, template_buf, int32(lencoords), int32(self.nnear), int32(self.usemajority))
         suboutput = empty_like(template)
-        cl.enqueue_copy(self.queue, suboutput, template_buf)
+        try:
+            cl.enqueue_copy(self.queue, suboutput, template_buf)
+        except AttributeError:
+            cl.enqueue_read_buffer(self.queue, template_buf, suboutput).wait()
 
         return suboutput
 
