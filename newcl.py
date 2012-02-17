@@ -26,9 +26,16 @@ class CL:
     def genindices(self, arrayin):
         """Generate indices for splitting array."""
         retval = dict()
+        # run the 'trim' program
+        template = empty_like(arrayin)
+        arrayin_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=arrayin)
+        template_buf = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY, size=template.nbytes)
+        self.program.trim(self.queue, arrayin.shape, None, arrayin_buf, template_buf, int32(self.split))
+        arrayout = empty_like(arrayin)
+        cl.enqueue_copy(self.queue, arrayout, template_buf)
         # splitting is harder than I thought.
-        for index, elem in enumerate(arrayin):
-            splitkey = tuple([int(x/self.split) for x in elem],)
+        for index, elem in enumerate(arrayout):
+            splitkey = tuple([x for x in elem],)
             try:
                 retval[splitkey]
             except KeyError:
@@ -60,7 +67,7 @@ class CL:
                 self.coordindices = self.genindices(self.coords)
                 self.baseindices = self.genindices(self.base)
                 self.canCL = True
-            except:
+            except ImportError:
                 # prolly should be specific here
                 print "warning: unable to import pyopencl, defaulting to Invdisttree"
                 self.canCL = False

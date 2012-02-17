@@ -98,3 +98,11 @@ __kernel void nearest(__global int2 *coords, __global int *values, __global int2
   else
     output[gid] = weighted_average(results, k);
 }
+
+__kernel void trim(__global int2 *arrayin, __global int2 *arrayout, const unsigned int split) {
+  int gid = get_global_id(0);
+
+  //arrayout[gid] = arrayin[gid] / split;
+  arrayout[gid].x = arrayin[gid].x / split;
+  arrayout[gid].y = arrayin[gid].y / split;
+}
