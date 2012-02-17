@@ -115,7 +115,6 @@ class CL:
                 pairs = [(c, d) for c, d in product(xrange(a-1,a+2), xrange(b-1,b+2)) if (c,d) in self.coordindices.keys()]
                 for pair in pairs:
                     cindices += self.coordindices[pair]
-                bindices = self.baseindices[key]
                 coords = self.coords[cindices]
                 values = self.values[cindices]
                 base = self.base[value]
