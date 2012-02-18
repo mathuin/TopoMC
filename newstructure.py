@@ -1,4 +1,5 @@
 # structure module
+from newutils import height
 import os
 import sys
 sys.path.append('..')
@@ -19,19 +20,6 @@ class Structure:
     # value: structure object
     structs = dict()
 
-    # sigh -- cut and pasted from Terrain.
-    @staticmethod
-    def depth(column):
-        """Calculate the depth of the column."""
-        # NB: confirm that the column matches expectation
-        if type(column[0]) is tuple:
-            pairs = column
-        else:
-            print "oops, missed one!"
-            pairs = zip(column[::2], column[1::2])
-        retval = sum([pair[0] for pair in pairs])
-        return retval
-
     def __init__(self, tag=None, layout=None, offset=1):
         # handles:
         # - file-based (tag=foo, layout=None)
@@ -50,7 +38,7 @@ class Structure:
         self.offset = offset
         self.width = len(self.layout)
         self.length = len(self.layout[0])
-        self.height = Structure.depth(self.layout[0][0])
+        self.height = height(self.layout[0][0])
 
     @staticmethod
     def compressrow(yrow):
@@ -67,7 +55,7 @@ class Structure:
         if not all([len(row) == self.length for row in self.layout]):
             raise AttributeError, "not all rows are the same width"
 
-        if not all([Structure.depth(col) == self.height for row in self.layout for col in row]):
+        if not all([height(col) == self.height for row in self.layout for col in row]):
             raise AttributeError, "not all cols are the same height"
 
         if verbose:

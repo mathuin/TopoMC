@@ -1,5 +1,5 @@
 from random import random, choice
-from newutils import materialNamed
+from newutils import materialNamed, height
 from newstructure import Structure
 import yaml
 try:
@@ -77,18 +77,6 @@ class Terrain:
             return (y+1, [(crustval, 'Dirt'), (1, 'Grass'), (1, choice(choices))], None)
         else:
             return (y, [(crustval, 'Dirt'), (1, 'Grass')], None)
-
-    @staticmethod
-    def depth(column):
-        """Calculate the depth of the column."""
-        # NB: confirm that the column matches expectation
-        if type(column[0]) is tuple:
-            pairs = column
-        else:
-            print "oops, missed one!"
-            pairs = zip(column[::2], column[1::2])
-        retval = sum([pair[0] for pair in pairs])
-        return retval
 
     # valid terrain functions
     # 0: default
@@ -183,7 +171,7 @@ class Terrain:
         merged = [ (depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column ]
         blocks = []
         datas = []
-        overstone = Terrain.depth(merged)
+        overstone = height(merged)
         core = [ (1, ('Bedrock', 0)), (y-overstone-1, ('End Stone', 0)) ] + merged
         base = 0
         while core:

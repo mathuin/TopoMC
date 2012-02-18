@@ -42,3 +42,14 @@ def names(blockID):
     "Returns block name for given block ID."
     return alphaMaterials.names[blockID][0]
 
+def height(column):
+    """Calculate the height of the column."""
+    # NB: confirm that the column matches expectation
+    if type(column[0]) is tuple:
+        pairs = column
+    else:
+        print "oops, missed one!"
+        pairs = zip(column[::2], column[1::2])
+    retval = sum([pair[0] for pair in pairs])
+    return retval
+
