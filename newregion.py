@@ -33,7 +33,7 @@ import numpy
 from itertools import product
 from random import uniform, randint
 #
-from newcl import CL
+from newclidt import CLIDT
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
@@ -626,14 +626,14 @@ class Region:
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
             depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
             # 4. an inverse distance tree must be built from that
-            lcCL = CL(coords, values, depthbase, wantCL=True)
+            lcCLIDT = CLIDT(coords, values, depthbase, wantCL=True)
             #lcIDT = Invdisttree(coords, values)
             # 5. the desired output comes from that inverse distance tree
             #deptharray = lcIDT(depthbase, nnear=11, majority=True)
-            deptharray = lcCL()
+            deptharray = lcCLIDT()
             deptharray.resize((depthylen, depthxlen))
             #lcIDT = None
-            lcCL = None
+            lcCLIDT = None
             print "new code finished in %.2f seconds." % (clock()-initial)
         else:
             warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (lcfile, Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)

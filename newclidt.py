@@ -1,6 +1,5 @@
-# new CL module
-from numpy import asarray, array, int32, zeros, empty_like
-import numpy
+# new CL IDT module
+import numpy as n
 from timer import timer
 from itertools import product
 from random import randint, uniform
@@ -8,16 +7,17 @@ from invdisttree import Invdisttree
 from multiprocessing import Pool
 try:
     import pyopencl as cl
+    import pyopencl.array as cla
 except ImportError:
     pass
 
-class CL:
+class CLIDT:
     """Use OpenCL or Invdisttree to solve the IDT problem."""
 
-    # value at which tests show performance decreases as arrays grow
-    IDTmaxsize = 2048
     # value at which video card refuses to run while X is on
     OpenCLmaxsize = 512
+    # largest amount of indices which can be processed at once
+    indexmaxsize = 8 * 1024 * 1024
 
     # default value for nearest neighbors
     nnear = 11
@@ -27,30 +27,29 @@ class CL:
         """Generate indices for splitting array."""
         retval = dict()
         # run the 'trim' program
-        template = empty_like(arrayin)
-        arrayin_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=arrayin)
-        template_buf = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY, size=template.nbytes)
-        self.program.trim(self.queue, arrayin.shape, None, arrayin_buf, template_buf, int32(self.split))
-        arrayout = empty_like(arrayin)
-        try:
-            cl.enqueue_copy(self.queue, arrayout, template_buf)
-        except AttributeError:
-            cl.enqueue_read_buffer(self.queue, template_buf, arrayout).wait()
-        # splitting is harder than I thought.
-        for index, elem in enumerate(arrayout):
-            splitkey = tuple([x for x in elem],)
-            try:
-                retval[splitkey]
-            except KeyError:
-                retval[splitkey] = []
-            retval[splitkey].append(index)
+        # need to split if it's too long!
+        splitlist = tuple([x for x in xrange(CLIDT.indexmaxsize, arrayin.shape[0], CLIDT.indexmaxsize)])
+        indexinc = 0
+        for chunk in n.vsplit(arrayin, splitlist):
+            chunkarr = cla.to_device(self.queue, n.asarray(chunk, dtype=n.int32))
+            template = cla.empty_like(chunkarr)
+            event = self.program.trim(self.queue, chunkarr.shape, None, chunkarr.data, template.data, n.int32(self.split))
+            event.wait()
+            for index, elem in enumerate(template.get()):
+                splitkey = tuple([x for x in elem],)
+                try:
+                    retval[splitkey]
+                except KeyError:
+                    retval[splitkey] = []
+                retval[splitkey].append(index+indexinc)
+            indexinc += CLIDT.indexmaxsize
         return retval
 
     @timer()
     def __init__(self, coords, values, base, wantCL=True, split=None, nnear=None, majority=True):
-        self.coords = asarray(coords, dtype=int32)
-        self.values = asarray(values, dtype=int32)
-        self.base = asarray(base, dtype=int32)
+        self.coords = n.asarray(coords, dtype=n.int32)
+        self.values = n.asarray(values, dtype=n.int32)
+        self.base = n.asarray(base, dtype=n.int32)
         (lencoords, null) = self.coords.shape
         (lenvalues,) = self.values.shape
         (lenbase, null) = self.base.shape
@@ -59,13 +58,15 @@ class CL:
         self.wantCL = wantCL
         if self.wantCL == True:
             if split == None:
-                self.split = CL.OpenCLmaxsize
+                self.split = CLIDT.OpenCLmaxsize
             else:
                 self.split = split
             try:
+                import pyopencl as cl
+                import pyopencl.array as cla
                 self.ctx = cl.create_some_context()
                 self.queue = cl.CommandQueue(self.ctx)
-                filestr = ''.join(open('nearest.cl', 'r').readlines())
+                filestr = ''.join(open('idt.cl', 'r').readlines())
                 self.program = cl.Program(self.ctx, filestr).build()
                 self.coordindices = self.genindices(self.coords)
                 self.baseindices = self.genindices(self.base)
@@ -76,38 +77,30 @@ class CL:
                 self.canCL = False
 
         if nnear == None:
-            self.nnear = CL.nnear
+            self.nnear = n.int32(CLIDT.nnear)
         else:
-            self.nnear = nnear
+            self.nnear = n.int32(nnear)
 
-        if majority == True:
-            self.usemajority = 1
-        else:
-            self.usemajority = 0
+        self.usemajority = n.int32(1 if majority else 0)
 
     def build(self, coords, values, base):
         (lenbase, null) = base.shape
         (lencoords, null) = coords.shape
-        template = zeros((lenbase), dtype=int32)
-        coords_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords)
-        values_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=values)
-        base_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=base)
-        template_buf = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY, size=template.nbytes)
-        self.program.nearest(self.queue, base.shape, None, coords_buf, values_buf, base_buf, template_buf, int32(lencoords), int32(self.nnear), int32(self.usemajority))
-        suboutput = empty_like(template)
-        try:
-            cl.enqueue_copy(self.queue, suboutput, template_buf)
-        except AttributeError:
-            cl.enqueue_read_buffer(self.queue, template_buf, suboutput).wait()
+        coords_array = cla.to_device(self.queue, coords)
+        values_array = cla.to_device(self.queue, values)
+        base_array = cla.to_device(self.queue, base)
+        template_array = cla.zeros(self.queue, (lenbase), dtype=n.int32)
+        event = self.program.nearest(self.queue, base.shape, None, coords_array.data, values_array.data, base_array.data, template_array.data, n.int32(lencoords), self.nnear, self.usemajority)
+        event.wait()
 
-        return suboutput
+        return template_array.get()
 
     @timer()
     def __call__(self):
         # build output array
         if self.wantCL and self.canCL:
             (lenbase, null) = self.base.shape
-            retval = zeros((lenbase), dtype=int32)
+            retval = n.zeros((lenbase), dtype=n.int32)
             for key, value in self.baseindices.items():
                 (a, b) = key
                 cindices = []
@@ -121,7 +114,7 @@ class CL:
                 retval[value] = self.build(coords, values, base)
         else:
             IDT = Invdisttree(self.coords, self.values)
-            retval = asarray(IDT(self.base, self.nnear, majority=(self.usemajority==1)), dtype=int32)
+            retval = n.asarray(IDT(self.base, self.nnear, majority=(self.usemajority==1)), dtype=n.int32)
         return retval
 
     def __del__(self):
@@ -139,9 +132,9 @@ if __name__ == '__main__':
     coverage = 0.05
     numcoords = int(xsize*zsize*coverage)
     shape = (zsize, xsize)
-    base = array([(z, x) for z, x in product(xrange(zsize), xrange(xsize))], dtype=int32)
-    coords = array([(randint(0, zsize-1), randint(0, xsize-1)) for elem in xrange(numcoords)], dtype=int32)
-    values = array([uniform(CL.minwidth, CL.maxwidth) for elem in xrange(numcoords)], dtype=int32)
+    base = n.array([(z, x) for z, x in product(xrange(zsize), xrange(xsize))], dtype=n.int32)
+    coords = n.array([(randint(0, zsize-1), randint(0, xsize-1)) for elem in xrange(numcoords)], dtype=n.int32)
+    values = n.array([uniform(1, 5) for elem in xrange(numcoords)], dtype=n.int32)
     
     print 'initializing CL object of size %d, %d with (forced) splitting...' % (xsize, zsize) 
     yes = CL(coords, values, base, split=xsize)
