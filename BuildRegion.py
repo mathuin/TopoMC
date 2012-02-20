@@ -116,6 +116,14 @@ def main(argv):
         print "Depositing %d ores at the region level..." % sum([len(ores[oretype]) for oretype in ores])
         Ore.placeoreinregion(ores, oreobjs, world)
 
+    # replace all 'end stone' with stone
+    print "Replacing all 'end stone' with stone..."
+    EndStoneID = world.materials["End Stone"].ID
+    StoneID = world.materials["Stone"].ID
+    for xpos, zpos in world.allChunks:
+        chunk = world.getChunk(xpos, zpos)
+        chunk.Blocks[chunk.Blocks == EndStoneID] = StoneID
+
     # tie up loose ends
     setspawnandsave(world, peak)
 

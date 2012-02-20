@@ -1,6 +1,6 @@
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
 
-This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
+This project relies heavily on pymclevel which can also be found on github at https://github.com/mcedit/pymclevel.git
 
 Version 0.9 includes changes to support the most up-to-date version of pymclevel (as of 2012 Feb 04).  The new precompiled NBT module really helps!
 
