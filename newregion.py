@@ -72,7 +72,7 @@ class Region:
 
     # product types in order of preference
     productIDs = { 'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
-                   'landcover': Terrain.translate.keys() }
+                   'landcover': sorted(Terrain.translate.keys()) }
 
     # image types
     # NB: only tif is known to work here
