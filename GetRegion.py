@@ -62,7 +62,6 @@ def main(argv):
 
     print "Downloading files..."
     myRegion.getfiles()
-    myRegion.buildmap()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
