@@ -523,7 +523,7 @@ class Region:
                 self.downloadfile(layerID, downloadURL)
         self.buildvrts()
 
-    def buildmap(self):
+    def buildmap(self, wantCL=True):
         """Use downloaded files and other parameters to build multi-raster map."""
 
         # warp elevation data into new format
@@ -587,7 +587,7 @@ class Region:
         actualel = None
 
         # generate crust and save it as raster band 4
-        newcrust = Crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=True)
+        newcrust = Crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=wantCL)
         crustarray = newcrust()
         mapds.GetRasterBand(Region.rasters['crust']).WriteArray(crustarray)
         crustarray = None
@@ -626,7 +626,7 @@ class Region:
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
             depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
             # 4. an inverse distance tree must be built from that
-            lcCLIDT = CLIDT(coords, values, depthbase, wantCL=True)
+            lcCLIDT = CLIDT(coords, values, depthbase, wantCL=wantCL)
             #lcIDT = Invdisttree(coords, values)
             # 5. the desired output comes from that inverse distance tree
             #deptharray = lcIDT(depthbase, nnear=11, majority=True)
