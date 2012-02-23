@@ -65,21 +65,26 @@ class Structure:
     def use(key, name, nameoffset, layout, offset):
         def decorator(target):
             def wrapper(*args, **kwargs):
-                try:
-                    Structure.structs[key]
-                except KeyError:
-                    try:
-                        newstruct = Structure(tag=name, offset=nameoffset)
-                    except IOError:
-                        newstruct = Structure(layout=layout, offset=offset)
-                    Structure.structs[key] = newstruct
-                struct = Structure.structs[key]
-                # below we make the HUGE ASSUMPTION
-                # that *args starts with (x, y, z, crustval)
+                # major assumption: 
+                # args are (x, y, z, crustval, bathyval, doStructures)
                 x = args[0]
                 y = args[1]
                 z = args[2]
                 crustval = args[3]
+                bathyval = args[4]
+                doStructures = args[5]
+                try:
+                    Structure.structs[key]
+                except KeyError:
+                    if doStructures:
+                        try:
+                            newstruct = Structure(tag=name, offset=nameoffset)
+                        except IOError:
+                            newstruct = Structure(layout=layout, offset=offset)
+                    else:
+                        newstruct = Structure(layout=layout, offset=offset)
+                    Structure.structs[key] = newstruct
+                struct = Structure.structs[key]
                 return (y + struct.height - struct.offset, [(crustval, 'Dirt')] + struct.layout[x % struct.length][z % struct.width], None)
             return wrapper
         return decorator
