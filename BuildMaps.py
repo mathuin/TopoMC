@@ -5,6 +5,7 @@ logging.basicConfig(level=logging.WARNING)
 import os
 import sys
 sys.path.append('..')
+from newutils import cleanmkdir
 from pymclevel import mclevel, box
 import argparse
 
@@ -16,7 +17,7 @@ def center(name):
     centerz = bounds.origin[2]+bounds.size[2]/2
     bounds = None
     world = None
-    return centerx, centerz
+    return centerx/16, centerz/16
 
 def main(argv):
     parser = argparse.ArgumentParser(description='Builds c10t maps for regions.')
@@ -29,9 +30,10 @@ def main(argv):
     (centerx, centerz) = center(args.name)
 
     if args.gmaps:
-        command = 'rm -rf Maps/%s && cd ../c10t/build && ../scripts/google-api/google.api.sh -w ../../TopoMC/Worlds/%s -o ../../TopoMC/Maps/%s -O "-z --center %d,%d' % (args.name, args.name, args.name, centerx, centerz)
+	cleanmkdir(os.path.join('Maps', args.name))
+        command = 'C10T=../c10t/build/c10t ../c10t/scripts/google-api/google-api.sh -w Worlds/%s -o Maps/%s -O "-M 2048 -z --center %d,%d"' % (args.name, args.name, centerx, centerz)
     else:
-        command = '../c10t/build/c10t -z -w Worlds/%s -o %s.png' % (args.name, args.name)
+        command = '../c10t/build/c10t -M 2048 -z -w Worlds/%s -o %s.png --center %d,%d' % (args.name, args.name, centerx, centerz)
 
     os.system(command)
 

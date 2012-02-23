@@ -97,16 +97,12 @@ class Tree:
 
     @staticmethod
     def placetreesinregion(trees, treeobjs, world):
-        treeblocks = []
-        treedatas = []
         for tree in trees:
             coords = trees[tree]
             for coord in coords:
                 (blocks, datas) = treeobjs[tree](coord)
-                treeblocks += blocks
-                treedatas += datas
-        [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in treeblocks if block != 'Air' ]
-        [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in treedatas if data != 0 ]
+                [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
+                [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
 
 treeObjs = [ 
     Tree('Cactus', None, 'Cactus', [3, 3, 3]), 

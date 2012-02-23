@@ -22,11 +22,14 @@ The best way to get latitude and longitude is through Google Maps.  Choose your 
 
 Next, here's what to do!
 
-1.  Retrieve the region from the USGS and prepare it for processing.
-    jmt@belle:~/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --ymin 42.0091 --xmin -70.2611 --xmax -70.1100
+1.  Retrieve the region from the USGS.
+    jmt@belle:~/git/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
+
+2.  Prepare the region for processing.
+    jmt@belle:~/git/TopoMC$ ./PrepRegion.py --name Provincetown
 
 2.  Construct the Minecraft world based on the region.
-    jmt@belle:~/TopoMC$ ./BuildRegion.py --name Provincetown
+    jmt@belle:~/git/TopoMC$ ./BuildRegion.py --name Provincetown
 
 GetRegion.py has a number of optional arguments not shown above.
 
