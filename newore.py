@@ -12,7 +12,7 @@ class Ore:
     """Each type of ore will be an instance of this class."""
 
     # what ID is stone?
-    # we use 'end stone' actually since 'stone' might be in a structure
+    # we use 'end stone' actually since 'stone' might be in a schematic
     stoneID = materialNamed('End Stone')
 
     def __init__(self, name, depth=None, rounds=None, size=None):

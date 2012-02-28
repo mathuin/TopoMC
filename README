@@ -10,7 +10,7 @@ Major changes:
 
 * GPGPU support has been added. Yes, your video card can help you build Minecraft worlds!  This latest feature relies on PyOpenCL, so see http://mathema.tician.de/software/pyopencl for more information.  
 
- * The landcover code has been rewritten to support the usage of MCEdit schematics as templates for certain areas, specifically croplands (farms) and developed areas.  MCEdit is not required to use TopoMC, only to modify or replace the example schematics.  It can be found at http://davidvierra.com/mcedit/download.html.
+ * The landcover code has been rewritten to support the usage of MCEdit schematics as templates for certain areas, specifically croplands (farms) and developed areas.  More information about this feature can be found in README.schematics.
 
  * The test dataset has been removed.
 

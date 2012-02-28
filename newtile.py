@@ -42,7 +42,7 @@ class Tile:
         self.tiley = int(tiley)
         self.tiles = region.tiles
         self.doOre = region.doOre
-        self.doStructures = region.doStructures
+        self.doSchematics = region.doSchematics
 
         if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
             raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
@@ -92,7 +92,7 @@ class Tile:
             crustval = int(crustarray[myz, myx])
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
-            (blocks, datas, tree) = Terrain.place(mcx, mcy, mcz, lcval, crustval, bathyval, self.doStructures)
+            (blocks, datas, tree) = Terrain.place(mcx, mcy, mcz, lcval, crustval, bathyval, self.doSchematics)
             [ self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0 ]
             [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
             # if trees are placed, elevation cannot be changed

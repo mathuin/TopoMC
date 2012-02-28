@@ -1,6 +1,6 @@
 from random import random, choice
 from newutils import materialNamed, height
-from newstructure import Structure
+from newschematic import Schematic
 import yaml
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -28,7 +28,7 @@ class Terrain:
     treeProb = 0.001
     forestProb = 0.03
 
-    # structure defaults
+    # schematic defaults
     # 21: 10%, 22: 35%, 23: 65%, 24: 90%, 25: 95%
     layout21 = [[[(1, 'Stone' if random() < 0.1 else 'Grass')] for x in xrange(10)] for x in xrange(10)]
     layout22 = [[[(1, 'Stone' if random() < 0.35 else 'Grass')] for x in xrange(10)] for x in xrange(10)]
@@ -91,82 +91,82 @@ class Terrain:
 
     # valid terrain functions
     # 0: default
-    def zero(x, y, z, crustval, bathyval, doStructures):
+    def zero(x, y, z, crustval, bathyval, doSchematics):
         return (y, [(crustval, 'Obsidian')], None)
 
     # 11: water
-    def eleven(x, y, z, crustval, bathyval, doStructures):
+    def eleven(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placewater(x, y, z, crustval, bathyval)
 
     # 12: ice
-    def twelve(x, y, z, crustval, bathyval, doStructures):
+    def twelve(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placeice(x, y, z, crustval)
 
     # 21: developed/open-space (<20% developed)
-    #@Structure.use(21, 'OpenSpace', 2, [[[(1, 'Stone')]]], 0)
-    @Structure.use(21, 'OpenSpace', 2, layout21, 0)
-    def twentyone(x, y, z, crustval, bathyval, doStructures):
+    #@Schematic.use(21, 'OpenSpace', 2, [[[(1, 'Stone')]]], 0)
+    @Schematic.use(21, 'OpenSpace', 2, layout21, 0)
+    def twentyone(x, y, z, crustval, bathyval, doSchematics):
         pass
 
     # 22: developed/low-intensity (20-49% developed)
-    @Structure.use(22, 'Neighborhood', 2, layout22, 0)
-    def twentytwo(x, y, z, crustval, bathyval, doStructures):
+    @Schematic.use(22, 'Neighborhood', 2, layout22, 0)
+    def twentytwo(x, y, z, crustval, bathyval, doSchematics):
         pass
 
     # 23: developed/medium-intensity (50-79% developed)
-    @Structure.use(23, 'Apartments', 2, layout23, 0)
-    def twentythree(x, y, z, crustval, bathyval, doStructures):
+    @Schematic.use(23, 'Apartments', 2, layout23, 0)
+    def twentythree(x, y, z, crustval, bathyval, doSchematics):
         pass
 
     # 24: developed/high-intensity (80-100% developed)
-    @Structure.use(24, 'Apartments', 2, layout24, 0)
-    def twentyfour(x, y, z, crustval, bathyval, doStructures):
+    @Schematic.use(24, 'Apartments', 2, layout24, 0)
+    def twentyfour(x, y, z, crustval, bathyval, doSchematics):
         pass
 
     # 25: commercial-industrial-transportation
-    @Structure.use(25, 'Commercial', 2, layout25, 0)
-    def twentyfive(x, y, z, crustval, bathyval, doStructures):
+    @Schematic.use(25, 'Commercial', 2, layout25, 0)
+    def twentyfive(x, y, z, crustval, bathyval, doSchematics):
         pass
 
     # 31: barren land (rock/sand/clay)
-    def thirtyone(x, y, z, crustval, bathyval, doStructures):
+    def thirtyone(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placedesert(x, y, z, crustval, stoneProb=0.50)
 
     # 32: transitional
-    def thirtytwo(x, y, z, crustval, bathyval, doStructures):
+    def thirtytwo(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placedesert(x, y, z, crustval)
 
     # 41: deciduous forest
-    def fortyone(x, y, z, crustval, bathyval, doStructures):
+    def fortyone(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placeforest(x, y, z, crustval, 'Redwood')
 
     # 42: evergreen forest
-    def fortytwo(x, y, z, crustval, bathyval, doStructures):
+    def fortytwo(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placeforest(x, y, z, crustval, 'Birch')
 
     # 43: mixed forest
-    def fortythree(x, y, z, crustval, bathyval, doStructures):
+    def fortythree(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placeforest(x, y, z, crustval, ['Redwood', 'Birch'])
 
     # 51: shrubland
-    def fiftyone(x, y, z, crustval, bathyval, doStructures):
+    def fiftyone(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placeshrubland(x, y, z, crustval, stoneProb=0.25)
 
     # 71: grassland
-    def seventyone(x, y, z, crustval, bathyval, doStructures):
+    def seventyone(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.75)
 
     # 81: pasture/hay
-    def eightyone(x, y, z, crustval, bathyval, doStructures):
+    def eightyone(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.50)
 
     # 82: crops
-    @Structure.use(82, 'Farm', 2, [[[(1, ('Farmland', 7)), (1, ('Crops', 7))]]], 1)
-    def eightytwo(x, y, z, crustval, bathyval, doStructures):
+    @Schematic.use(82, 'Farm', 2, [[[(1, ('Farmland', 7)), (1, ('Crops', 7))]]], 1)
+    def eightytwo(x, y, z, crustval, bathyval, doSchematics):
         pass
 
     # 91: wetlands
-    def ninetyone(x, y, z, crustval, bathyval, doStructures):
+    def ninetyone(x, y, z, crustval, bathyval, doSchematics):
         return Terrain.placegrass(x, y, z, crustval)
 
     # dictionary used by place
@@ -174,12 +174,12 @@ class Terrain:
 
     # method that actually places terrain
     @staticmethod
-    def place(x, y, z, lcval, crustval, bathyval, doStructures):
+    def place(x, y, z, lcval, crustval, bathyval, doSchematics):
         try:
             Terrain.terdict[lcval]
         except KeyError:
             print "lcval value %s not found!" % lcval
-        (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doStructures)
+        (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doSchematics)
         merged = [ (depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column ]
         blocks = []
         datas = []

@@ -1,24 +1,22 @@
-# structure module
+# schematic module
 from newutils import height
 import os
 import sys
 sys.path.append('..')
 from pymclevel import mclevel
 
-class Structure:
-    """This class is for maintaining structures.  
+class Schematic:
+    """Schematics are associated with landcover types.  When the
+    landcover type comes up, the relevant portion of the schematic is
+    placed.
 
-    Structures are MCEdit schematics which are associated with landcover types.  
-    When the landcover type comes up, the relevant portion of the structure is placed.
-
-    Structures should be designed to mesh well together.  The sample structures all
+    Schematics should be designed to mesh well together.  The sample schematics all
     come from a specific pattern so streets and sidewalks go well together, but do 
     not be limited by this example!"""
-
     # dict
     # key: landcover value
-    # value: structure object
-    structs = dict()
+    # value: schematic object
+    schems = dict()
 
     def __init__(self, tag=None, layout=None, offset=1):
         # handles:
@@ -32,7 +30,7 @@ class Structure:
                 raise IOError, 'no file found'
             else:
                 schem = mclevel.fromFile(filename)
-                self.layout = [[Structure.compressrow([(1, (int(schem.Blocks[elemX, elemZ, elemY]), int(schem.Data[elemX, elemZ, elemY]))) for elemY in xrange(schem.Height)]) for elemZ in xrange(schem.Length)] for elemX in xrange(schem.Width)]
+                self.layout = [[Schematic.compressrow([(1, (int(schem.Blocks[elemX, elemZ, elemY]), int(schem.Data[elemX, elemZ, elemY]))) for elemY in xrange(schem.Height)]) for elemZ in xrange(schem.Length)] for elemX in xrange(schem.Width)]
         else:
             self.layout = layout
         self.offset = offset
@@ -59,32 +57,32 @@ class Structure:
             raise AttributeError, "not all cols are the same height"
 
         if verbose:
-            print "structure has dimensions %dX x %dY x %dZ" % (self.length, self.height, self.width)
+            print "schematic has dimensions %dX x %dY x %dZ" % (self.length, self.height, self.width)
 
     @staticmethod
     def use(key, name, nameoffset, layout, offset):
         def decorator(target):
             def wrapper(*args, **kwargs):
                 # major assumption: 
-                # args are (x, y, z, crustval, bathyval, doStructures)
+                # args are (x, y, z, crustval, bathyval, doSchematics)
                 x = args[0]
                 y = args[1]
                 z = args[2]
                 crustval = args[3]
                 bathyval = args[4]
-                doStructures = args[5]
+                doSchematics = args[5]
                 try:
-                    Structure.structs[key]
+                    Schematic.schems[key]
                 except KeyError:
-                    if doStructures:
+                    if doSchematics:
                         try:
-                            newstruct = Structure(tag=name, offset=nameoffset)
+                            newschem = Schematic(tag=name, offset=nameoffset)
                         except IOError:
-                            newstruct = Structure(layout=layout, offset=offset)
+                            newschem = Schematic(layout=layout, offset=offset)
                     else:
-                        newstruct = Structure(layout=layout, offset=offset)
-                    Structure.structs[key] = newstruct
-                struct = Structure.structs[key]
-                return (y + struct.height - struct.offset, [(crustval, 'Dirt')] + struct.layout[x % struct.length][z % struct.width], None)
+                        newschem = Schematic(layout=layout, offset=offset)
+                    Schematic.schems[key] = newschem
+                schem = Schematic.schems[key]
+                return (y + schem.height - schem.offset, [(crustval, 'Dirt')] + schem.layout[x % schem.length][z % schem.width], None)
             return wrapper
         return decorator
