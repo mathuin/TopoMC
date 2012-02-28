@@ -114,7 +114,7 @@ class Terrain:
         pass
 
     # 23: developed/medium-intensity (50-79% developed)
-    @Schematic.use(23, 'Apartments', 2, layout23, 0)
+    @Schematic.use(23, 'School', 2, layout23, 0)
     def twentythree(x, y, z, crustval, bathyval, doSchematics):
         pass
 
