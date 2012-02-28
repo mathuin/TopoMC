@@ -5,7 +5,7 @@ logging.basicConfig(level=logging.WARNING)
 import os
 import sys
 sys.path.append('..')
-from newutils import cleanmkdir
+from utils import cleanmkdir
 from pymclevel import mclevel, box
 import argparse
 

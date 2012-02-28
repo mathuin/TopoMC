@@ -1,9 +1,8 @@
-# new bathy
+# bathy
 
 from numpy import zeros, uint8
 from itertools import product
 from math import hypot
-from invdisttree import Invdisttree
 from osgeo import gdal
 
 def getBathy(deptharray, maxdepth, geotrans, projection):

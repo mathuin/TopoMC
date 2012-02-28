@@ -1,4 +1,4 @@
-# new crust module
+# crust module
 from itertools import product
 from random import randint, uniform
 from newclidt import CLIDT
@@ -26,25 +26,3 @@ class Crust:
         retval = self.clidt()
         retval.resize((self.zsize, self.xsize))
         return retval
-
-if __name__ == '__main__':
-    xsize = 1536
-    zsize = 2048
-    print 'initializing Crust object with size %d, %d with OpenCL wanted' % (xsize, zsize) 
-    yes = Crust(xsize, zsize, wantCL=True)
-    print 'initializing Crust object with size %d, %d with OpenCL unwanted' % (xsize, zsize) 
-    no = Crust(xsize, zsize, wantCL=False)
-    print 'creating Crust via OpenCL with OpenCL wanted...'
-    yes()
-    print 'creating Crust via Invdisttree with OpenCL wanted...'
-    yes(useCL=False)
-    print 'creating Crust via Invdisttree with OpenCL unwanted...'
-    no()
-    print 'deleting old object'
-    del yes
-    print 'initializing Crust object with size %d, %d with OpenCL wanted' % (xsize, zsize) 
-    yes = Crust(xsize, zsize, wantCL=True)
-    print 'creating Crust via OpenCL with OpenCL wanted...'
-    yes()
-
-

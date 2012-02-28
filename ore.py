@@ -4,7 +4,7 @@ from random import randint
 from math import pi, ceil
 from scipy.special import cbrt
 from itertools import product
-from newutils import materialNamed, names
+from utils import materialNamed, names
 
 # http://www.minecraftforum.net/topic/25886-elites-of-minecraft-the-miner-first-ore-loss-calculated/ (must be logged in)
 

@@ -1,6 +1,6 @@
 from random import random, choice
-from newutils import materialNamed, height
-from newschematic import Schematic
+from utils import materialNamed, height
+from schematic import Schematic
 import yaml
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -24,7 +24,7 @@ class Terrain:
     tallgrassProb = 0.05
 
     # tree constants
-    # move to newtree.py
+    # move to tree.py
     treeProb = 0.001
     forestProb = 0.03
 

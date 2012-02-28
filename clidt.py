@@ -1,4 +1,4 @@
-# new CL IDT module
+# OpenCL/IDT module
 import numpy as n
 from itertools import product
 from random import randint, uniform
@@ -117,29 +117,3 @@ class CLIDT:
         self.program = None
         self.queue = None
         self.ctx = None
-    
-
-if __name__ == '__main__':
-    # on my system, 2048 is faster unsplit but 4096 is faster split
-    # for CL, 1024 is the largest that'll run while the video card is on
-    print 'setting up CL arrays'
-    xsize = 2048
-    zsize = 2048
-    coverage = 0.05
-    numcoords = int(xsize*zsize*coverage)
-    shape = (zsize, xsize)
-    base = n.array([(z, x) for z, x in product(xrange(zsize), xrange(xsize))], dtype=n.int32)
-    coords = n.array([(randint(0, zsize-1), randint(0, xsize-1)) for elem in xrange(numcoords)], dtype=n.int32)
-    values = n.array([uniform(1, 5) for elem in xrange(numcoords)], dtype=n.int32)
-    
-    print 'initializing CL object of size %d, %d with (forced) splitting...' % (xsize, zsize) 
-    yes = CL(coords, values, base, split=xsize)
-    print 'initializing CL object of size %d, %d without splitting...' % (xsize, zsize) 
-    print ' ... must disable openCL for this!'
-    no = CL(coords, values, base, split=xsize, wantCL=False)
-    print 'creating split CL via OpenCL...'
-    yes()
-    print 'cannot create unsplit CL via OpenCL as OpenCL was disabled...'
-    print 'creating unsplit CL via Invdisttree...'
-    no()
-

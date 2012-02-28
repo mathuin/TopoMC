@@ -8,13 +8,12 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
-from newregion import Region
+from region import Region
 import os
 from itertools import product
 import numpy
 
-from newutils import cleanmkdir, setspawnandsave
-from memoize import memoize
+from utils import cleanmkdir, setspawnandsave
 from random import randint
 from osgeo import gdal
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
@@ -22,9 +21,9 @@ from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, box
-from newterrain import Terrain
-from newtree import Tree, treeObjs
-from newore import Ore, oreObjs, oreDQ
+from terrain import Terrain
+from tree import Tree, treeObjs
+from ore import Ore, oreObjs, oreDQ
 from scipy.special import cbrt
 
 class Tile:
@@ -115,28 +114,3 @@ class Tile:
 
         # return peak
         return self.peak
-
-def checkTile():
-    """Checks tile code."""
-
-    # assume newregion.py passed its checks
-    yamlfile = file(os.path.join('Regions', 'Test2', 'Region.yaml'))
-    Test2 = yaml.load(yamlfile)
-    yamlfile.close()
-
-    try:
-        myTile = Tile(Test2, Test2.txmin-1, Test2.tymin-1)
-    except AttributeError:
-        print "out of bounds tile check passed"
-    else:
-        print "out of bounds tile check failed"
-
-    # create the tile
-    myTile = Tile(Test2, Test2.txmin, Test2.tymin)
-
-    # build the world corresponding to the tile
-    myTile.build()
-
-if __name__ == '__main__':
-    checkTile()
-

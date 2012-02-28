@@ -18,22 +18,21 @@ from time import sleep, clock
 from tempfile import NamedTemporaryFile
 import zipfile
 import tarfile
-from newutils import cleanmkdir
-from newterrain import Terrain
+from utils import cleanmkdir
+from terrain import Terrain
 import sys
 sys.path.append('..')
 from pymclevel import mclevel
 
 from osgeo import gdal, osr
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
-from invdisttree import Invdisttree
-from newbathy import getBathy
-from newcrust import Crust
+from bathy import getBathy
+from crust import Crust
 import numpy
 from itertools import product
 from random import uniform, randint
 #
-from newclidt import CLIDT
+from clidt import CLIDT
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """stupid redirect handling craziness"""
@@ -660,71 +659,3 @@ class Region:
 
         # close the dataset
         mapds = None
-        
-def checkRegion():
-    epsilon = 0.000001 # comparing floating point with equals is wrong
-
-    try:
-        Test2 = Region(name='Test2', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, tilesize=255)
-    except AttributeError, e:
-        print 'Tilesize check passed: ', e
-    else:
-        raise AssertionError, 'Mod 16 check failed'
-
-    try:
-        Test2 = Region(name='Test2', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, scale=7)
-    except AttributeError, e:
-        print 'Scale check passed: ', e
-    else:
-        raise AssertionError, 'Scale check failed'
-
-    try:
-        Test2 = Region(name='Test2', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332, elIDs=['ND4'])
-    except AttributeError, e:
-        print 'Elevation ID check passed: ', e
-    else:
-        raise AssertionError, 'Elevation ID check failed'
-
-    try:
-    	Test2 = Region(name='Test2', ymax=41.2378, ymin=41.1415, xmin=-71.6202, xmax=-71.5332)
-    except AssertionError, e:
-        print 'Region creation failed: ', e
-    else:
-        print 'Region creation passed'
-
-    yamlfile = file(os.path.join('Regions', 'Test', 'Region.yaml'))
-    myyaml = yaml.load(yamlfile)
-    yamlfile.close()
-    try:
-        assert myyaml.tilesize == Test2.tilesize, 'YAML tilesize does not match'
-        assert myyaml.scale == Test2.scale, 'YAML scale does not match'
-        assert (myyaml.mapxmax - Test2.mapxmax) < epsilon, 'YAML mapxmax does not match'
-        assert (myyaml.mapxmin - Test2.mapxmin) < epsilon, 'YAML mapxmin does not match'
-        assert (myyaml.mapymax - Test2.mapymax) < epsilon, 'YAML mapymax does not match'
-        assert (myyaml.mapymin - Test2.mapymin) < epsilon, 'YAML mapymin does not match'
-        assert myyaml.txmax == Test2.txmax, 'YAML txmax does not match'
-        assert myyaml.txmin == Test2.txmin, 'YAML txmin does not match'
-        assert myyaml.tymax == Test2.tymax, 'YAML tymax does not match'
-        assert myyaml.tymin == Test2.tymin, 'YAML tymin does not match'
-        assert myyaml.lclayer == Test2.lclayer, 'YAML lclayer does not match'
-        assert myyaml.ellayer == Test2.ellayer, 'YAML ellayer does not match'
-    except AssertionError, e:
-        print 'YAML check failed: ', e
-    else:
-        print 'YAML check passed'
- 
-    Test2.getfiles()
-    try:
-        # for now, just check existence of all three map files
-        lcimage = Test2.mapfile(Test2.lclayer)
-        elimage = Test2.mapfile(Test2.ellayer)
-        elimageorig = '%s-orig' % elimage
-        assert os.path.exists(lcimage), 'getfiles: lcimage %s does not exist' % lcimage
-        assert os.path.exists(elimage), 'getfiles: elimage %s does not exist' % elimage
-    except AssertionError, e:
-        print 'getfiles check failed:', e
-    else:
-        print 'getfiles check passed'
-
-if __name__ == '__main__':
-    checkRegion();

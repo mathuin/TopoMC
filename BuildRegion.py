@@ -2,9 +2,9 @@
 
 import logging
 logging.basicConfig(level=logging.WARNING)
-from newregion import Region
-from newtile import Tile
-from newutils import setspawnandsave, materialNamed, names
+from region import Region
+from tile import Tile
+from utils import setspawnandsave, materialNamed, names
 import sys
 import argparse
 import os
@@ -15,8 +15,8 @@ except ImportError:
     from yaml import Loader, Dumper
 from multiprocessing import Pool
 from itertools import product
-from newtree import Tree, treeObjs
-from newore import Ore, oreObjs, oreDQ
+from tree import Tree, treeObjs
+from ore import Ore, oreObjs, oreDQ
 
 sys.path.append('..')
 from pymclevel import mclevel, box

@@ -1,5 +1,5 @@
 # schematic module
-from newutils import height
+from utils import height
 import os
 import sys
 sys.path.append('..')

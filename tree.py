@@ -4,7 +4,7 @@ from math import hypot
 import numpy
 from random import randint
 from itertools import product
-from newutils import materialNamed
+from utils import materialNamed
 
 class Tree:
     """Each type of tree will be an instance of this class."""
