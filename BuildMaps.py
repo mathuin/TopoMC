@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.append('..')
 from utils import cleanmkdir
-from pymclevel import mclevel, box
+from pymclevel import mclevel
 import argparse
 
 def center(name):

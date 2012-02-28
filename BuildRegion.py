@@ -2,24 +2,19 @@
 
 import logging
 logging.basicConfig(level=logging.WARNING)
-from region import Region
 from tile import Tile
-from utils import setspawnandsave, materialNamed, names
+from utils import setspawnandsave
 import sys
 import argparse
 import os
 import yaml
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
 from multiprocessing import Pool
 from itertools import product
 from tree import Tree, treeObjs
-from ore import Ore, oreObjs, oreDQ
+from ore import Ore, oreObjs
 
 sys.path.append('..')
-from pymclevel import mclevel, box
+from pymclevel import mclevel
 
 def main(argv):
     """Builds a region."""

@@ -2,15 +2,10 @@
 
 import logging
 logging.basicConfig(level=logging.WARNING)
-from region import Region
 import sys
 import argparse
 import os
 import yaml
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
 
 def main(argv):
     """Rebuilds maps on broken regions."""

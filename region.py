@@ -7,15 +7,9 @@ import re
 import os
 import urllib2
 import yaml
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
 import logging
 logging.basicConfig(level=logging.INFO)
-#logging.getLogger('suds.client').setLevel(logging.DEBUG)
-from time import sleep, clock
-from tempfile import NamedTemporaryFile
+from time import sleep
 import zipfile
 import tarfile
 from utils import cleanmkdir
@@ -29,8 +23,6 @@ from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 from bathy import getBathy
 from crust import Crust
 import numpy
-from itertools import product
-from random import uniform, randint
 #
 from clidt import CLIDT
 
@@ -413,7 +405,6 @@ class Region:
                 requestID = result[startPos:endPos]
         print "  request ID is %s" % requestID
 
-        downloadDict = {'downloadID': requestID}
         sleep(5)
         while True:
             dsPage = urllib2.urlopen("http://extract.cr.usgs.gov/axis2/services/DownloadService/getDownloadStatus?downloadID=%s" % requestID)

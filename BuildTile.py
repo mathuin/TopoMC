@@ -4,7 +4,6 @@
 
 import logging
 logging.basicConfig(level=logging.WARNING)
-from region import Region
 from tile import Tile
 
 import sys

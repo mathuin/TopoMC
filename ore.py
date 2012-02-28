@@ -1,10 +1,10 @@
 # ore module
 from __future__ import division
 from random import randint
-from math import pi, ceil
+from math import pi
 from scipy.special import cbrt
 from itertools import product
-from utils import materialNamed, names
+from utils import materialNamed
 
 # http://www.minecraftforum.net/topic/25886-elites-of-minecraft-the-miner-first-ore-loss-calculated/ (must be logged in)
 
@@ -58,7 +58,6 @@ class Ore:
         oreobjs = dict([(ore.name, ore) for ore in oreObjs])
         tile.ores = dict([(name, list()) for name in oreobjs])
 
-        oreblocks = []
         for ore in oreobjs:
             extent = cbrt(oreobjs[ore].size)*2
             maxy = pow(2,oreobjs[ore].depth)

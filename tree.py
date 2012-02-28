@@ -91,7 +91,7 @@ class Tree:
             tile.trees[tree].append(coords)
         else:
             # plant it now!
-            (blocks, datas) = treeobjs[tree](coords)
+            (blocks, datas) = treeObjs[tree](coords)
             [ tile.world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
             [ tile.world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
 

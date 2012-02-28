@@ -1,14 +1,13 @@
 # OpenCL/IDT module
-import numpy as n
+import numpy as np
 from itertools import product
-from random import randint, uniform
 from invdisttree import Invdisttree
-from multiprocessing import Pool
 try:
     import pyopencl as cl
     import pyopencl.array as cla
+    hasCL = True
 except ImportError:
-    pass
+    hasCL = False
 
 class CLIDT:
     """Use OpenCL or Invdisttree to solve the IDT problem."""
@@ -28,10 +27,10 @@ class CLIDT:
         # need to split if it's too long!
         splitlist = tuple([x for x in xrange(CLIDT.indexmaxsize, arrayin.shape[0], CLIDT.indexmaxsize)])
         indexinc = 0
-        for chunk in n.vsplit(arrayin, splitlist):
-            chunkarr = cla.to_device(self.queue, n.asarray(chunk, dtype=n.int32))
+        for chunk in np.vsplit(arrayin, splitlist):
+            chunkarr = cla.to_device(self.queue, np.asarray(chunk, dtype=np.int32))
             template = cla.empty_like(chunkarr)
-            event = self.program.trim(self.queue, chunkarr.shape, None, chunkarr.data, template.data, n.int32(self.split))
+            event = self.program.trim(self.queue, chunkarr.shape, None, chunkarr.data, template.data, np.int32(self.split))
             event.wait()
             for index, elem in enumerate(template.get()):
                 splitkey = tuple([x for x in elem],)
@@ -44,23 +43,21 @@ class CLIDT:
         return retval
 
     def __init__(self, coords, values, base, wantCL=True, split=None, nnear=None, majority=True):
-        self.coords = n.asarray(coords, dtype=n.int32)
-        self.values = n.asarray(values, dtype=n.int32)
-        self.base = n.asarray(base, dtype=n.int32)
+        self.coords = np.asarray(coords, dtype=np.int32)
+        self.values = np.asarray(values, dtype=np.int32)
+        self.base = np.asarray(base, dtype=np.int32)
         (lencoords, null) = self.coords.shape
         (lenvalues,) = self.values.shape
         (lenbase, null) = self.base.shape
         assert lencoords == lenvalues, "lencoords does not equal lenvalues"
         
         self.wantCL = wantCL
-        if self.wantCL == True:
+        if hasCL == True and self.wantCL == True:
             if split == None:
                 self.split = CLIDT.OpenCLmaxsize
             else:
                 self.split = split
             try:
-                import pyopencl as cl
-                import pyopencl.array as cla
                 self.ctx = cl.create_some_context()
                 self.queue = cl.CommandQueue(self.ctx)
                 filestr = ''.join(open('idt.cl', 'r').readlines())
@@ -68,17 +65,16 @@ class CLIDT:
                 self.coordindices = self.genindices(self.coords)
                 self.baseindices = self.genindices(self.base)
                 self.canCL = True
-            except ImportError:
-                # prolly should be specific here
-                print "warning: unable to import pyopencl, defaulting to Invdisttree"
+            except:
+                print "warning: unable to use pyopencl, defaulting to Invdisttree"
                 self.canCL = False
 
         if nnear == None:
-            self.nnear = n.int32(CLIDT.nnear)
+            self.nnear = np.int32(CLIDT.nnear)
         else:
-            self.nnear = n.int32(nnear)
+            self.nnear = np.int32(nnear)
 
-        self.usemajority = n.int32(1 if majority else 0)
+        self.usemajority = np.int32(1 if majority else 0)
 
     def build(self, coords, values, base):
         (lenbase, null) = base.shape
@@ -86,8 +82,8 @@ class CLIDT:
         coords_array = cla.to_device(self.queue, coords)
         values_array = cla.to_device(self.queue, values)
         base_array = cla.to_device(self.queue, base)
-        template_array = cla.zeros(self.queue, (lenbase), dtype=n.int32)
-        event = self.program.nearest(self.queue, base.shape, None, coords_array.data, values_array.data, base_array.data, template_array.data, n.int32(lencoords), self.nnear, self.usemajority)
+        template_array = cla.zeros(self.queue, (lenbase), dtype=np.int32)
+        event = self.program.nearest(self.queue, base.shape, None, coords_array.data, values_array.data, base_array.data, template_array.data, np.int32(lencoords), self.nnear, self.usemajority)
         event.wait()
 
         return template_array.get()
@@ -96,7 +92,7 @@ class CLIDT:
         # build output array
         if self.wantCL and self.canCL:
             (lenbase, null) = self.base.shape
-            retval = n.zeros((lenbase), dtype=n.int32)
+            retval = np.zeros((lenbase), dtype=np.int32)
             for key, value in self.baseindices.items():
                 (a, b) = key
                 cindices = []
@@ -110,7 +106,7 @@ class CLIDT:
                 retval[value] = self.build(coords, values, base)
         else:
             IDT = Invdisttree(self.coords, self.values)
-            retval = n.asarray(IDT(self.base, self.nnear, majority=(self.usemajority==1)), dtype=n.int32)
+            retval = np.asarray(IDT(self.base, self.nnear, majority=(self.usemajority==1)), dtype=np.int32)
         return retval
 
     def __del__(self):

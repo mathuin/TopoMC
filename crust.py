@@ -1,7 +1,7 @@
 # crust module
 from itertools import product
 from random import randint, uniform
-from newclidt import CLIDT
+from clidt import CLIDT
 
 class Crust:
     """Smoothly irregular crust between the surface and the underlying stone."""

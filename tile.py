@@ -4,27 +4,20 @@
 
 from __future__ import division
 import yaml
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
 from region import Region
 import os
 from itertools import product
-import numpy
 
 from utils import cleanmkdir, setspawnandsave
-from random import randint
 from osgeo import gdal
-from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
+from osgeo.gdalconst import GA_ReadOnly
 
 import sys
 sys.path.append('..')
 from pymclevel import mclevel, box
 from terrain import Terrain
 from tree import Tree, treeObjs
-from ore import Ore, oreObjs, oreDQ
-from scipy.special import cbrt
+from ore import Ore
 
 class Tile:
     """Tiles are the base render object.  or something."""
