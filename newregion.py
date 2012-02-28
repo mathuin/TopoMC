@@ -602,7 +602,6 @@ class Region:
 
         # if True, use new code, if False, use gdalwarp
         if True:
-            initial = clock()
             # 1. the new file must be read into an array and flattened
             vrtds = gdal.Open(lcvrt, GA_ReadOnly)
             vrtgeotrans = vrtds.GetGeoTransform()
@@ -628,14 +627,10 @@ class Region:
             depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
             # 4. an inverse distance tree must be built from that
             lcCLIDT = CLIDT(coords, values, depthbase, wantCL=wantCL)
-            #lcIDT = Invdisttree(coords, values)
             # 5. the desired output comes from that inverse distance tree
-            #deptharray = lcIDT(depthbase, nnear=11, majority=True)
             deptharray = lcCLIDT()
             deptharray.resize((depthylen, depthxlen))
-            #lcIDT = None
             lcCLIDT = None
-            print "new code finished in %.2f seconds." % (clock()-initial)
         else:
             warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (lcfile, Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
             os.system("%s" % warpcmd)

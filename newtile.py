@@ -14,7 +14,6 @@ from itertools import product
 import numpy
 
 from newutils import cleanmkdir, setspawnandsave
-from timer import timer
 from memoize import memoize
 from random import randint
 from osgeo import gdal
@@ -54,7 +53,6 @@ class Tile:
         self.tiledir = os.path.join(region.regiondir, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
         cleanmkdir(self.tiledir)
 
-    @timer()
     def build(self):
         """Actually build the Minecraft world that corresponds to a tile."""
 

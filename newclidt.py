@@ -1,6 +1,5 @@
 # new CL IDT module
 import numpy as n
-from timer import timer
 from itertools import product
 from random import randint, uniform
 from invdisttree import Invdisttree
@@ -22,7 +21,6 @@ class CLIDT:
     # default value for nearest neighbors
     nnear = 11
 
-    @timer()
     def genindices(self, arrayin):
         """Generate indices for splitting array."""
         retval = dict()
@@ -45,7 +43,6 @@ class CLIDT:
             indexinc += CLIDT.indexmaxsize
         return retval
 
-    @timer()
     def __init__(self, coords, values, base, wantCL=True, split=None, nnear=None, majority=True):
         self.coords = n.asarray(coords, dtype=n.int32)
         self.values = n.asarray(values, dtype=n.int32)
@@ -95,7 +92,6 @@ class CLIDT:
 
         return template_array.get()
 
-    @timer()
     def __call__(self):
         # build output array
         if self.wantCL and self.canCL:

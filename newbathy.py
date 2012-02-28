@@ -4,10 +4,8 @@ from numpy import zeros, uint8
 from itertools import product
 from math import hypot
 from invdisttree import Invdisttree
-from timer import timer
 from osgeo import gdal
 
-@timer()
 def getBathy(deptharray, maxdepth, geotrans, projection):
     # save deptharray as a dataset named depthds
     (depthz, depthx) = deptharray.shape
