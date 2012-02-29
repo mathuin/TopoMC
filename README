@@ -1,41 +1,46 @@
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
 
-This project relies heavily on codewarrior0's pymclevel project which can also be found on github.
+This project relies heavily on pymclevel which can also be found on github at https://github.com/mcedit/pymclevel.git
 
-Version 0.8 includes changes to support the most up-to-date version of pymclevel (as of 2011 Dec 06).
+Version 0.9 includes changes to support the most up-to-date version of pymclevel (as of 2012 Feb 04).  The new precompiled NBT module really helps!
 
-Recent changes include:
- * Larger areas can be downloaded from the USGS.
- * Arrays are used instead of images for intermediary data.  Go Bravo!
- * Most module output moved to logger format.  Quieter runs!
- * Features like ore and statistics can now be disabled.
- * The rotated-rectangle problem is fixed!
+Major changes:
 
-Features include:
- * Vertical range can be expanded by trimming unused elevation.
- * Specific USGS product IDs can be selected for download.
- * Ore (including dirt and gravel) is generated properly.
- * Simulated bathymetric data based on local terrain.
- * Datasets can now be downloaded directly from the USGS!
+ * The array and world code has been replaced with region-based code which improve accuracy while saving CPU and memory.  The new commands to download, prepare, and build regions are documented below.
 
-This project includes one small dataset for testing.  It was generated with the following commands:
-     ./GetDataset.py --region BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
+* GPGPU support has been added. Yes, your video card can help you build Minecraft worlds!  This latest feature relies on PyOpenCL, so see http://mathema.tician.de/software/pyopencl for more information.  
 
-The default spawn point is at the highest point in the dataset.  The safe house is back!  Perhaps someday there'll be a chest in there with everything the explorer needs?
+ * The landcover code has been rewritten to support the usage of MCEdit schematics as templates for certain areas, specifically croplands (farms) and developed areas.  More information about this feature can be found in README.schematics.
 
-The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet and right-click to place latlong markers in the upper left and lower right of the region you wish to model.  This will give you the maximum and minimum latitude and longitude (Y and X in my model) values.
+ * The test dataset has been removed.
+
+ * The safehouse has been removed, but the default spawn point is still at the highest point in the dataset.
+
+How to use TopoMC:
+
+The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet (still limited to the United States and its possessions, alas) and right-click to place latlong markers in the upper left and lower right of the region you wish to model.  This will give you the maximum and minimum latitude and longitude (Y and X in this model) values.
 
 Next, here's what to do!
 
-1.  Download the dataset from the USGS.
-    jmt@belle:~/TopoMC$ ./GetDataset.py --region Provincetown --ymax 42.0901 --ymin 42.0091 --xmin -70.2611 --xmax -70.1100
+1.  Retrieve the region from the USGS.
+    jmt@belle:~/git/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
 
-2.  Build the arrays.
-    jmt@belle:~/TopoMC$ ./BuildArrays.py --region Provincetown
+2.  Prepare the region for processing.
+    jmt@belle:~/git/TopoMC$ ./PrepRegion.py --name Provincetown
 
-3.  Build a new world! 
-    jmt@belle:~/TopoMC$ ./BuildWorld.py --region Provincetown
+2.  Construct the Minecraft world based on the region.
+    jmt@belle:~/git/TopoMC$ ./BuildRegion.py --name Provincetown
 
-Both BuildArrays.py and BuildWorld.py have lots of options for the curious.  
+GetRegion.py has a number of optional arguments not shown above.
 
-One new option for BuildArrays.py is "--trim".  This option should be used with "--vscale 1" for users who are willing to sacrifice absolute elevation accuracy to achieve maximum vertical scale on the surface.  Essentially, "--trim" removes all the space between the minimum elevation of the region and sea level.  For more details, see the source code.
+ * Tile size can be changed.
+   The default tile size is 256x256, but it can be changed.  The only requirement is that it be a multiple of 16.  An example would be "--tilesize 64".
+
+ * Horizontal and vertical scaling can be changed.
+   The horizontal and vertical scale, both of which default to 6, can be changed independently.  The minimum horizontal scale is 1 with a practical maximum of 30.  The minimum vertical scale is more complex, and essentially depends on the elevation change between the highest point in the region and sea level.  An example scale would be "--scale 1 --vscale 1".  Should the requested scale exceed valid parameters, the software will adjust the scale after informing the user.
+
+ * Sealevel and maximum depth can be changed.
+   Sometimes the minimum vertical scale is too high.  One way to improve this situation is to lower the sealevel from its default of 64 to something lower such as 16 or 8.  The maximum depth should also be lowered as well.  Keep in mind that this may have unexpected effects on ore distribution!  An example sealevel and maximum depth would be "--sealevel 16 --maxdepth 8".
+
+ * Elevation can be trimmed!
+   When lowering the sealevel isn't enough to reach your desired vertical scale, excess elevation can be trimmed.  Elevation is considered excess if it is between sea level and the lowest point on the region.  For example, if a region were selected such that its surface was between 200 and 300 meters above sea level, the 200 meters between sea level and the lowest point on the region could be trimmed.  An example trim would be "--trim 200".  If the trim value requested exceeds the valid limits, the software will adjust the trim value to the maximum allowed after informing the user.

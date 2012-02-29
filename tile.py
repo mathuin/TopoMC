@@ -1,209 +1,109 @@
-# tile module
-import Image
-from time import time
-from dataset import *
-from coords import *
-from invdisttree import *
-from bathy import getBathymetry
-from crust import getCrust
-from dataset import getDatasetDims, getDatasetElevs
-from multiprocessing import Pool
+#!/usr/bin/env python
+
+# tile class
+
+from __future__ import division
+import yaml
+from region import Region
+import os
 from itertools import product
-from mcarray import maxelev
-from terrain import processTerrain
-import logging
-logging.basicConfig(level=logging.WARNING)
-tilelogger = logging.getLogger('tile')
 
-def getIDT(ds, offset, size, vScale=1, nodata=None, trim=0):
-    "Convert a portion of a given dataset (identified by corners) to an inverse distance tree."
-    # retrieve data from dataset
-    Band = ds.GetRasterBand(1)
-    Data = Band.ReadAsArray(offset[0], offset[1], size[0], size[1])
+from utils import cleanmkdir, setspawnandsave
+from osgeo import gdal
+from osgeo.gdalconst import GA_ReadOnly
 
-    # set nodata if it exists
-    if (nodata != None):
-        fromnodata = Band.GetNoDataValue()
-        Data[Data == fromnodata] = nodata
-    Band = None
+import sys
+sys.path.append('..')
+from pymclevel import mclevel, box
+from terrain import Terrain
+from tree import Tree, treeObjs
+from ore import Ore
 
-    # build initial arrays
-    LatLong = getLatLongArray(ds, (offset), (size), 1)
-    Value = Data.flatten()
+class Tile:
+    """Tiles are the base render object.  or something."""
 
-    # trim elevation
-    Value = Value - trim
+    def __init__(self, region, tilex, tiley):
+        """Create a tile based on the region and the tile's coordinates."""
+        # NB: smart people check that files have been gotten.
+        # today we assume that's already been done.
+        # snag stuff from the region first
+        self.name = region.name
+        self.size = region.tilesize
+        self.mapname = region.mapname
+        self.tilex = int(tilex)
+        self.tiley = int(tiley)
+        self.tiles = region.tiles
+        self.doOre = region.doOre
+        self.doSchematics = region.doSchematics
 
-    # scale elevation vertically
-    Value = Value / vScale
+        if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
+            raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
+        if (self.tiley < self.tiles['ymin']) or (self.tiley >= self.tiles['ymax']):
+            raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, self.tiles['ymin'], self.tiles['ymax'])
 
-    # build tree
-    IDT = Invdisttree(LatLong, Value)
+        # create the tile directory if necessary
+        self.tiledir = os.path.join(region.regiondir, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
+        cleanmkdir(self.tiledir)
 
-    return IDT
+    def build(self):
+        """Actually build the Minecraft world that corresponds to a tile."""
 
-def getOffsetSize(ds, corners, mult=1):
-    "Convert corners to offset and size."
-    (ul, lr) = corners
-    ox, oy = getCoords(ds, ul[0], ul[1])
-    offset_x = max(ox, 0)
-    offset_y = max(oy, 0)
-    fcx, fcy = getCoords(ds, lr[0], lr[1])
-    farcorner_x = min(fcx, ds.RasterXSize)
-    farcorner_y = min(fcy, ds.RasterYSize)
-    offset = (int(offset_x*mult), int(offset_y*mult))
-    size = (int(farcorner_x*mult-offset_x*mult), int(farcorner_y*mult-offset_y*mult))
-    tilelogger.debug("offset is %d, %d, size is %d, %d" % (offset[0], offset[1], size[0], size[1]))
-    return offset, size
+        # calculate offsets
+        ox = (self.tilex-self.tiles['xmin'])*self.size
+        oy = (self.tiley-self.tiles['ymin'])*self.size
+        sx = self.size
+        sy = self.size
 
-def getImageArray(ds, idtCorners, baseArray, vScale=1, nodata=None, majority=False, trim=0):
-    "Given the relevant information, builds the image array."
-    Offset, Size = getOffsetSize(ds, idtCorners)
-    IDT = getIDT(ds, Offset, Size, vScale, nodata, trim)
-    ImageArray = IDT(baseArray, nnear=8, eps=0.1, majority=majority)
+        # load arrays from map file
+        mapds = gdal.Open(self.mapname, GA_ReadOnly)
+        lcarray = mapds.GetRasterBand(Region.rasters['landcover']).ReadAsArray(ox, oy, sx, sy)
+        elarray = mapds.GetRasterBand(Region.rasters['elevation']).ReadAsArray(ox, oy, sx, sy)
+        bathyarray = mapds.GetRasterBand(Region.rasters['bathy']).ReadAsArray(ox, oy, sx, sy)
+        crustarray = mapds.GetRasterBand(Region.rasters['crust']).ReadAsArray(ox, oy, sx, sy)
 
-    return ImageArray
+        # calculate Minecraft corners
+        self.mcoffsetx = self.tilex * self.size
+        self.mcoffsetz = self.tiley * self.size
+        
+        # build a Minecraft world via pymclevel from blocks and data
+        self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
+        tilebox = box.BoundingBox((self.mcoffsetx, 0, self.mcoffsetz), (self.size, self.world.Height, self.size))
+        self.world.createChunksInBox(tilebox)
 
-def getTileOffsetSize(rowIndex, colIndex, tileShape, maxRows, maxCols, idtPad=0):
-    "run this with idtPad=0 to generate image."
-    imageRows = tileShape[0]
-    imageCols = tileShape[1]
-    imageLeft = max(rowIndex*imageRows-idtPad, 0)
-    imageRight = min(imageLeft+imageRows+2*idtPad, maxRows)
-    imageUpper = max(colIndex*imageCols-idtPad, 0)
-    imageLower = min(imageUpper+imageCols+2*idtPad, maxCols)
-    imageOffset = (imageLeft, imageUpper)
-    imageSize = (imageRight-imageLeft, imageLower-imageUpper)
-    return imageOffset, imageSize
+        # do the terrain thing (no trees, ore or building)
+        self.peak = [0, 0, 0]
+        treeobjs = dict([(tree.name, tree) for tree in treeObjs])
+        self.trees = dict([(name, list()) for name in treeobjs])
 
-# adding processImage code to processTile
-def processTile(args, tileRowIndex, tileColIndex):
-    "Actually process a tile."
-    tileShape = args.tile
-    mult = args.mult
-    curtime = time()
-    (lcds, elevds) = getDataset(args.region)
-    (rows, cols) = getDatasetDims(args.region)
-    (elevmin, elevmax) = getDatasetElevs(args.region)
-    if (args.doTrim):
-        trimElev = elevmin
-    else:
-        trimElev = 0
-    maxRows = int(rows*mult)
-    maxCols = int(cols*mult)
-    baseOffset, baseSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols)
-    idtOffset, idtSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=tileShape[0]+tileShape[1])
-    tilelogger.info("Generating tile (%d, %d) with dimensions (%d, %d) and offset (%d, %d)..." % (tileRowIndex, tileColIndex, baseSize[0], baseSize[1], baseOffset[0], baseOffset[1]))
+        for myx, myz in product(xrange(self.size), xrange(self.size)):
+            mcx = int(self.mcoffsetx+myx)
+            mcz = int(self.mcoffsetz+myz)
+            mcy = int(elarray[myz, myx])
+            lcval = int(lcarray[myz, myx])
+            bathyval = int(bathyarray[myz, myx])
+            crustval = int(crustarray[myz, myx])
+            if mcy > self.peak[1]:
+                self.peak = [mcx, mcy, mcz]
+            (blocks, datas, tree) = Terrain.place(mcx, mcy, mcz, lcval, crustval, bathyval, self.doSchematics)
+            [ self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0 ]
+            [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
+            # if trees are placed, elevation cannot be changed
+            if tree:
+                Tree.placetreeintile(self, tree, mcx, mcy, mcz)
 
-    baseShape = (baseSize[1], baseSize[0])
-    baseArray = getLatLongArray(lcds, baseOffset, baseSize, mult)
-    #idtShape = (idtSize[1], idtSize[0])
-    #idtArray = getLatLongArray(lcds, idtOffset, idtSize, mult)
+        # now that terrain and trees are done, place ore
+        if self.doOre:
+            Ore.placeoreintile(self)
 
-    # these points are scaled coordinates
-    idtUL = getLatLong(lcds, int(idtOffset[0]/mult), int(idtOffset[1]/mult))
-    idtLR = getLatLong(lcds, int((idtOffset[0]+idtSize[0])/mult), int((idtOffset[1]+idtSize[1])/mult))
+        # stick the player and the spawn at the peak
+        setspawnandsave(self.world, self.peak)
 
-    # nodata for landcover is equal to 11
-    lcImageArray = getImageArray(lcds, (idtUL, idtLR), baseArray, nodata=11, majority=True)
-    lcImageArray.resize(baseShape)
+        # write Tile.yaml with relevant data (peak at least)
+        # NB: world is not dump-friendly. :-)
+        del self.world
+        stream = file(os.path.join(self.tiledir, 'Tile.yaml'), 'w')
+        yaml.dump(self, stream)
+        stream.close()
 
-    # elevation array
-    elevImageArray = getImageArray(elevds, (idtUL, idtLR), baseArray, args.vscale, trim=trimElev)
-    elevImageArray.resize(baseShape)
-
-    # TODO: go through the arrays for some special transmogrification
-    # first idea: bathymetry
-    depthOffset, depthSize = getTileOffsetSize(tileRowIndex, tileColIndex, tileShape, maxRows, maxCols, idtPad=args.maxdepth)
-    depthShape = (depthSize[1], depthSize[0])
-    depthArray = getLatLongArray(lcds, depthOffset, depthSize, mult)
-    depthUL = getLatLong(lcds, int(depthOffset[0]/mult), int(depthOffset[1]/mult))
-    depthLR = getLatLong(lcds, int((depthOffset[0]+depthSize[0])/mult), int((depthOffset[1]+depthSize[1])/mult))
-    bigImageArray = getImageArray(lcds, (depthUL, depthLR), depthArray, majority=True)
-    bigImageArray.resize(depthShape)
-    bathyImageArray = getBathymetry(args, lcImageArray, bigImageArray, baseOffset, depthOffset)
-
-    # second idea: crust
-    crustImageArray = getCrust(bathyImageArray, baseArray)
-    crustImageArray.resize(baseShape)
-
-    # now we do what we do in processImage
-    localmax = 0
-    spawnx = 10
-    spawnz = 10
-
-    for tilex, tilez in product(xrange(baseSize[0]), xrange(baseSize[1])):
-        lcval = int(lcImageArray[tilez,tilex])
-        elevval = int(elevImageArray[tilez,tilex])
-        bathyval = int(bathyImageArray[tilez,tilex])
-        crustval = int(crustImageArray[tilez,tilex])
-        real_x = baseOffset[0] + tilex
-        real_z = baseOffset[1] + tilez
-        if (elevval < 0):
-            print "OMG elevval %d is less than zero" % (elevval)
-        if (elevval > maxelev):
-            tilelogger.warning('Elevation %d exceeds maximum elevation (%d)' % (elevval, maxelev))
-            elevval = maxelev
-        if (elevval > localmax):
-            localmax = elevval
-            spawnx = real_x
-            spawnz = real_z
-        processTerrain([(lcval, real_x, real_z, elevval, bathyval, crustval)])
-    tilelogger.info('... done with (%d, %d) in %f seconds!' % (tileRowIndex, tileColIndex, (time()-curtime)))
-    return (spawnx, spawnz, localmax)
-
-def processTilestar(args):
-    return processTile(*args)
-
-def processTiles(args, minTileRows, maxTileRows, minTileCols, maxTileCols, processes):
-    "Process those tiles."
-    # process data in 256x256 tiles
-    if (processes == 1):
-        peaks = [processTile(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
-    else:
-        pool = Pool(processes)
-        tasks = [(args, tileRowIndex, tileColIndex) for tileRowIndex in xrange(minTileRows, maxTileRows) for tileColIndex in xrange(minTileCols, maxTileCols)]
-        results = pool.imap_unordered(processTilestar, tasks)
-        peaks = [x for x in results]
-	pool = None
-    return peaks
-
-def checkTile(args, mult):
-    "Checks to see if a tile dimension is too big for a region."
-    oldtilex, oldtiley = args.tile
-    rows, cols = getDatasetDims(args.region)
-    maxRows = int(rows * mult)
-    maxCols = int(cols * mult)
-    tilex = min(oldtilex, maxRows)
-    tiley = min(oldtiley, maxCols)
-    if (tilex != oldtilex or tiley != oldtiley):
-        tilelogger.warning("Tile size of %d, %d for region %s is too large -- changed to %d, %d" % (oldtilex, oldtiley, args.region, tilex, tiley))
-    args.tile = (tilex, tiley)
-    return (tilex, tiley)
-
-def checkStartEnd(args, mult, tile):
-    "Checks to see if start and end values are valid for a region."
-    (rows, cols) = getDatasetDims(args.region)
-    (minTileRows, minTileCols) = args.start
-    (maxTileRows, maxTileCols) = args.end
-    (tileRows, tileCols) = tile
-
-    numRowTiles = int((rows*mult+tileRows-1)/tileRows)
-    numColTiles = int((cols*mult+tileCols-1)/tileCols)
-    # maxTileRows and maxTileCols default to 0 meaning do everything
-    if (maxTileRows == 0 or maxTileRows > numRowTiles):
-        if (maxTileRows > numRowTiles):
-            tilelogger.warning("maxTileRows greater than numRowTiles, setting to %d" % numRowTiles)
-        maxTileRows = numRowTiles
-    if (minTileRows > maxTileRows):
-        tilelogger.warning("minTileRows less than maxTileRows, setting to %d" % maxTileRows)
-        minTileRows = maxTileRows
-    if (maxTileCols == 0 or maxTileCols > numColTiles):
-        if (maxTileCols > numColTiles):
-            tilelogger.warning("maxTileCols greater than numColTiles, setting to %d" % numColTiles)
-        maxTileCols = numColTiles
-    if (minTileCols > maxTileCols):
-        tilelogger.warning("minTileCols less than maxTileCols, setting to %d" % maxTileCols)
-        minTileCols = maxTileCols
-    return (minTileRows, minTileCols, maxTileRows, maxTileCols)
-
+        # return peak
+        return self.peak

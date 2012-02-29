@@ -1,0 +1,38 @@
+TopoMC now supports the use of MCEdit schematics in place of randomly
+selected terrain for certain landcover types.
+
+MCEdit is not required to use TopoMC, only to modify or replace the
+example schematics.  It can be found at
+http://davidvierra.com/mcedit/download.html.
+
+To use the schematic feature, add "--enable-schematics" to the ./GetRegion.py command.
+
+The following landcover types support schematics, and have example files:
+
+ * 21: developed/open-space 	       	       "OpenSpace.schematic"
+ * 22: developed/low-intensity		       "Neighborhood.schematic"
+ * 23: developed/medium-intensity 	       "School.schematic"
+ * 24: developed/high-intensity 	       "Apartments.schematic"
+ * 25: commercial-industrial-transportation    "Commercial.schematic"
+ * 82: crops				       "Farm.schematic"
+
+The example schematics demonstrate some of the capabilities of the
+concept.  Some useful tips to keep in mind when designing schematics
+for TopoMC:
+
+ * Make sure sizes are uniform and regular
+   Landcover types can come together like puzzle pieces.  Having all
+   of the schematics the same size with regular road and street-light
+   placement helps the maintain the impression of a consistent world.
+   Also, larger schematics repeat less often and look better.
+
+ * Minimize the use of water
+   The elevation under the schematics is not flattened, so water in
+   schematics runs the risk of inundating local terrain.
+
+ * Do not use end stone
+   End stone is used by TopoMC as a placeholder for stone for terrain
+   generation and ore placement.  Any end stone found in schematics
+   will be converted into stone or possibly ore by the software.
+   
+

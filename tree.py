@@ -1,99 +1,114 @@
 # tree module
 from __future__ import division
-from random import random, randint
-from mcarray import sealevel, setBlockAt, setBlockDataAt
-# for minX, maxX, minZ, maxZ
-import mcarray
+from math import hypot
+import numpy
+from random import randint
 from itertools import product
-from multinumpy import SharedMemArray
-from multiprocessing import Value
-from numpy import zeros, int64, fromfunction, float32, sqrt
+from utils import materialNamed
 
-# tree constants
-treeProb = 0.001
-# If a tree canopy is about 20 units in area, then three trees 
-# in a 10x10 area would provide about 60% coverage.
-forestProb = 0.03
+class Tree:
+    """Each type of tree will be an instance of this class."""
 
-# maximum distance from the trunk
-treeWidth = 2
-leafDistance = fromfunction(lambda i, j: sqrt((i-treeWidth)*(i-treeWidth)+(j-treeWidth)*(j-treeWidth)), (treeWidth*2+1, treeWidth*2+1), dtype=float32)
-# [[ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24],
-#  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],
-#  [ 3.16, 2.23, 1.41, 1.00, 1.41, 2.23, 3.16],
-#  [ 3.00, 2.00, 1.00, 0.00, 1.00, 2.00, 3.00],
-#  [ 3.16, 2.23, 1.41, 1.00, 1.41, 2.23, 3.16],
-#  [ 3.60, 2.82, 2.23, 2.00, 2.23, 2.82, 3.60],
-#  [ 4.24, 3.60, 3.16, 3.00, 3.16, 3.60, 4.24]]
+    # constants
+    treeProb = 0.001
 
-# leaf pattern functions 
-def regularPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= (maxy-y+2)*treeWidth/maxy)
+    # if a tree canopy is about 20 units in area, then three trees in
+    # a 10x10 area would provide about 60% coverage.
+    forestProb = 0.03
 
-def redwoodPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= 0.75*((maxy-y+1)%(treeWidth+1)+1))
+    # maximum distance from the trunk
+    treeWidth = 2
 
-def birchPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= 1.2*(min(y, maxy-y+1)+1))
+    # leaf distance from the trunk
+    leafDistance = numpy.array([[hypot(i-treeWidth,j-treeWidth) for i in xrange(treeWidth*2+1)] for j in xrange(treeWidth*2+1)], dtype=numpy.float32)
 
-def shrubPattern(x, z, y, maxy):
-    return (leafDistance[x, z] <= 1.5*(maxy-y+1)/maxy+0.5)
+    def __init__(self, name, pattern=None, data=None, heights=None):
+        # nobody checks names
+        self.name = name
+        # only leafy trees have patterns
+        self.pattern = pattern
+        # data value is integer for leafy trees and string for non-leafy trees
+        if self.pattern != None:
+            if type(data) is int:
+                self.data = data
+            else:
+                raise AttributeError, "leafy trees require integer values for data: %d" % data
+        else:
+            if type(data) is str:
+                self.data = data
+            else:
+                raise AttributeError, "non-leafy trees require string values for data: %d" % data
+        # heights (max, min, trunk)
+        if type(heights) is list and len(heights) is 3 and all([type(elem) is int for elem in heights]):
+            self.heights = heights
+        else:
+            raise AttributeError, "heights array is not right: ", heights
 
-def palmPattern(x, z, y, maxy):
-    return (y == maxy and leafDistance[x, z] < treeWidth+1)
+    # call routine places a tree in a particular location
+    def __call__(self, coords):
+        """Places tree in a particular location."""
+        # coords: [x, y, z]
+        # __call__ returns blocks, datas
+        # which are lists of x, y, z, value tuples
+        (x, base, z) = coords
+        height = randint(self.heights[0], self.heights[1])
+        leafbottom = base + self.heights[2]
+        maxleafheight = base + height + 1
+        leafheight = maxleafheight - leafbottom
+        # cactus and sugarcane have no patterns
+        if self.pattern == None:
+            blocks = [ (x, base+y, z, self.data) for y in xrange(height) ]
+            datas = []
+        else:
+            blocks = []
+            datas = []
+            lxzrange = xrange(Tree.leafDistance.shape[0])
+            lyrange = xrange(leafheight)
+            for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
+                myleafx = x+leafx-Tree.treeWidth
+                myleafy = leafbottom+leafy
+                myleafz = z+leafz-Tree.treeWidth
+                if self.pattern(leafx, leafy, leafz, leafheight-1):
+                    blocks.append((myleafx, myleafy, myleafz, 'Leaves'))
+                    datas.append((myleafx, myleafy, myleafz, self.data))
+            for y in xrange(base,base+height):
+                blocks.append((x, y, z, 'Wood'))
+                datas.append((x, y, z, self.data))
+        return blocks, datas
 
-# tree statistics
-treeType = {
-    0 : 'Cactus',
-    1 : 'Regular',
-    2 : 'Redwood',
-    3 : 'Birch',
-    4 : 'Shrub'
-    }
-treeCount = {}
-for key in treeType.keys():
-    treeCount[key] = Value('i', 0)
-# min height, max height, trunk height
-treeHeight = [[3, 3, 3], [5, 7, 2], [9, 11, 2], [7, 9, 2], [1, 3, 0]]
-leafPattern = [None, regularPattern, redwoodPattern, birchPattern, shrubPattern]
+    @staticmethod
+    def placetreeintile(tile, tree, mcx, mcy, mcz):
+        coords = [mcx, mcy, mcz]
+        myx = tile.mcoffsetx - mcx
+        myz = tile.mcoffsetx - mcz
+        if (myx < Tree.treeWidth+1 or (tile.size-myx) < Tree.treeWidth+1 or
+            myz < Tree.treeWidth+1 or (tile.size-myz) < Tree.treeWidth+1):
+            # tree is too close to the edge, plant it later
+            try:
+                tile.trees[tree]
+            except KeyError:
+                tile.trees[tree] = []
+            tile.trees[tree].append(coords)
+        else:
+            # plant it now!
+            (blocks, datas) = treeObjs[tree](coords)
+            [ tile.world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
+            [ tile.world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
 
-def printStatistics():
-    # NB: do not convert to logger
-    treeTuples = [(treeType[index], treeCount[index].value) for index in treeCount if treeCount[index].value > 0]
-    treeTotal = sum([treeTuple[1] for treeTuple in treeTuples])
-    print 'Tree statistics (%d total):' % treeTotal
-    for key, value in sorted(treeTuples, key=lambda tree: tree[1], reverse=True):
-        treePercent = (value*100)/treeTotal
-        print '  %d (%.2f%%): %s' % (value, treePercent, key)
+    @staticmethod
+    def placetreesinregion(trees, treeobjs, world):
+        for tree in trees:
+            coords = trees[tree]
+            for coord in coords:
+                (blocks, datas) = treeobjs[tree](coord)
+                [ world.setBlockAt(x, y, z, materialNamed(block)) for (x, y, z, block) in blocks if block != 'Air' ]
+                [ world.setBlockDataAt(x, y, z, data) for (x, y, z, data) in datas if data != 0 ]
 
-def placeTree(x, z, elevval, probFactor, treeName):
-    if (x > mcarray.minX+treeWidth and z > mcarray.minZ+treeWidth and x < mcarray.maxX-treeWidth and z < mcarray.maxZ-treeWidth):
-        chance = random()
-        if (chance < probFactor):
-            treeNum = [key for key in treeType if treeType[key] == treeName][0]
-            makeTree(x, z, elevval, treeNum)
-
-def makeTree(x, z, elevval, treeNum):
-    base = sealevel+elevval
-    height = randint(treeHeight[treeNum][0], treeHeight[treeNum][1])
-    leafbottom = base+treeHeight[treeNum][2]
-    maxleafheight = base+height+1
-    leafheight = maxleafheight-leafbottom
-    # special case cactus!
-    if (treeNum == 0):
-        [setBlockAt(x, base+y, z, 'Cactus') for y in xrange(height)]
-    else:
-        lxzrange = xrange(leafDistance.shape[0])
-        lyrange = xrange(leafheight)
-        for leafx, leafz, leafy in product(lxzrange, lxzrange, lyrange):
-            myleafx = x+leafx-treeWidth
-            myleafy = leafbottom+leafy
-            myleafz = z+leafz-treeWidth
-            if leafPattern[treeNum](leafx, leafz, leafy, leafheight-1):
-                setBlockAt(myleafx, myleafy, myleafz, 'Leaves')
-                setBlockDataAt(myleafx, myleafy, myleafz, treeNum-1)
-        for y in xrange(base,base+height):
-            setBlockAt(x, y, z, 'Wood')
-            setBlockDataAt(x, y, z, treeNum-1)
-    # increment tree count
-    treeCount[treeNum].value += 1
+treeObjs = [ 
+    Tree('Cactus', None, 'Cactus', [3, 3, 3]), 
+    Tree('Sugar Cane', None, 'Sugar Cane', [3, 3, 3]), 
+    Tree('Regular', (lambda x, y, z, maxy: Tree.leafDistance[x, z] <= (maxy-y+2)*Tree.treeWidth/maxy), 0, [5, 7, 2]),
+    Tree('Redwood', (lambda x, y, z, maxy: Tree.leafDistance[x, z] <= 0.75*((maxy-y+1)%(Tree.treeWidth+1)+1)), 1, [9, 11, 2]),
+    Tree('Birch', (lambda x, y, z, maxy: Tree.leafDistance[x, z] <= 1.2*(min(y, maxy-y+1)+1)), 2, [7, 9, 2]),
+    Tree('Shrub', (lambda x, y, z, maxy: Tree.leafDistance[x, z] <= 1.5*(maxy-y+1)/maxy+0.5), 3, [1, 3, 0]),
+    Tree('Palm', (lambda x, y, z, maxy: y == maxy and Tree.leafDistance[x, z] < Tree.treeWidth+1), 0, [5, 7, 2]) ]

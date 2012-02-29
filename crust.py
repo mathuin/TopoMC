@@ -1,40 +1,28 @@
-# this module is for the "crust" layer above the stone
-
-from __future__ import division
-from dataset import getDatasetDims, getDataset
-from coords import getLatLongArray
-from invdisttree import Invdisttree
+# crust module
 from itertools import product
-from numpy import array, int32, fromfunction, uint8, max, min
 from random import randint, uniform
-from timer import timer
-import logging
-logging.basicConfig(level=logging.WARNING)
-crustlogger = logging.getLogger('crust')
+from clidt import CLIDT
 
-crustIDT = None
+class Crust:
+    """Smoothly irregular crust between the surface and the underlying stone."""
 
-# first generate the crust IDT for the whole map
-@timer(crustlogger.info)
-def makeCrustIDT(args):
-    rows, cols = getDatasetDims(args.region)
-    lcds, elevds = getDataset(args.region)
-    global crustIDT
-    crustCoordsList = []
-    crustValuesList = []
-    crustlogger.info("making Crust IDT")
-    # trying ten percent since one seemed too lame
-    worldLatLong = getLatLongArray(lcds, (0, 0), (rows, cols), 1)
-    crustCoordsList = [worldLatLong[randint(0,rows-1)*cols+randint(0,cols-1)] for elem in xrange(int(rows*cols*0.01))]
-    crustValuesList = [uniform(1,5) for elem in crustCoordsList]
-    crustIDT = Invdisttree(array(crustCoordsList), array(crustValuesList))
+    # these constants chosen by observation
+    minwidth = 1
+    maxwidth = 5
 
-# construct the crust array for the tile
-def getCrust(bathyArray, baseArray):
-    "Get crust array."
-    crustArray = crustIDT(baseArray, nnear=11)
-    return crustArray
-    
-    
-    
+    def __init__(self, xsize, zsize, coverage=0.05, wantCL=True):
+        self.xsize = xsize
+        self.zsize = zsize
+        self.coverage = coverage
+        self.wantCL = wantCL
+        self.numcoords = int(self.xsize * self.zsize * self.coverage)
+        self.shape = (self.zsize, self.xsize)
+        self.coords = [(randint(0, self.zsize-1), randint(0, self.xsize-1)) for elem in xrange(self.numcoords)]
+        self.values = [uniform(Crust.minwidth, Crust.maxwidth) for elem in xrange(self.numcoords)]
+        self.base = [(z, x) for z, x in product(xrange(self.zsize), xrange(self.xsize))]
+        self.clidt = CLIDT(self.coords, self.values, self.base, wantCL=self.wantCL, majority=False)
 
+    def __call__(self):
+        retval = self.clidt()
+        retval.resize((self.zsize, self.xsize))
+        return retval
