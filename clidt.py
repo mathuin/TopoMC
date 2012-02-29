@@ -1,5 +1,6 @@
 # OpenCL/IDT module
 import numpy as np
+import sys
 from itertools import product
 from invdisttree import Invdisttree
 try:
@@ -31,7 +32,18 @@ class CLIDT:
             chunkarr = cla.to_device(self.queue, np.asarray(chunk, dtype=np.int32))
             template = cla.empty_like(chunkarr)
             event = self.program.trim(self.queue, chunkarr.shape, None, chunkarr.data, template.data, np.int32(self.split))
-            event.wait()
+            try:
+                event.wait()
+            except cl.RuntimeError, inst:
+                errstr = inst.__str__()
+                if errstr == "clWaitForEvents failed: out of resources":
+                    print 'OpenCL timed out, probably due to the display manager.'
+                    print 'Disable your display manager and try again!'
+                    print 'If that does not work, rerun with OpenCL disabled.'
+                else:
+                    raise cl.RuntimeError, inst
+                sys.exit(1)
+
             for index, elem in enumerate(template.get()):
                 splitkey = tuple([x for x in elem],)
                 try:
@@ -84,7 +96,17 @@ class CLIDT:
         base_array = cla.to_device(self.queue, base)
         template_array = cla.zeros(self.queue, (lenbase), dtype=np.int32)
         event = self.program.nearest(self.queue, base.shape, None, coords_array.data, values_array.data, base_array.data, template_array.data, np.int32(lencoords), self.nnear, self.usemajority)
-        event.wait()
+        try:
+            event.wait()
+        except cl.RuntimeError, inst:
+            errstr = inst.__str__()
+            if errstr == "clWaitForEvents failed: out of resources":
+                print 'OpenCL timed out, probably due to the display manager.'
+                print 'Disable your display manager and try again!'
+                print 'If that does not work, rerun with OpenCL disabled.'
+            else:
+                raise cl.RuntimeError, inst
+            sys.exit(1)
 
         return template_array.get()
 
