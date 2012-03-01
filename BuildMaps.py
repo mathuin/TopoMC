@@ -33,7 +33,7 @@ def main(argv):
 	cleanmkdir(os.path.join('Maps', args.name))
         command = 'C10T=../c10t/build/c10t ../c10t/scripts/google-api/google-api.sh -w Worlds/%s -o Maps/%s -O "-M 2048 -z --center %d,%d"' % (args.name, args.name, centerx, centerz)
     else:
-        command = '../c10t/build/c10t -M 2048 -z -w Worlds/%s -o %s.png --center %d,%d' % (args.name, args.name, centerx, centerz)
+        command = '../c10t/build/c10t -M 2048 -z -w Worlds/%s -o Maps/%s.png --center %d,%d' % (args.name, args.name, centerx, centerz)
 
     os.system(command)
 
