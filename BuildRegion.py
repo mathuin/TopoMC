@@ -19,7 +19,6 @@ from pymclevel import mclevel
 def buildtile(args):
     """Given a region name and coordinates, build the corresponding tile."""
     # this should work for single and multi threaded cases
-    global trees, ores, world, peak
     (name, tilex, tiley) = args
     yamlfile = file(os.path.join('Regions', name, 'Region.yaml'))
     myRegion = yaml.load(yamlfile)
@@ -65,7 +64,10 @@ def main(argv):
     peak = [0, 0, 0]
 
     # generate individual tiles
-    tiles = [(myRegion.name, tilex, tiley) for tilex, tiley in product(xrange(myRegion.tiles['xmin'], myRegion.tiles['xmax']), xrange(myRegion.tiles['ymin'], myRegion.tiles['ymax']))]
+    tilexrange = xrange(myRegion.tiles['xmin'], myRegion.tiles['xmax'])
+    tileyrange = xrange(myRegion.tiles['ymin'], myRegion.tiles['ymax'])
+    name = myRegion.name
+    tiles = [(name, x, y) for x, y in product(tilexrange, tileyrange)]
     if args.single:
         # single process version - works
         for tile in tiles:
@@ -80,8 +82,8 @@ def main(argv):
     # merge individual worlds into it
     print "Merging %d tiles into one world..." % len(tiles)
     for tile in tiles:
-        (name, tilex, tiley) = tile
-        tiledir = os.path.join('Regions', name, 'Tiles', '%dx%d' % (tilex, tiley))
+        (name, x, y) = tile
+        tiledir = os.path.join('Regions', name, 'Tiles', '%dx%d' % (x, y))
         tilefile = file(os.path.join(tiledir, 'Tile.yaml'))
         newtile = yaml.load(tilefile)
         tilefile.close()
