@@ -16,6 +16,17 @@ from ore import Ore, oreObjs
 sys.path.append('..')
 from pymclevel import mclevel
 
+def buildtile(args):
+    """Given a region name and coordinates, build the corresponding tile."""
+    # this should work for single and multi threaded cases
+    global trees, ores, world, peak
+    (name, tilex, tiley) = args
+    yamlfile = file(os.path.join('Regions', name, 'Region.yaml'))
+    myRegion = yaml.load(yamlfile)
+    yamlfile.close()
+    myTile = Tile(myRegion, tilex, tiley)
+    myTile()
+
 def main(argv):
     """Builds a region."""
     # example:
@@ -42,62 +53,45 @@ def main(argv):
     if not os.path.exists(myRegion.mapname):
         raise IOError, "no map file exists"
 
-    # generate overall world
-    worlddir = os.path.join('Worlds', args.name)
-    world = mclevel.MCInfdevOldLevel(worlddir, create=True)
-    peak = [0, 0, 0]
-
-    # generate individual tiles
-    # if I ever get this blessed thing to work,
-    # use a callback to return the peak
-    # AND add the world to the uberworld
-    # ... that will save a loop at the least!
-    tiles = [(tilex, tiley) for tilex, tiley in product(xrange(myRegion.tiles['xmin'], myRegion.tiles['xmax']), xrange(myRegion.tiles['ymin'], myRegion.tiles['ymax']))]
-    if args.single:
-        # single process version - works
-        for tile in tiles:
-            (tilex, tiley) = tile
-            myTile = Tile(myRegion, tilex, tiley)
-            myTile.build()
-    else:
-        # multi-process ... let's see...
-        pool = Pool()
-        tasks = ["./BuildTile.py %s %d %d" % (myRegion.name, tilex, tiley) for (tilex, tiley) in tiles]
-        results = pool.map(os.system, tasks)
-        peaks = [x for x in results]
-        pool = None
-
     # tree and ore variables
     treeobjs = dict([(tree.name, tree) for tree in treeObjs])
     trees = dict([(name, list()) for name in treeobjs])
     oreobjs = dict([(ore.name, ore) for ore in oreObjs])
     ores = dict([(name, list()) for name in oreobjs])
 
+    # generate overall world
+    worlddir = os.path.join('Worlds', args.name)
+    world = mclevel.MCInfdevOldLevel(worlddir, create=True)
+    peak = [0, 0, 0]
+
+    # generate individual tiles
+    tiles = [(myRegion.name, tilex, tiley) for tilex, tiley in product(xrange(myRegion.tiles['xmin'], myRegion.tiles['xmax']), xrange(myRegion.tiles['ymin'], myRegion.tiles['ymax']))]
+    if args.single:
+        # single process version - works
+        for tile in tiles:
+            buildtile(tile)
+    else:
+        # multi-process ... let's see...
+        pool = Pool()
+        pool.map(buildtile, tiles)
+        pool.close()
+        pool.join()
+
     # merge individual worlds into it
     print "Merging %d tiles into one world..." % len(tiles)
     for tile in tiles:
-        (tilex, tiley) = tile
-        tiledir = os.path.join('Regions', myRegion.name, 'Tiles', '%dx%d' % (tilex, tiley))
+        (name, tilex, tiley) = tile
+        tiledir = os.path.join('Regions', name, 'Tiles', '%dx%d' % (tilex, tiley))
         tilefile = file(os.path.join(tiledir, 'Tile.yaml'))
         newtile = yaml.load(tilefile)
         tilefile.close()
         if (newtile.peak[1] > peak[1]):
             peak = newtile.peak
         for treetype in newtile.trees:
-            coords = newtile.trees[treetype]
-            try:
-                trees[treetype]
-            except KeyError:
-                trees[treetype] = []
-            trees[treetype] += coords
+            trees.setdefault(treetype, []).extend(newtile.trees[treetype])
         if myRegion.doOre:
             for oretype in newtile.ores:
-                coords = newtile.ores[oretype]
-                try:
-                    ores[oretype]
-                except KeyError:
-                    ores[oretype] = []
-                ores[oretype] += coords
+                ores.setdefault(oretype, []).extend(newtile.ores[oretype])
         tileworld = mclevel.MCInfdevOldLevel(tiledir, create=False)
         world.copyBlocksFrom(tileworld, tileworld.bounds, tileworld.bounds.origin)
         tileworld = False
