@@ -24,7 +24,7 @@ def main(argv):
 
     # build the tile
     myTile = Tile(myRegion, tilex, tiley)
-    myTile.build()
+    myTile()
     
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

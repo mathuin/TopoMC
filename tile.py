@@ -45,7 +45,7 @@ class Tile:
         self.tiledir = os.path.join(region.regiondir, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
         cleanmkdir(self.tiledir)
 
-    def build(self):
+    def __call__(self):
         """Actually build the Minecraft world that corresponds to a tile."""
 
         # calculate offsets
