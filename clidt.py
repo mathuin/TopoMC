@@ -58,9 +58,8 @@ class CLIDT:
         self.coords = np.asarray(coords, dtype=np.int32)
         self.values = np.asarray(values, dtype=np.int32)
         self.base = np.asarray(base, dtype=np.int32)
-        (lencoords, null) = self.coords.shape
-        (lenvalues,) = self.values.shape
-        (lenbase, null) = self.base.shape
+        lencoords = self.coords.shape[0]
+        lenvalues = self.values.shape[0]
         assert lencoords == lenvalues, "lencoords does not equal lenvalues"
         
         self.wantCL = wantCL
@@ -77,6 +76,7 @@ class CLIDT:
                 self.coordindices = self.genindices(self.coords)
                 self.baseindices = self.genindices(self.base)
                 self.canCL = True
+            # FIXME: specify an exception type
             except:
                 print "warning: unable to use pyopencl, defaulting to Invdisttree"
                 self.canCL = False
@@ -89,8 +89,9 @@ class CLIDT:
         self.usemajority = np.int32(1 if majority else 0)
 
     def build(self, coords, values, base):
-        (lenbase, null) = base.shape
-        (lencoords, null) = coords.shape
+        """Use OpenCL to build the arrays."""
+        lenbase = base.shape[0]
+        lencoords = coords.shape[0]
         coords_array = cla.to_device(self.queue, coords)
         values_array = cla.to_device(self.queue, values)
         base_array = cla.to_device(self.queue, base)
@@ -113,13 +114,13 @@ class CLIDT:
     def __call__(self):
         # build output array
         if self.wantCL and self.canCL:
-            (lenbase, null) = self.base.shape
+            lenbase = self.base.shape[0]
             retval = np.zeros((lenbase), dtype=np.int32)
             for key, value in self.baseindices.items():
                 (a, b) = key
                 cindices = []
                 # currently grabs nine bins for each processed bin
-                pairs = [(c, d) for c, d in product(xrange(a-1,a+2), xrange(b-1,b+2)) if (c,d) in self.coordindices.keys()]
+                pairs = [(c, d) for c, d in product(xrange(a-1, a+2), xrange(b-1, b+2)) if (c, d) in self.coordindices.keys()]
                 for pair in pairs:
                     cindices += self.coordindices[pair]
                 coords = self.coords[cindices]

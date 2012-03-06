@@ -24,7 +24,7 @@ def checkLandcoverIDs(string):
     else:
         raise argparse.ArgumentTypeError, 'landcover IDs invalid: %s' % string
 
-def main(argv):
+def main():
     """Creates a specified region and downloads files from USGS."""
     # example:
     # ./GetRegion.py --name BlockIsland --ymax 41.2378 --ymin 41.1415 --xmin -71.6202 --xmax -71.5332
@@ -65,5 +65,5 @@ def main(argv):
     myRegion.getfiles()
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.exit(main())
 

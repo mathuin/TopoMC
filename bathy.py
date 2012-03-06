@@ -3,6 +3,7 @@
 from osgeo import gdal
 
 def getBathy(deptharray, maxdepth, geotrans, projection):
+    """Generate simulated bathymetry data based on distance from shore."""
     # save deptharray as a dataset named depthds
     (depthz, depthx) = deptharray.shape
     drv = gdal.GetDriverByName('MEM')

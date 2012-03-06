@@ -26,7 +26,7 @@ def buildtile(args):
     myTile = Tile(myRegion, tilex, tiley)
     myTile()
 
-def main(argv):
+def main():
     """Builds a region."""
     # example:
     # ./BuildRegion.py --name BlockIsland
@@ -119,5 +119,5 @@ def main(argv):
     setspawnandsave(world, peak)
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.exit(main())
 

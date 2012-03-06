@@ -17,7 +17,7 @@ class Crust:
         self.wantCL = wantCL
         self.numcoords = int(self.xsize * self.zsize * self.coverage)
         self.shape = (self.zsize, self.xsize)
-        self.coords = [(randint(0, self.zsize-1), randint(0, self.xsize-1)) for elem in xrange(self.numcoords)]
+        self.coords = [(randint(0, self.zsize-1), randint(0, self.xsize-1)) for dummy in xrange(self.numcoords)]
         self.values = [uniform(Crust.minwidth, Crust.maxwidth) for elem in xrange(self.numcoords)]
         self.base = [(z, x) for z, x in product(xrange(self.zsize), xrange(self.xsize))]
         self.clidt = CLIDT(self.coords, self.values, self.base, wantCL=self.wantCL, majority=False)

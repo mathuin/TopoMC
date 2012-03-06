@@ -7,7 +7,7 @@ import argparse
 import os
 import yaml
 
-def main(argv):
+def main():
     """Rebuilds maps on broken regions."""
     parser = argparse.ArgumentParser(description='Prepares downloaded regions for building.')
     parser.add_argument('--name', required=True, type=str, help='name of region')
@@ -23,4 +23,4 @@ def main(argv):
     myRegion.buildmap(args.doOCL)
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.exit(main())

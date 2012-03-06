@@ -27,6 +27,9 @@ import numpy
 from clidt import CLIDT
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
+    def __init__(self):
+        pass
+
     """stupid redirect handling craziness"""
     def http_error_302(self, req, fp, code, msg, headers):
         result = urllib2.HTTPRedirectHandler.http_error_302(self, req, fp, code, msg, headers)
@@ -88,7 +91,7 @@ class Region:
     compressionTypes = { 'tgz': ['T'],
                          'zip': ['Z'] }
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, debug=False, doOre=True, doSchematics=False):
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
@@ -233,10 +236,6 @@ class Region:
         self.lclayer = self.checkavail(landcoverIDs, 'landcover')
         self.ellayer = self.checkavail(elevationIDs, 'elevation')
 
-        # write yaml file
-        self.writeyaml()
-
-    def writeyaml(self):
         # write the values to the file
         stream = file(os.path.join(self.regiondir, 'Region.yaml'), 'w')
         yaml.dump(self, stream)
@@ -307,7 +306,7 @@ class Region:
         for elem in rAatts.ArrayOfCustomAttributes:
             for each in elem[0]:
                 if (each[0] == 'PRODUCTKEY' and each[1] in productlist):
-                        offered.append(each[1])
+                    offered.append(each[1])
         # this should extract the first
         try:
             productID = [ ID for ID in productlist if ID in offered ][0]
@@ -372,8 +371,6 @@ class Region:
 
     def downloadfile(self, layerID, downloadURL):
         """Actually download the file at the URL."""
-        # FIXME: extract try/expect around urlopen
-        # FIXME: consider breaking apart further
         (pType, iType, mType, cType) = self.decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
         cleanmkdir(layerdir)
@@ -414,7 +411,7 @@ class Region:
             # parse out status code and status text
             startPos = result.find("<ns:return>") + 11
             endPos = result.find("</ns:return>")
-            (code, status) = result[startPos:endPos].split(',',1)
+            (code, status) = result[startPos:endPos].split(',', 1)
             print "  status is %s" % status
             if (int(code) == 400):
                 break
@@ -436,7 +433,7 @@ class Region:
                 raise IOError
         else:
             print "  downloading %s now!" % filename
-            downloadFile = open(os.path.join(layerdir,filename), 'wb')
+            downloadFile = open(os.path.join(layerdir, filename), 'wb')
             while True:
                 data = obj.read(8192)
                 if data == "":
@@ -496,10 +493,10 @@ class Region:
                         cFile.extract(compimage, layerdir)
                     elif (cType == "zip"):
                         omfgcompimage = "\\".join([compbase, "%s.%s" % (compbase, iType)])
-                        os.mkdir(os.path.dirname(os.path.join(datasubdir,compimage)))
+                        os.mkdir(os.path.dirname(os.path.join(datasubdir, compimage)))
                         cFile = zipfile.ZipFile(fullfile)
                         cFile.extract(omfgcompimage, datasubdir)
-                        os.rename(os.path.join(datasubdir,omfgcompimage),os.path.join(layerdir,compimage))
+                        os.rename(os.path.join(datasubdir, omfgcompimage), os.path.join(layerdir, compimage))
                     cFile.close()
             vrtfile = '%s.vrt' % layerID
             buildvrtcmd = 'gdalbuildvrt %s */*.%s >/dev/null' % (vrtfile, iType)
@@ -629,8 +626,8 @@ class Region:
             # depth array is entire landcover region, landcover array is subset
             deptharray = lcband.ReadAsArray(0, 0, lcds.RasterXSize, lcds.RasterYSize)
         lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
-	geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
-	projection = srs.ExportToWkt()
+        geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
+        projection = srs.ExportToWkt()
         bathyarray = getBathy(deptharray, self.maxdepth, geotrans, projection)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         # perform terrain translation
@@ -640,10 +637,8 @@ class Region:
             trans = Terrain.translate[lcpid]
             for key in trans:
                 lcarray[lcarray == key] = 1000+trans[key]
-            lcarray[lcarray>1000] -= 1000
-            examples = numpy.unique(lcarray)
-            examples = examples.flatten()
-            for value in examples:
+            lcarray[lcarray > 1000] -= 1000
+            for value in numpy.unique(lcarray).flat:
                 if value not in Terrain.terdict:
                     print "bad value: ", value
         mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)

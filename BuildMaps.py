@@ -10,6 +10,7 @@ from pymclevel import mclevel
 import argparse
 
 def center(name):
+    """Returns the center chunk values for a given region."""
     worlddir = os.path.join('Worlds', name, 'level.dat')
     world = mclevel.fromFile(worlddir)
     bounds = world.bounds
@@ -19,7 +20,8 @@ def center(name):
     world = None
     return centerx/16, centerz/16
 
-def main(argv):
+def main():
+    """The main routine."""
     parser = argparse.ArgumentParser(description='Builds c10t maps for regions.')
     parser.add_argument('--name', required=True, type=str, help='name of region to be mapped')
     parser.add_argument('--gmaps', action='store_true', help='generate Google Maps')
@@ -30,7 +32,7 @@ def main(argv):
     (centerx, centerz) = center(args.name)
 
     if args.gmaps:
-	cleanmkdir(os.path.join('Maps', args.name))
+        cleanmkdir(os.path.join('Maps', args.name))
         command = 'C10T=../c10t/build/c10t ../c10t/scripts/google-api/google-api.sh -w Worlds/%s -o Maps/%s -O "-M 2048 -z --center %d,%d"' % (args.name, args.name, centerx, centerz)
     else:
         command = '../c10t/build/c10t -M 2048 -z -w Worlds/%s -o Maps/%s.png --center %d,%d' % (args.name, args.name, centerx, centerz)
@@ -38,6 +40,6 @@ def main(argv):
     os.system(command)
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.exit(main())
 
     

@@ -27,9 +27,9 @@ class Ore:
         # generate ellipsoid values based on parameters
         (mcx, mcy, mcz) = coords
         # start with random radius-like values
-        x0 = randint(1,4)
-        y0 = randint(1,4)
-        z0 = randint(1,4)
+        x0 = randint(1, 4)
+        y0 = randint(1, 4)
+        z0 = randint(1, 4)
         v0 = 4/3 * pi * x0 * y0 * z0
         # scale to match volume and round up
         scale = cbrt(self.size / v0)
@@ -60,10 +60,10 @@ class Ore:
 
         for ore in oreobjs:
             extent = cbrt(oreobjs[ore].size)*2
-            maxy = pow(2,oreobjs[ore].depth)
+            maxy = pow(2, oreobjs[ore].depth)
             numrounds = int(oreobjs[ore].rounds * (tile.size/16) * (tile.size/16))
             oreID = materialNamed(oreobjs[ore].name)
-            for oreround in xrange(numrounds):
+            for dummy in xrange(numrounds):
                 orex = randint(0, tile.size)
                 orey = randint(0, maxy)
                 orez = randint(0, tile.size)
@@ -97,5 +97,3 @@ oreObjs = [
     Ore('Diamond Ore', 4, 1, 7),
     Ore('Redstone Ore', 4, 8, 7),
     Ore('Lapis Lazuli Ore', 4, 3, 7) ]
-
-oreDQ = set([ore.name for ore in oreObjs] + ['Air', 'Water', 'Water (active)', 'Lava', 'Lava (active)', 'Bedrock'])
