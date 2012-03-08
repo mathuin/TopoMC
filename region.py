@@ -14,8 +14,6 @@ import zipfile
 import tarfile
 from utils import cleanmkdir
 from terrain import Terrain
-import sys
-sys.path.append('..')
 from pymclevel import mclevel
 
 from osgeo import gdal, osr

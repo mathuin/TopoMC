@@ -12,8 +12,6 @@ from utils import cleanmkdir, setspawnandsave
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
 
-import sys
-sys.path.append('..')
 from pymclevel import mclevel, box
 from terrain import Terrain
 from tree import Tree, treeObjs

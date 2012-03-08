@@ -3,8 +3,6 @@
 import logging
 logging.basicConfig(level=logging.WARNING)
 import os
-import sys
-sys.path.append('..')
 from utils import cleanmkdir
 from pymclevel import mclevel
 import argparse
@@ -40,6 +38,6 @@ def main():
     os.system(command)
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()
 
     

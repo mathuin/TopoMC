@@ -4,7 +4,6 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 from tile import Tile
 from utils import setspawnandsave
-import sys
 import argparse
 import os
 import yaml
@@ -12,8 +11,6 @@ from multiprocessing import Pool
 from itertools import product
 from tree import Tree, treeObjs
 from ore import Ore, oreObjs
-
-sys.path.append('..')
 from pymclevel import mclevel
 
 def buildtile(args):
@@ -119,5 +116,5 @@ def main():
     setspawnandsave(world, peak)
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()
 

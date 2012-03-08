@@ -1,8 +1,6 @@
 # schematic module
 from utils import height
 import os
-import sys
-sys.path.append('..')
 from pymclevel import mclevel
 
 class Schematic:

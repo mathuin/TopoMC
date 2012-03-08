@@ -2,8 +2,6 @@
 import os
 import shutil
 from memoize import memoize
-import sys
-sys.path.append('..')
 from pymclevel.materials import alphaMaterials
 
 def cleanmkdir(dir):
