@@ -112,21 +112,16 @@ class Region:
             else:
                 raise AttributeError, 'bad scale %s' % scale
 
-        # sealevel 
+        # sealevel and maxdepth are not checked until after files are retrieved
         if sealevel == None:
             sealevel = Region.sealevel
         else:
-            minsealevel = 2
-            maxsealevel = Region.tileheight - Region.headroom
-            self.sealevel = min(max(sealevel, minsealevel), maxsealevel)
+            self.sealevel = sealevel
 
-        # maxdepth depends upon sealevel
         if maxdepth == None:
             maxdepth = Region.maxdepth
         else:
-            minmaxdepth = 1
-            maxmaxdepth = self.sealevel - 1
-            self.maxdepth = min(max(maxdepth, minmaxdepth), maxmaxdepth)
+            self.maxdepth = maxdepth
 
         # trim and vscale are not checked until after files are retrieved
         if trim == None:
@@ -526,7 +521,7 @@ class Region:
         elarray = elband.ReadAsArray(0, 0, elds.RasterXSize, elds.RasterYSize)
         (elysize, elxsize) = elarray.shape
 
-        # update trim and vscale
+        # update sealevel, trim and vscale
         elmin = elband.GetMinimum()
         elmax = elband.GetMaximum()
         if elmin is None or elmax is None:
@@ -536,9 +531,27 @@ class Region:
         elband = None
         elds = None
 
-        # trim depends upon minelev
+        # sealevel depends upon elmin
+        minsealevel = 2
+        # if minimum elevation is below sea level, add extra space
+        if (elmin < 0):
+            minsealevel += int(-1.0*elmin/self.scale)
+        maxsealevel = Region.tileheight - Region.headroom
+        oldsealevel = self.sealevel
+        if (oldsealevel > maxsealevel or oldsealevel < minsealevel):
+            print "warning: sealevel value %d outside %d-%d range" % (oldsealevel, minsealevel, maxsealevel)
+        self.sealevel = int(min(max(oldsealevel, minsealevel), maxsealevel))
+
+        # maxdepth depends upon sealevel
+        minmaxdepth = 1
+        maxmaxdepth = self.sealevel - 1
+        oldmaxdepth = self.maxdepth
+        if (oldmaxdepth > maxmaxdepth or oldmaxdepth < minmaxdepth):
+            print "warning: maxdepth value %d outside %d-%d range" % (oldmaxdepth, minmaxdepth, maxmaxdepth)
+        self.maxdepth = int(min(max(oldmaxdepth, minmaxdepth), maxmaxdepth))
+
+        # trim depends upon elmin (if elmin < 0, trim == 0)
         mintrim = Region.trim
-	# what if the minimum elevation is below sea level?!
         maxtrim = max(elmin, mintrim)
         oldtrim = self.trim
         if (oldtrim > maxtrim or oldtrim < mintrim):
