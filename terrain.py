@@ -176,15 +176,15 @@ class Terrain:
             print "lcval value %s not found!" % lcval
         (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doSchematics)
         merged = [ (depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column ]
-        blocks = []
-        datas = []
-        overstone = height(merged)
-        core = [ (1, ('Bedrock', 0)), (y-overstone-1, ('End Stone', 0)) ] + merged
+        # y=0 is always bedrock
+        blocks = [ (0, materialNamed('Bedrock')) ]
+        datas = [ (0, 0) ]
+        core = [ ((y - height(merged)), ('End Stone', 0)) ] + merged
         base = 0
         while core:
             (depth, (block, data)) = core.pop(0)
-            [ blocks.append((y, materialNamed(block) if type(block) is str else block)) for y in xrange(base, base+depth) ]
-            [ datas.append((y, data)) for y in xrange(base, base+depth) ]
+            [ blocks.append((y, materialNamed(block) if type(block) is str else block)) for y in xrange(base, base+depth) if y > 0 ]
+            [ datas.append((y, data)) for y in xrange(base, base+depth) if y > 0 ]
             base += depth
         return blocks, datas, tree
 
