@@ -14,6 +14,10 @@ Major changes:
 
  * The safehouse has been removed, but the default spawn point is still at the highest point in the dataset.
 
+Before running TopoMC:
+
+You will need some additional software installed on your system before TopoMC can run.  On Ubuntu (precise pangolin), the following packages need to be installed:  git gdal-bin python-scipy python-gdal python-suds python-yaml.  Other operating systems use other packaging systems so you're on your own -- the error messages will tell you what's missing, but it's up to you to find it and install it!
+
 How to use TopoMC:
 
 The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet (still limited to the United States and its possessions, alas) and right-click to place latlong markers in the upper left and lower right of the region you wish to model.  This will give you the maximum and minimum latitude and longitude (Y and X in this model) values.
