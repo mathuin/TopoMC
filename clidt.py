@@ -80,6 +80,8 @@ class CLIDT:
             except:
                 print "warning: unable to use pyopencl, defaulting to Invdisttree"
                 self.canCL = False
+        else:
+            self.canCL = False
 
         if nnear == None:
             self.nnear = np.int32(CLIDT.nnear)
