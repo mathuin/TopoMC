@@ -485,14 +485,17 @@ class Region:
                         cFile = tarfile.open(fullfile)
                         cFile.extract(compimage, layerdir)
                     elif (cType == "zip"):
-                        omfgcompimage = "\\".join([compbase, "%s.%s" % (compbase, iType)])
+                        omfgcompimage = os.path.join(compbase, '%s.%s' % (compbase, iType))
                         os.mkdir(os.path.dirname(os.path.join(datasubdir, compimage)))
                         cFile = zipfile.ZipFile(fullfile)
                         cFile.extract(omfgcompimage, datasubdir)
                         os.rename(os.path.join(datasubdir, omfgcompimage), os.path.join(layerdir, compimage))
                     cFile.close()
             vrtfile = '%s.vrt' % layerID
-            buildvrtcmd = 'gdalbuildvrt %s */*.%s >/dev/null' % (vrtfile, iType)
+            #buildvrtcmd = 'gdalbuildvrt %s */*.%s >/dev/null' % (vrtfile, iType)
+            # NB: make this work on Windows too!
+            wildcard = '*'
+            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, os.path.join(wildcard, '%s.%s' % (wildcard, iType)))
             os.system('cd %s && %s' % (layerdir, buildvrtcmd))
 
     def getfiles(self):
@@ -512,7 +515,10 @@ class Region:
         elvrt = os.path.join(self.mapsdir, self.ellayer, '%s.vrt' % (self.ellayer)) 
         elfile = os.path.join(self.mapsdir, self.ellayer, '%s.tif' % (self.ellayer))
         elextents = self.albersextents['elevation']
-        warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s' % (elfile, Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
+        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
+
+        os.remove(elfile)
+        # NB: make this work on Windows too!
         os.system("%s" % warpcmd)
 
         elds = gdal.Open(elfile, GA_ReadOnly)
@@ -630,7 +636,10 @@ class Region:
             deptharray.resize((depthylen, depthxlen))
             lcCLIDT = None
         else:
-            warpcmd = 'rm -rf %s && gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (lcfile, Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
+
+            os.remove(lcfile)
+            # NB: make this work on Windows too!
             os.system("%s" % warpcmd)
             lcds = gdal.Open(lcfile, GA_ReadOnly)
             lcband = lcds.GetRasterBand(1)
