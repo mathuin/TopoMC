@@ -4,13 +4,13 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 ## Major changes:
 
-* TopoMC now runs on Windows!  Kinda.  I think.  It works for me, anyway!  See [[RunningOnWindows]] for more details!
+* TopoMC now runs on Windows!  Kinda.  I think.  It works for me, anyway!  See [this](https://github.com/mathuin/TopoMC/wiki/RunningOnWindows) for more details!
 
 * The array and world code has been replaced with region-based code which improve accuracy while saving CPU and memory.  The new commands to download, prepare, and build regions are documented below.
 
 * GPGPU support has been added. Yes, your video card can help you build Minecraft worlds!  This latest feature relies on [PyOpenCL](http://mathema.tician.de/software/pyopencl) and its associated dependencies, and is not supported on all systems.
 
-* The landcover code has been rewritten to support the usage of MCEdit schematics as templates for certain areas, specifically croplands (farms) and developed areas.  More information about this feature can be found at [[UsingSchematics]].
+* The landcover code has been rewritten to support the usage of MCEdit schematics as templates for certain areas, specifically croplands (farms) and developed areas.  More information about this feature can be found [here](https://github.com/mathuin/TopoMC/wiki/UsingSchematics).
 
 * pymclevel has been included as a submodule.  This release of pymclevel includes an accelerated NBT module which must be compiled before use, as seen below.  This module can have a significant impact on performance.
 
