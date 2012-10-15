@@ -1,116 +1,99 @@
-# it is time to place some ore
-
+# ore module
 from __future__ import division
 from random import randint
-from multiprocessing import Value
-from scipy.special import cbrt
 from math import pi
-from mcarray import getBlockAt, getBlocksAt, setBlocksAt, arrayBlocks
-# for minX, minZ, maxX, and maxZ
-import mcarray
-from multiprocessing import Pool
+from scipy.special import cbrt
 from itertools import product
-from timer import timer
-import logging
-logging.basicConfig(level=logging.WARNING)
-orelogger = logging.getLogger('ore')
+from utils import materialNamed
 
-# http://www.minecraftwiki.net/wiki/Ore
-oreType = {
-    0: 'Dirt',
-    1: 'Gravel',
-    2: 'Coal Ore',
-    3: 'Iron Ore',
-    4: 'Gold Ore', 
-    5: 'Diamond Ore',
-    6: 'Redstone Ore',
-    7: 'Lapis Lazuli Ore'
-}
-oreDepth = [7, 7, 7, 6, 5, 4, 4, 4]
-# http://www.minecraftforum.net/viewtopic.php?f=35&t=28299
-# "rounds" is how many times per chunk a deposit is generated
-# "size" is the rough max size of a deposit
-# user guide says (size/4)*(size/4)*(2+size/8)
-# I am insane. I model an ideal ellipsoid.  Yay!
-# BTW: LL round value of 3 a guess.
-oreRounds = [20, 10, 20, 20, 2, 1, 8, 3]
-oreSize = [32, 32, 16, 8, 8, 7, 7, 7]
-# statistics tracks nodes and veins
-oreNodeCount = {}
-oreVeinCount = {}
-for key in oreType.keys():
-    oreNodeCount[key] = Value('i', 0)
-    oreVeinCount[key] = Value('i', 0)
-# any ore that tries to replace these blocks is hereby disqualified
-oreDQ = set(oreType.values() + ['Air', 'Water', 'Water (active)', 'Lava', 'Lava (active)', 'Bedrock'])
+# http://www.minecraftforum.net/topic/25886-elites-of-minecraft-the-miner-first-ore-loss-calculated/ (must be logged in)
 
-# actually deposits the ore
-def processOre(oreName, minY, maxY, maxExtent):
-    "Deposits ore in a random part of the ground."
-    clumpX = randint(int(maxExtent*100),int(maxExtent*900))/1000
-    clumpY = randint(int(maxExtent*100),int(maxExtent*900))/1000
-    clumpZ = randint(int(maxExtent*100),int(maxExtent*900))/1000
-    clumpScale = ((4/3)*pi*clumpX*clumpY*clumpZ)/oreSize[oreName]
-    # dunno about these boundaries
-    clumpX = min(max(0.5, (clumpX/clumpScale)), maxExtent)
-    clumpY = min(max(0.5, (clumpY/clumpScale)), maxExtent)
-    clumpZ = min(max(0.5, (clumpZ/clumpScale)), maxExtent)
-    oreX = randint(int(mcarray.minX+clumpX),int(mcarray.maxX-clumpX))
-    oreY = randint(int(minY+clumpY),int(maxY-clumpY))
-    oreZ = randint(int(mcarray.minZ+clumpZ),int(mcarray.maxZ-clumpZ))
-    oXrange = xrange(int(0-clumpX), int(clumpX+1))
-    oYrange = xrange(int(0-clumpY), int(clumpY+1))
-    oZrange = xrange(int(0-clumpZ), int(clumpZ+1))
-    clumpX2 = clumpX*clumpX
-    clumpY2 = clumpY*clumpY
-    clumpZ2 = clumpZ*clumpZ
-    # anything in the ellipsoid except air/water/lava and other ores
-    oreCoords = [[oreX+x, oreY+y, oreZ+z] for x,y,z in product(oXrange, oYrange, oZrange) if ((x*x)/clumpX2+(y*y)/clumpY2+(z*z)/clumpZ2<=1) and getBlockAt(oreX+x, oreY+y, oreZ+z) not in oreDQ]
-    oreBlocks = getBlocksAt(oreCoords)
-    # all it takes is one Stone and we're in
-    # FIXME: should start over if oreCoords has a len of 0
-    if ('Stone' in oreBlocks):
-        oreNodeCount[oreName].value += len(oreCoords)
-        oreVeinCount[oreName].value += 1
-        setBlocksAt([x, y, z, oreType[oreName]] for x, y, z in oreCoords)
+class Ore:
+    """Each type of ore will be an instance of this class."""
 
-def processOrestar(args):
-    return processOre(*args)
+    # what ID is stone?
+    # we use 'end stone' actually since 'stone' might be in a schematic
+    stoneID = materialNamed('End Stone')
 
-def processOres(oreName, minY, maxY, maxExtent, numRounds):
-    if (mcarray.processes == 1):
-        bleah = [processOre(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
-    else:
-        pool = Pool(mcarray.processes)
-        tasks = [(oreName, minY, maxY, maxExtent) for count in xrange(numRounds)]
-        results = pool.imap_unordered(processOrestar, tasks)
-        bleah = [x for x in results]
-        pool = None
-    return None
+    def __init__(self, name, depth=None, rounds=None, size=None):
+        # nobody checks names
+        # NB: ore names are block names too, consider fixing this
+        self.name = name
+        self.depth = depth
+        self.rounds = rounds
+        self.size = size
 
-# whole-world approach
-@timer(orelogger.info)
-def placeOre():
-    # FIXME: calculate this instead?
-    numChunks = len(arrayBlocks.keys())
-    for ore in oreType.keys():
-        orelogger.info("Adding %s now..." % (oreType[ore]))
-        # everything starts on the bottom
-        # only doing common pass here
-        minY = 0
-        maxY = pow(2,oreDepth[ore])
-        maxExtent = cbrt(oreSize[ore])/2
-        numRounds = int(oreRounds[ore]*numChunks)
-        processOres(ore, minY, maxY, maxExtent, numRounds)
-        orelogger.info("... %d veins totalling %d units placed." % (oreVeinCount[ore].value, oreNodeCount[ore].value))
+    def __call__(self, coords):
+        # generate ellipsoid values based on parameters
+        (mcx, mcy, mcz) = coords
+        # start with random radius-like values
+        x0 = randint(1, 4)
+        y0 = randint(1, 4)
+        z0 = randint(1, 4)
+        v0 = 4/3 * pi * x0 * y0 * z0
+        # scale to match volume and round up
+        scale = cbrt(self.size / v0)
+        x1 = int(round(scale * x0))
+        y1 = int(round(scale * y0))
+        z1 = int(round(scale * z0))
+        # pre-calculate squares
+        x2 = x1 * x1
+        y2 = y1 * y1
+        z2 = z1 * z1
+        # generate ranges
+        xr = xrange(-1 * x1, x1)
+        yr = xrange(-1 * y1, y1)
+        zr = xrange(-1 * z1, z1)
+        # calculate ellipsoid
+        oreCoords = [ [mcx+x, mcy+y, mcz+z] for x, y, z in product(xr, yr, zr) if x*x/x2+y*y/y2+z*z/z2 <= 1 ]
+        # if len(oreCoords) > self.size+2:
+        #     print "warning: oreCoords larger than self.size -- %d > %d" % (len(oreCoords), self.size)
+        # if len(oreCoords) < self.size-2:
+        #     print "warning: oreCoords smaller than self.size -- %d < %d" % (len(oreCoords), self.size)
+        return oreCoords
 
-def printStatistics():
-    # NB: do not change to logger
-    oreTuples = [(oreType[index], oreNodeCount[index].value, oreVeinCount[index].value) for index in oreNodeCount if oreNodeCount[index].value > 0]
-    oreNodeTotal = sum([oreTuple[1] for oreTuple in oreTuples])
-    oreVeinTotal = sum([oreTuple[2] for oreTuple in oreTuples])
-    print 'Ore statistics (%d total nodes, %d total veins):' % (oreNodeTotal, oreVeinTotal)
-    for key, value, value2 in sorted(oreTuples, key=lambda ore: ore[1], reverse=True):
+    @staticmethod
+    def placeoreintile(tile):
+        # strictly speaking, this should be in class Tile somehow
+        oreobjs = dict([(ore.name, ore) for ore in oreObjs])
+        tile.ores = dict([(name, list()) for name in oreobjs])
 
-        print '  %d (%d veins): %s' % (value, value2, key)
+        for ore in oreobjs:
+            extent = cbrt(oreobjs[ore].size)*2
+            maxy = pow(2, oreobjs[ore].depth)
+            numrounds = int(oreobjs[ore].rounds * (tile.size/16) * (tile.size/16))
+            oreID = materialNamed(oreobjs[ore].name)
+            for dummy in xrange(numrounds):
+                orex = randint(0, tile.size)
+                orey = randint(0, maxy)
+                orez = randint(0, tile.size)
+                coords = [orex+tile.mcoffsetx, orey, orez+tile.mcoffsetz]
+                if (orex < extent or (tile.size-orex) < extent or
+                    orez < extent or (tile.size-orez) < extent):
+                    try:
+                        tile.ores[ore]
+                    except KeyError:
+                        tile.ores[ore] = []
+                    tile.ores[ore].append(coords)
+                else:
+                    for x, y, z in oreobjs[ore](coords):
+                        if tile.world.blockAt(x, y, z) == Ore.stoneID:
+                            tile.world.setBlockAt(x, y, z, oreID)
 
+    @staticmethod
+    def placeoreinregion(ores, oreobjs, world):
+        for ore in ores:
+            oreID = materialNamed(oreobjs[ore].name)
+            for x, y, z in ores[ore]:
+                if world.blockAt(x, y, z) == Ore.stoneID:
+                    world.setBlockAt(x, y, z, oreID)
+
+oreObjs = [
+    Ore('Dirt', 7, 20, 32),
+    Ore('Gravel', 7, 10, 32),
+    Ore('Coal Ore', 7, 20, 16),
+    Ore('Iron Ore', 6, 20, 8),
+    Ore('Gold Ore', 5, 2, 8),
+    Ore('Diamond Ore', 4, 1, 7),
+    Ore('Redstone Ore', 4, 8, 7),
+    Ore('Lapis Lazuli Ore', 4, 3, 7) ]

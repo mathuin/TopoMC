@@ -1,21 +1,6 @@
 A rough to-do list, mostly in the desired order:
 
-Allow disabling of new features
- - some folks just want pretty
- - others want quick terrain visualization
- - break world generation into phases (terrain, ore, trees, plants, buildings)
-Test and drivers for all functions
- - maybe even comments!
-Convert most print output to logging statements
- - boy this is spammy
- - especially GetDataset.py!
-Schematics and equipping the player
- - in progress
- - don't forget the bed in the safe house!
-Normal stuff underground!
- - ore done, what about caves?
- - I bet someone's done it better -- look for add-a-dungeon code!
-Clean up terrain.py
- - move terrain types into abstract routines to support more land cover types
-Put buildings in developed areas
- - need to do this without interfering with roads in the future?
+Improve test coverage
+ - ensure tests work!
+Look into hydrography and transportation layers
+ - automatically placing rivers, rails and roads would be awesome
