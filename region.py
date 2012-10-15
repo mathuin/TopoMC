@@ -57,8 +57,8 @@ class Region:
     sealevel = 64
     maxdepth = 32
 
-    # tileheight is height of map in Minecraft units (128, sigh)
-    tileheight = mclevel.MCInfdevOldLevel.Height
+    # tileheight is height of map in Minecraft units
+    tileheight = 256 # mclevel.MCInfdevOldLevel.Height
     # headroom is room between top of terrain and top of map
     headroom = 16
 
