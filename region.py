@@ -366,7 +366,8 @@ class Region:
         """Actually download the file at the URL."""
         (pType, iType, mType, cType) = self.decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
-        cleanmkdir(layerdir)
+        if not os.path.exists(layerdir):
+            os.makedirs(layerdir)
 
         print "  Requesting download for %s." % layerID
         # initiateDownload and get the response code
