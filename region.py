@@ -517,7 +517,10 @@ class Region:
         elextents = self.albersextents['elevation']
         warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
 
-        os.remove(elfile)
+        try:
+            os.remove(elfile)
+        except OSError:
+            pass
         # NB: make this work on Windows too!
         os.system("%s" % warpcmd)
 
@@ -638,7 +641,10 @@ class Region:
         else:
             warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
 
-            os.remove(lcfile)
+            try:
+                os.remove(lcfile)
+            except OSError:
+                pass
             # NB: make this work on Windows too!
             os.system("%s" % warpcmd)
             lcds = gdal.Open(lcfile, GA_ReadOnly)
