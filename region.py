@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 from time import sleep
 import zipfile
 import tarfile
-from utils import cleanmkdir
+from utils import cleanmkdir, locate
 from terrain import Terrain
 from pymclevel import mclevel
 
@@ -472,7 +472,8 @@ class Region:
                 (compbase, compext) = os.path.splitext(compfile)
                 fullfile = os.path.join(layerdir, compfile)
                 datasubdir = os.path.join(layerdir, compbase)
-                compimage = os.path.join(compbase, "%s.%s" % (compbase, iType))
+                # tar (at least) expects Unix pathnames
+                compimage = '/'.join([compbase, "%s.%s" % (compbase, iType)])
                 cleanmkdir(datasubdir)
                 if (Region.zipfileBroken == False):
                     if (cType == "tgz"):
@@ -493,10 +494,7 @@ class Region:
                         os.rename(os.path.join(datasubdir, omfgcompimage), os.path.join(layerdir, compimage))
                     cFile.close()
             vrtfile = '%s.vrt' % layerID
-            #buildvrtcmd = 'gdalbuildvrt %s */*.%s >/dev/null' % (vrtfile, iType)
-            # NB: make this work on Windows too!
-            wildcard = '*'
-            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, os.path.join(wildcard, '%s.%s' % (wildcard, iType)))
+            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join(['"%s"' % x for x in locate('*.%s' % iType, layerdir)]))
             os.system('cd %s && %s' % (layerdir, buildvrtcmd))
 
     def getfiles(self):
