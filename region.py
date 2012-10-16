@@ -366,7 +366,8 @@ class Region:
         """Actually download the file at the URL."""
         (pType, iType, mType, cType) = self.decodeLayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
-        cleanmkdir(layerdir)
+        if not os.path.exists(layerdir):
+            os.makedirs(layerdir)
 
         print "  Requesting download for %s." % layerID
         # initiateDownload and get the response code
@@ -515,7 +516,7 @@ class Region:
         elvrt = os.path.join(self.mapsdir, self.ellayer, '%s.vrt' % (self.ellayer)) 
         elfile = os.path.join(self.mapsdir, self.ellayer, '%s.tif' % (self.ellayer))
         elextents = self.albersextents['elevation']
-        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
+        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
 
         try:
             os.remove(elfile)
