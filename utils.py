@@ -1,5 +1,5 @@
 # utils module
-import os
+import os, fnmatch
 import shutil
 from memoize import memoize
 from pymclevel.materials import alphaMaterials
@@ -51,3 +51,9 @@ def height(column):
     retval = sum([pair[0] for pair in pairs])
     return retval
 
+# http://code.activestate.com/recipes/499305-locating-files-throughout-a-directory-tree/
+def locate(pattern, root=os.curdir):
+    '''Locate all files matching supplied filename pattern in and below supplied root directory.'''
+    for path, dirs, files in os.walk(os.path.abspath(root)):
+        for filename in fnmatch.filter(files, pattern):
+            yield os.path.join(path, filename)
