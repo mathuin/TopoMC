@@ -58,7 +58,7 @@ class Region:
     maxdepth = 32
 
     # tileheight is height of map in Minecraft units
-    tileheight = 256 # mclevel.MCInfdevOldLevel.Height
+    tileheight = mclevel.MCInfdevOldLevel.Height
     # headroom is room between top of terrain and top of map
     headroom = 16
 
@@ -472,8 +472,9 @@ class Region:
                 (compbase, compext) = os.path.splitext(compfile)
                 fullfile = os.path.join(layerdir, compfile)
                 datasubdir = os.path.join(layerdir, compbase)
+                compfile = '%s.%s' % (compbase, iType)
                 # tar (at least) expects Unix pathnames
-                compimage = '/'.join([compbase, "%s.%s" % (compbase, iType)])
+                compimage = '/'.join([compbase, compfile])
                 cleanmkdir(datasubdir)
                 if (Region.zipfileBroken == False):
                     if (cType == "tgz"):
@@ -487,15 +488,21 @@ class Region:
                         cFile = tarfile.open(fullfile)
                         cFile.extract(compimage, layerdir)
                     elif (cType == "zip"):
-                        omfgcompimage = os.path.join(compbase, '%s.%s' % (compbase, iType))
+                        omfgcompimage = os.path.join(compbase, compfile)
                         os.mkdir(os.path.dirname(os.path.join(datasubdir, compimage)))
                         cFile = zipfile.ZipFile(fullfile)
                         cFile.extract(omfgcompimage, datasubdir)
                         os.rename(os.path.join(datasubdir, omfgcompimage), os.path.join(layerdir, compimage))
                     cFile.close()
-            vrtfile = '%s.vrt' % layerID
-            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join(['"%s"' % x for x in locate('*.%s' % iType, layerdir)]))
-            os.system('cd %s && %s' % (layerdir, buildvrtcmd))
+                # convert tif to good SRS
+                rawfile = os.path.join(layerdir, compbase, compfile)
+                goodfile = os.path.join(layerdir, compbase, "%s.good%s" % (compbase, iType))
+                warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.t_srs, rawfile, goodfile)
+                os.system('%s' % warpcmd)
+
+            vrtfile = os.path.join(layerdir, '%s.vrt' % layerID)
+            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join(['"%s"' % x for x in locate('*.good*', root=layerdir)]))
+            os.system('%s' % buildvrtcmd)
 
     def getfiles(self):
         """Get files from USGS."""
@@ -615,6 +622,8 @@ class Region:
             values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
             # nodata is treated as water, which is 11
             vrtnodata = vrtband.GetNoDataValue()
+            if (vrtnodata == None):
+                vrtnodata = 0
             values[values == vrtnodata] = 11
             values = values.flatten()
             vrtband = None
