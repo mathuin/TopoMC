@@ -94,6 +94,7 @@ oreObjs = [
     Ore('Coal Ore', 7, 20, 16),
     Ore('Iron Ore', 6, 20, 8),
     Ore('Gold Ore', 5, 2, 8),
+    Ore('Emerald Ore', 5, 1, 8),
     Ore('Diamond Ore', 4, 1, 7),
     Ore('Redstone Ore', 4, 8, 7),
     Ore('Lapis Lazuli Ore', 4, 3, 7) ]
