@@ -89,6 +89,23 @@ class Region:
     compressionTypes = { 'tgz': ['T'],
                          'zip': ['Z'] }
 
+    # properties
+    @property
+    def regiondir(self):
+        return os.path.join('Regions', self.name)
+
+    @property
+    def regionfile(self):
+        return os.path.join(self.regiondir, 'Region.yaml')
+
+    @property
+    def mapsdir(self):
+        return os.path.join(self.regiondir, 'Datasets')
+
+    @property
+    def mapfile(self):
+        return os.path.join(self.mapdir, 'Map.tif')
+
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
@@ -160,14 +177,9 @@ class Region:
         self.doOre = doOre
         self.doSchematics = doSchematics
 
-        # crazy directory fun
-        self.regiondir = os.path.join('Regions', self.name)
+        # clean directories
         cleanmkdir(self.regiondir)
-
-        self.mapsdir = os.path.join('Regions', self.name, 'Datasets')
         cleanmkdir(self.mapsdir)
-
-        self.mapname = os.path.join(self.regiondir, 'Map.tif')
 
         # these are the latlong values
         self.llextents = { 'xmax': max(xmax, xmin), 'xmin': min(xmax, xmin), 'ymax': max(ymax, ymin), 'ymin': min(ymax, ymin) }
@@ -230,7 +242,7 @@ class Region:
         self.ellayer = self.checkavail(elevationIDs, 'elevation')
 
         # write the values to the file
-        stream = file(os.path.join(self.regiondir, 'Region.yaml'), 'w')
+        stream = file(os.path.join(self.regionfile), 'w')
         yaml.dump(self, stream)
         stream.close()
 
@@ -587,7 +599,7 @@ class Region:
         # four bands: landcover, elevation, bathy, crust
         # data type is GDT_Int16 (elevation can be negative)
         driver = gdal.GetDriverByName("GTiff")
-        mapds = driver.Create(self.mapname, elxsize, elysize, len(Region.rasters), GDT_Int16)
+        mapds = driver.Create(self.mapfile, elxsize, elysize, len(Region.rasters), GDT_Int16)
         # overall map transform should match elevation map transform
         mapds.SetGeoTransform(elgeotrans)
         srs = osr.SpatialReference()
