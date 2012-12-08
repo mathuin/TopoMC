@@ -99,10 +99,71 @@ __kernel void nearest(__global int2 *coords, __global int *values, __global int2
     output[gid] = weighted_average(results, k);
 }
 
-__kernel void trim(__global int2 *arrayin, __global int2 *arrayout, const unsigned int split) {
-  int gid = get_global_id(0);
+__kernel void trim(__global int2 *arrayin, __global int2 *arrayout, const uint split, const uint arrayinlen) 
+{
+  uint gid = get_global_id(0);
+  uint gsize = get_global_size(0);
 
-  //arrayout[gid] = arrayin[gid] / split;
-  arrayout[gid].x = arrayin[gid].x / split;
-  arrayout[gid].y = arrayin[gid].y / split;
+  for (int idx = gid; idx < arrayinlen; idx += gsize) {
+    //arrayout[idx] = arrayin[idx] / split;
+    arrayout[idx].x = arrayin[idx].x / split;
+    arrayout[idx].y = arrayin[idx].y / split;
+  }
+}
+
+__kernel void mmd(__global int2 *arrayin, 
+                  __global int *gminx, __global int *gmaxx, __global int *gdupx,
+                  __global int *gminy, __global int *gmaxy, __global int *gdupy,
+                  __local int *lminx, __local int *lmaxx, __local int *ldupx,
+                  __local int *lminy, __local int *lmaxy, __local int *ldupy,
+                  const uint arrayinlen, const int checkx, const int checky) 
+{
+  uint gid = get_global_id(0);
+  uint lid = get_local_id(0);
+  uint gsize = get_global_size(0);
+  uint lsize = get_local_size(0);
+  uint grid = get_group_id(0);
+
+  lminx[lid] = arrayin[gid].x;
+  lmaxx[lid] = arrayin[gid].x;
+  ldupx[lid] = 0;
+  lminy[lid] = arrayin[gid].y;
+  lmaxy[lid] = arrayin[gid].y;
+  ldupy[lid] = 0;
+
+  for (int idx = gid; idx < arrayinlen; idx += gsize) {
+    int tempx = arrayin[idx].x;
+    int tempy = arrayin[idx].y;
+    lminx[lid] = min(lminx[lid], tempx);
+    lmaxx[lid] = max(lmaxx[lid], tempx);
+    if (tempx == checkx) {
+      ldupx[lid] = ldupx[lid] + 1;
+    }
+    lminy[lid] = min(lminy[lid], tempy);
+    lmaxy[lid] = max(lmaxy[lid], tempy);
+    if (tempy == checky) {
+      ldupy[lid] = ldupy[lid] + 1;
+    }
+  }
+
+  for (int j = lsize/2; j >= 1; j /= 2) {
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (lid < j) {
+      lminx[lid] = min(lminx[lid], lminx[lid+j]);
+      lmaxx[lid] = max(lmaxx[lid], lmaxx[lid+j]);
+      ldupx[lid] += ldupx[lid+j];
+      lminy[lid] = min(lminy[lid], lminy[lid+j]);
+      lmaxy[lid] = max(lmaxy[lid], lmaxy[lid+j]);
+      ldupy[lid] += ldupy[lid+j];
+    }
+  }
+
+  if (lid == 0) {
+    gminx[grid] = lminx[lid];
+    gmaxx[grid] = lmaxx[lid];
+    gdupx[grid] = ldupx[lid];
+    gminy[grid] = lminy[lid];
+    gmaxy[grid] = lmaxy[lid];
+    gdupy[grid] = ldupy[lid];
+  }
 }

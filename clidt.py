@@ -24,14 +24,36 @@ class CLIDT:
     def genindices(self, arrayin):
         """Generate indices for splitting array."""
         retval = dict()
+        # first, run the 'mmd' program
+        if False:
+            (minx, maxx, dupx, miny, maxy, dupy, arraylen) = self.minmaxdup(arrayin)
+            # only change split if interval is equal
+            # interval equation is (maxx-minx+1)/dupy and vice versa
+            # cross multiplying avoid integer division crazy
+            rangex = maxx-minx+1
+            rangey = maxy-miny+1
+            intx = rangex*dupx
+            inty = rangey*dupy
+            if (intx == inty):
+                print "X: range = %d, dup = %d" % (rangex, dupy)
+                print "X: range = %d, dup = %d" % (rangey, dupx)
+                self.split = self.device.max_work_group_size*rangex/dupy
+                print "Split: %d" % self.split
         # run the 'trim' program
+        # see mmd for why these are good parameters
+        num_groups = self.device.max_compute_units * 3 * 2
+        local_size = self.device.max_work_group_size
+        global_size = num_groups * local_size
+        trim_global_size = (global_size,)
+        trim_local_size = (local_size,)
         # need to split if it's too long!
-        splitlist = tuple([x for x in xrange(CLIDT.indexmaxsize, arrayin.shape[0], CLIDT.indexmaxsize)])
+        indexmaxsize = self.device.global_mem_size/16 # 2 int2's each
+        splitlist = tuple([x for x in xrange(indexmaxsize, arrayin.shape[0], indexmaxsize)])
         indexinc = 0
         for chunk in np.vsplit(arrayin, splitlist):
             chunkarr = cla.to_device(self.queue, np.asarray(chunk, dtype=np.int32))
             template = cla.empty_like(chunkarr)
-            event = self.program.trim(self.queue, chunkarr.shape, None, chunkarr.data, template.data, np.int32(self.split))
+            event = self.program.trim(self.queue, trim_global_size, trim_local_size, chunkarr.data, template.data, np.int32(self.split), np.int32(len(chunk)))
             try:
                 event.wait()
             except cl.RuntimeError, inst:
@@ -51,7 +73,7 @@ class CLIDT:
                 except KeyError:
                     retval[splitkey] = []
                 retval[splitkey].append(index+indexinc)
-            indexinc += CLIDT.indexmaxsize
+            indexinc += indexmaxsize
         return retval
 
     def __init__(self, coords, values, base, wantCL=True, split=None, nnear=None, majority=True):
@@ -68,18 +90,20 @@ class CLIDT:
                 self.split = CLIDT.OpenCLmaxsize
             else:
                 self.split = split
-            try:
-                self.ctx = cl.create_some_context()
-                self.queue = cl.CommandQueue(self.ctx)
-                filestr = ''.join(open('idt.cl', 'r').readlines())
-                self.program = cl.Program(self.ctx, filestr).build()
-                self.coordindices = self.genindices(self.coords)
-                self.baseindices = self.genindices(self.base)
-                self.canCL = True
-            # FIXME: specify an exception type
-            except:
-                print "warning: unable to use pyopencl, defaulting to Invdisttree"
-                self.canCL = False
+            # try:
+            self.platform = cl.get_platforms()[0]
+            self.device = self.platform.get_devices()[0]
+            self.context = cl.Context([self.device])
+            self.queue = cl.CommandQueue(self.context)
+            filestr = ''.join(open('idt.cl', 'r').readlines())
+            self.program = cl.Program(self.context, filestr).build()
+            self.coordindices = self.genindices(self.coords)
+            self.baseindices = self.genindices(self.base)
+            self.canCL = True
+            # # FIXME: specify an exception type
+            # except:
+            #     print "warning: unable to use pyopencl, defaulting to Invdisttree"
+            #     self.canCL = False
         else:
             self.canCL = False
 
@@ -138,3 +162,82 @@ class CLIDT:
         self.program = None
         self.queue = None
         self.ctx = None
+
+    def minmaxdup(self, arrayin):
+        """Use OpenCL to calculate minimum, maximum, and number of duplicates."""
+        # JMT: begin insanity
+        # FIXME: add a flag here for crust stuff to not use it
+        # it's not necessary or relevant with random values
+        # how many work groups do I want
+        # 3 is from 48 cores / 16 cores per halfwarp
+        # 2 is for overcommitting
+        num_groups = self.device.max_compute_units * 3 * 2
+        # let's ask histogram book
+        # how big do I want these work groups to be
+        # let's set it to the max (was 256)
+        local_size = self.device.max_work_group_size
+        # so that makes global size the product of the above
+        global_size = num_groups * local_size
+        # create arrayin
+        arrayin_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=arrayin)
+        # create global arrays
+        globalout_len = num_groups
+        globalout_arr = np.zeros((globalout_len,1), dtype=np.int32)
+        gminx_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, globalout_arr.nbytes)
+        gmaxx_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, globalout_arr.nbytes)
+        gdupx_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, globalout_arr.nbytes)
+        gminy_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, globalout_arr.nbytes)
+        gmaxy_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, globalout_arr.nbytes)
+        gdupy_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, globalout_arr.nbytes)
+        # allocate local memory
+        lminx_arg = cl.LocalMemory(4*local_size)
+        lmaxx_arg = cl.LocalMemory(4*local_size)
+        ldupx_arg = cl.LocalMemory(4*local_size)
+        lminy_arg = cl.LocalMemory(4*local_size)
+        lmaxy_arg = cl.LocalMemory(4*local_size)
+        ldupy_arg = cl.LocalMemory(4*local_size)
+        # create constants
+        arrayinlen = len(arrayin)
+        arrayinlen_arg = np.uint32(arrayinlen)
+        checkx = arrayin[0][0]
+        checky = arrayin[0][1]
+        checkx_arg = np.uint32(checkx)
+        checky_arg = np.uint32(checky)
+        # set sizes
+        mmd_global_size = (global_size,)
+        mmd_local_size = (local_size,)
+        print "starting event with %d elements..." % arrayinlen
+        print " - global size = ", global_size
+        print " - elements per work item = ", arrayinlen/global_size
+        event = self.program.mmd(self.queue, mmd_global_size, mmd_local_size, arrayin_buf, gminx_buf, gmaxx_buf, gdupx_buf, gminy_buf, gmaxy_buf, gdupy_buf, lminx_arg, lmaxx_arg, ldupx_arg, lminy_arg, lmaxy_arg, ldupy_arg, arrayinlen_arg, checkx_arg, checky_arg)
+        event.wait()
+        gminx_out = np.empty_like(globalout_arr)
+        cl.enqueue_copy(self.queue, gminx_out, gminx_buf)
+        gmaxx_out = np.empty_like(globalout_arr)
+        cl.enqueue_copy(self.queue, gmaxx_out, gmaxx_buf)
+        gdupx_out = np.empty_like(globalout_arr)
+        cl.enqueue_copy(self.queue, gdupx_out, gdupx_buf)
+        gminy_out = np.empty_like(globalout_arr)
+        cl.enqueue_copy(self.queue, gminy_out, gminy_buf)
+        gmaxy_out = np.empty_like(globalout_arr)
+        cl.enqueue_copy(self.queue, gmaxy_out, gmaxy_buf)
+        gdupy_out = np.empty_like(globalout_arr)
+        cl.enqueue_copy(self.queue, gdupy_out, gdupy_buf)
+        # FIXME: eventually get reduction kernel to do this!
+        cgminx = min(gminx_out)
+        cgmaxx = max(gmaxx_out)
+        cgdupx = sum(gdupx_out)
+        cgminy = min(gminy_out)
+        cgmaxy = max(gmaxy_out)
+        cgdupy = sum(gdupy_out)
+        #print "cgminx: %d, cgminy: %d" % (cgminx, cgminy)
+        #print "cgmaxx: %d, cgmaxy: %d" % (cgmaxx, cgmaxy)
+        #print "cgdupx: %d, cgdupy: %d" % (cgdupx, cgdupy)
+        #xarr, yarr = zip(*arrayin)
+        #print "cminx: %d, cminy: %d" % (min(xarr), min(yarr))
+        #print "cmaxx: %d, cmaxy: %d" % (max(xarr), max(yarr))
+        #print "cdupx: %d, cdupy: %d" % (list(xarr).count(checkx), list(yarr).count(checky))
+        # number of dups in X direction = number unique Y values
+        return cgminx, cgmaxx, cgdupx, cgminy, cgmaxy, cgdupy, arrayinlen
+        # JMT: end insanity
+
