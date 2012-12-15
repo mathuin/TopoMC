@@ -1,3 +1,7 @@
+import numpy as np
+import pyopencl as cl
+import pyopencl.array as cla
+
 def knn(tree, coords, k, xstart, xlen, xstep, ystart, ylen, ystep):
     # tree -- left balanced KD tree of input coordinates (both)
     # coords -- input coordinates

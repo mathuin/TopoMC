@@ -110,7 +110,7 @@ __kernel void knn(__global uint *indices, __global uint *distances, __global uin
 	// calculate distance from median node to queryLocation
 	int dx = currCoords.x - queryPoint.x;
 	int dy = currCoords.y - queryPoint.y;
-	float diffDist2 = (dx*dx)+(dy*dy);
+	uint diffDist2 = (dx*dx)+(dy*dy);
 
 	// should we add this point to the heap?
 	if (countHeap < maxHeap) {
