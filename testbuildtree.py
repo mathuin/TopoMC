@@ -14,7 +14,6 @@ def testbuildtree(filename=None):
     print 'testbuildtree %s' % filename
     print 'GPU HAS NOT YET BEEN IMPLEMENTED'
     (coords, values, base, nnear, usemajority, oldretval) = load_vars_from_file(filename)
-    (xfirst, xlen, xstep, yfirst, ylen, ystep) = gen_params_from_base(base)
     # now build with GPU
     gpu = configure_cl('buildtree.cl')
     # create buffers and arguments
