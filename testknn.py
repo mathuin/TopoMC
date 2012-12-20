@@ -8,10 +8,10 @@ from buildtree import buildtree
 from knn import knn
 from invdisttree import Invdisttree
 
-debug = True
+debug = False
 
 def testknn(filename=None, num_slices=1):
-    print 'testknn %s' % filename
+    print 'testknn %s %d' % (filename, num_slices)
     (coords, values, base, nnear, usemajority, oldretval) = load_vars_from_file(filename)
     lenbase = len(base)
     # building tree with CPU
@@ -22,7 +22,7 @@ def testknn(filename=None, num_slices=1):
     adelta = atime2-atime1
     print '... finished in ', adelta, 'seconds!'
     # now finding KNN with GPU
-    gpu = configure_cl('knn.cl')
+    gpu = configure_cl('knn.cl', 1)
     # create buffers and arguments
     print 'finding ', nnear, 'nearest neighbors with GPU'
     ctime1 = time()
@@ -47,10 +47,10 @@ def testknn(filename=None, num_slices=1):
         print 'elems_per_slice is ', elems_per_slice
         if elems_per_slice == fake_elems_per_slice:
             print 'NOTE: using fake instead of real to force split'
-    gpu_indices = []
+    # iterate through slices
+    gpu_results = []
     for chunk in chunker(base, elems_per_slice):
         lenchunk = len(chunk)
-        print chunk[:2], chunk[-2:], len(chunk)
         # now do indices and distances and base (oh my!)
         indices_arr = np.empty(lenchunk*nnear, dtype=np.uint32)
         indices_buf = cl.Buffer(gpu['context'], cl.mem_flags.WRITE_ONLY, indices_arr.nbytes)
@@ -68,18 +68,11 @@ def testknn(filename=None, num_slices=1):
         #distances_out = np.empty_like(distances_arr)
         cl.enqueue_copy(gpu['queue'], distances_arr, distances_buf)
         # need to concatenate results
-        if gpu_indices == []:
-            if debug:
-                print 'first pass through slices'
-            gpu_indices = np.copy(indices_arr)
-            gpu_distances = np.copy(distances_arr)
+        raw_results = [ sorted([(int(indices_arr[ind+x*lenchunk]), float("%.4f" % distances_arr[ind+x*lenchunk])) for x in xrange(nnear)], key = lambda elem: (elem[1], elem[0])) for ind in xrange(lenchunk) ]
+        if gpu_results == []:
+            gpu_results = raw_results
         else:
-            if debug:
-                print 'concatenation'
-                print gpu_indices.shape, indices_arr.shape
-                print gpu_distances.shape, distances_arr.shape
-            gpu_indices = np.concatenate((gpu_indices, indices_arr))
-            gpu_distances = np.concatenate((gpu_distances, distances_arr))
+            gpu_results += raw_results
     ctime2 = time()
     cdelta = ctime2-ctime1
     print '... finished in ', cdelta, 'seconds!'
@@ -89,14 +82,11 @@ def testknn(filename=None, num_slices=1):
     IDT = Invdisttree(coords, values)
     #results = np.asarray(IDT(ARG, nnear, majority=(usemajority==1)), dtype=np.int32)
     cpu_distances, cpu_indices = np.asarray(IDT.distances(base, nnear))
+    cpu_results = [ sorted([(int(cpu_indices[ind][x]), float("%.4f" % cpu_distances[ind][x])) for x in xrange(cpu_distances.shape[1])], key = lambda elem: (elem[1], elem[0])) for ind in xrange(cpu_distances.shape[0]) ]
     btime2 = time()
     bdelta = btime2-btime1
     print '... finished in ', bdelta, 'seconds!'
     # time to compare results
-    # first convert to tuples
-    cpu_results = [ sorted([(int(cpu_indices[ind][x]), float("%.4f" % cpu_distances[ind][x])) for x in xrange(cpu_distances.shape[1])], key = lambda elem: (elem[1], elem[0])) for ind in xrange(cpu_distances.shape[0]) ]
-    gpu_results = [ sorted([(gpu_indices[ind+x*lenbase], float("%.4f" % gpu_distances[ind+x*lenbase])) for x in xrange(nnear)], key = lambda elem: (elem[1], elem[0])) for ind in xrange(lenbase) ]
-    # compare
     nomatch = 0
     for x in xrange(lenbase):
         if not all(cpu_results[x][n][1] == gpu_results[x][n][1] for n in xrange(nnear)):
@@ -112,9 +102,8 @@ def testknn(filename=None, num_slices=1):
 if __name__ == '__main__':
     # run some tests here
     testknn('Tiny-a.pkl',1)
-    testknn('Tiny-a.pkl',2)
-    #testknn('LessTiny-a.pkl')
-    #testknn('EvenLessTiny-a.pkl')
-    #testknn('Tiny-b.pkl')
-    #testknn('LessTiny-b.pkl')
-    #testknn('EvenLessTiny-b.pkl')
+    testknn('LessTiny-a.pkl',2)
+    testknn('EvenLessTiny-a.pkl',3)
+    testknn('Tiny-b.pkl',1)
+    testknn('LessTiny-b.pkl',2)
+    testknn('EvenLessTiny-b.pkl',3)

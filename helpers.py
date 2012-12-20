@@ -16,14 +16,14 @@ def load_vars_from_file(filename):
     jar.close()
     return (coords, values, base, nnear, usemajority, oldretval)
 
-def configure_cl(filename):
+def configure_cl(filename, platform_num=0):
     # initialize object
     cldict = {}
     # define basic components
-    print cl.get_platforms()
+    #print cl.get_platforms()
     # need 1 for Intel for printf
-    cldict['platform'] = cl.get_platforms()[1]
-    print cldict['platform'].get_devices()
+    cldict['platform'] = cl.get_platforms()[platform_num]
+    #print cldict['platform'].get_devices()
     cldict['device'] = cldict['platform'].get_devices()[0]
     cldict['context'] = cl.Context([cldict['device']])
     cldict['queue'] = cl.CommandQueue(cldict['context'])
