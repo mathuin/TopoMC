@@ -11,10 +11,10 @@ from buildtree import buildtree
 from knn import knn
 from idw import idw
 
-def testknnplus(filename):
-    print 'testknnplus %s' % filename
+def testknnplus(filename=None, num_slices=1):
+    print 'testknnplus %s %d' % (filename, num_slices)
     (coords, values, base, nnear, usemajority, oldretval) = load_vars_from_file(filename)
-    (xfirst, xlen, xstep, yfirst, ylen, ystep) = gen_params_from_base(base)
+    lenbase = len(base)
     # building tree with CPU
     print 'building tree with CPU'
     atime1 = time()
@@ -23,20 +23,10 @@ def testknnplus(filename):
     adelta = atime2-atime1
     print '... finished in ', adelta, 'seconds!'
     # now finding KNN with GPU
-    gpu = configure_cl('knnplus.cl')
+    gpu = configure_cl('knnplus.cl', 1)
     # create buffers and arguments
     print 'finding ', nnear, 'nearest neighbors with GPU'
     ctime1 = time()
-    lenresults = xlen*ylen
-    # how many bytes are in a row
-    bytes_per_row = ylen * nnear * 4 * 2
-    rows_per_slice = int(0.5*gpu['device'].max_mem_alloc_size/bytes_per_row)
-    # print 'rows is ', xlen
-    # print 'rows_per_slice is ', rows_per_slice
-    num_slices = 1 # 4
-    # print 'test num_slices = ', num_slices
-    rows_per_slice = int(xlen/num_slices)+1
-    # print 'fake rows_per_slice is ', rows_per_slice
     # build everything but indices and distances and xfirst and xlen
     tree_arr = np.asarray(cpu_tree, dtype=np.uint32)
     tree_buf = cl.Buffer(gpu['context'], cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=tree_arr)
@@ -47,77 +37,65 @@ def testknnplus(filename):
     lentree_arg = np.uint32(len(tree_arr))
     ink_arg = np.uint32(nnear)
     usemajority_arg = np.uint32(usemajority)
-    xstep_arg = np.int32(xstep)
-    yfirst_arg = np.int32(yfirst)
-    ylen_arg = np.int32(ylen)
-    ystep_arg = np.int32(ystep)
-    for slice in chunker(xrange(xfirst, xlen*xstep+xfirst, xstep), rows_per_slice):
-        newxfirst = slice[0]
-        newxlen = len(slice)
-        # print 'xfirst now ', newxfirst, ', xlen now ', newxlen
-        lenslice = newxlen * ylen
-        retvals_arr = np.empty(lenslice, dtype=np.int32)
+    # for each base value (float2) there are nnear index and distance (float32)
+    bytes_per_elem = 8+8*nnear
+    real_elems_per_slice = int(0.5*gpu['device'].max_mem_alloc_size/bytes_per_elem)
+    # force slice to test reassembly
+    fake_elems_per_slice = int(lenbase/num_slices)+1
+    if real_elems_per_slice > fake_elems_per_slice:
+        elems_per_slice = fake_elems_per_slice
+    else:
+        elems_per_slice = real_elems_per_slice
+    # iterate through slices
+    gpu_results = []
+    for chunk in chunker(base, elems_per_slice):
+        lenchunk = len(chunk)
+        retvals_arr = np.empty(lenchunk, dtype=np.int32)
         retvals_buf = cl.Buffer(gpu['context'], cl.mem_flags.WRITE_ONLY, retvals_arr.nbytes)
-        xfirst_arg = np.int32(newxfirst)
-        xlen_arg = np.int32(newxlen)
+        chunk_arr = np.asarray(chunk, dtype=np.float32)
+        chunk_buf = cl.Buffer(gpu['context'], cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=chunk_arr)
+        lenchunk_arg = np.uint32(lenchunk)
         # now do event
-        # event = gpu['program'].knnplus(gpu['queue'], gpu['global_size_2d'], gpu['local_size_2d'], retvals_buf, values_buf, tree_buf, coords_buf, lentree_arg, ink_arg, usemajority_arg, xfirst_arg, xlen_arg, xstep_arg, yfirst_arg, ylen_arg, ystep_arg) 
-        # event.wait()
+        event = gpu['program'].knnplus(gpu['queue'], gpu['global_size_1d'], gpu['local_size_1d'], retvals_buf, values_buf, tree_buf, coords_buf, lentree_arg, chunk_buf, lenchunk_arg, ink_arg, usemajority_arg)
+        event.wait()
+        cl.enqueue_copy(gpu['queue'], retvals_arr, retvals_buf)
+        print Counter(retvals_arr)
         # need to concatenate results
-        retvals_out = np.empty_like(retvals_arr)
-        cl.enqueue_copy(gpu['queue'], retvals_out, retvals_buf)
-        # print Counter(retvals_out)
-        if newxfirst == xfirst:
-            gpu_retvals = np.copy(retvals_out)
+        if gpu_results == []:
+            gpu_results = retvals_arr.tolist()
         else:
-            # print gpu_retvals.shape, retvals_out.shape
-            gpu_retvals = np.concatenate((gpu_retvals, retvals_out))
+            gpu_results += retvals_arr.tolist()
     ctime2 = time()
     cdelta = ctime2-ctime1
     print '... finished in ', cdelta, 'seconds!'
     # finding KNN with CPU
-    if True:
-        print 'finding ', nnear, 'nearest neighbors with CPU'
-        btime1 = time()
-        results = knn(cpu_tree, coords, nnear, xfirst, xlen, xstep, yfirst, ylen, ystep)
-        btime2 = time()
-        bdelta = btime2-btime1
-        print '... finished in ', bdelta, 'seconds!'
-        # now performing majority on CPU
-        print 'performing IDW or majority on CPU'
-        ctime1 = time()
-        retvals_out = np.asarray(idw(cpu_tree, values, results, usemajority), dtype=np.int32)
-        ctime2 = time()
-        cdelta = ctime2-ctime1
-        print '... finished in ', cdelta, 'seconds!'
-    if True:
-        print 'yay cKDtree'
-        ctime1 = time()
-        IDT = Invdisttree(coords, values)
-        retvals = np.asarray(IDT(base, nnear, majority=(usemajority==1)), dtype=np.int32)
-        ctime2 = time()
-        cdelta = ctime2-ctime1
-        print '... finished in ', cdelta, 'seconds!'
+    print 'finding ', nnear, 'nearest neighbors with CPU'
+    ctime1 = time()
+    IDT = Invdisttree(coords, values)
+    cpu_results = np.asarray(IDT(base, nnear, majority=(usemajority==1)), dtype=np.int32)
+    ctime2 = time()
+    cdelta = ctime2-ctime1
+    print '... finished in ', cdelta, 'seconds!'
     # compare
     nomatch = 0
-    if not all(retvals[x] == retvals_out[x] for x in xrange(len(retvals))):
-        for x in xrange(len(retvals)):
-            if (retvals[x] != retvals_out[x]):
-                nomatch += 1
-                if nomatch < 10:
-                    print 'no match at ', x
-                    print ' CPU: ', retvals[x]
-                    print ' GPU: ', retvals_out[x]
-        print nomatch, 'failed to match'
+    for x in xrange(lenbase):
+        if (cpu_results[x] != gpu_results[x]):
+            nomatch += 1
+            if nomatch < 10:
+                print 'no match at ', x
+                print ' CPU: ', cpu_results[x]
+                print ' GPU: ', gpu_results[x]
+    if nomatch > 0:
+        print nomatch, 'of', lenbase, 'failed to match'
         raise AssertionError
 
 if __name__ == '__main__':
     # run some tests here
-    testknnplus('Tiny-a.pkl')
-    testknnplus('LessTiny-a.pkl')
-    testknnplus('EvenLessTiny-a.pkl')
-    testknnplus('Tiny-b.pkl')
-    testknnplus('LessTiny-b.pkl')
-    testknnplus('EvenLessTiny-b.pkl')
+    # testknnplus('Tiny-a.pkl')
+    # testknnplus('LessTiny-a.pkl')
+    # testknnplus('EvenLessTiny-a.pkl')
+    # testknnplus('Tiny-b.pkl')
+    # testknnplus('LessTiny-b.pkl')
+    # testknnplus('EvenLessTiny-b.pkl')
     testknnplus('BlockIsland-a.pkl')
     testknnplus('BlockIsland-b.pkl')
