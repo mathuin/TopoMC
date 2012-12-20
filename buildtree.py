@@ -1,12 +1,29 @@
 import numpy as np
 from math import log
 
+def printtree(tree, coords):
+    for index, value in enumerate(tree):
+        if index > 0:
+            if 2*index > len(tree):
+                left = "leaf"
+            else:
+                left = 2*index
+            if 2*index+1 > len(tree):
+                right = "leaf"
+            else:
+                right = 2*index+1
+            if int(log(index,2)) % 2 == 0:
+                axis = 'X'
+            else:
+                axis = 'Y'
+            print "#%d: %d [%d, %d] Axis: %s Left: %s, Right: %s" % (index, value, coords[value][0], coords[value][1], axis, left, right)
+
 def buildtree(coords):
     # initialize tree and stack
     tree = np.empty(len(coords)+1)
     tree[0] = 0
     stack = []
-   
+
     # seed stack
     initial_indices = np.array([x for x in xrange(coords.shape[0])])
     initial_axis = 0

@@ -20,13 +20,24 @@ def configure_cl(filename):
     # initialize object
     cldict = {}
     # define basic components
-    cldict['platform'] = cl.get_platforms()[0]
+    print cl.get_platforms()
+    # need 1 for Intel for printf
+    cldict['platform'] = cl.get_platforms()[1]
+    print cldict['platform'].get_devices()
     cldict['device'] = cldict['platform'].get_devices()[0]
     cldict['context'] = cl.Context([cldict['device']])
     cldict['queue'] = cl.CommandQueue(cldict['context'])
     # load programs
     filestr = ''.join(open(filename, 'r').readlines())
-    cldict['program'] = cl.Program(cldict['context'], filestr).build()
+    cldict['program'] = cl.Program(cldict['context'], filestr).build(devices=[cldict['device']])
+    buildlog = cldict['program'].get_build_info(cldict['device'], cl.program_build_info.LOG)
+    if (len(buildlog) > 1):
+        print buildlog
+    # for now, assume one kernel per file -- DANGEROUS
+    kernel = cldict['program'].all_kernels()[0]
+    # do something smart with these eventually
+    cldict['preferred_multiple'] = kernel.get_work_group_info(cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE, cldict['device'])
+    cldict['work_group_size'] = kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, cldict['device'])
     # set parameters
     # - work groups (3 for 48 cores / 16 cores per halfwarp, 2 for overcommitting)
     num_groups_for_1d = cldict['device'].max_compute_units * 3 * 2

@@ -69,6 +69,14 @@ is exceedingly sensitive to distance and to h.
         self.wn = 0
         self.wsum = None;
 
+    def distances(self, q, nnear=6, eps=0):
+        q = np.asarray(q)
+        qdim = q.ndim
+        if qdim == 1:
+            q = np.array([q])
+        distances, ix = self.tree.query(q, k=nnear, eps=eps)
+        return (distances, ix)
+
     def __call__( self, q, nnear=6, eps=0, p=1, weights=None, majority=False ):
             # nnear nearest neighbours of each query point --
         q = np.asarray(q)

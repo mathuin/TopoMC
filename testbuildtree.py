@@ -4,7 +4,7 @@ import numpy as np
 import pyopencl as cl
 import pyopencl.array as cla
 
-from buildtree import buildtree
+from buildtree import buildtree, printtree
 
 # this script tests the buildtree.cl code against the buildtree.py code
 # the buildtree.cl code has not yet been written
@@ -42,7 +42,15 @@ def testbuildtree(filename=None):
     adelta = atime2-atime1
     print '... finished in ', adelta, 'seconds!'
     # need comparison
+    printtree(cpu_tree, coords)
     # if true, return tree
     return cpu_tree
 
-
+if __name__ == '__main__':
+    # run some tests here
+    testbuildtree('Tiny-a.pkl')
+    #testbuildtree('LessTiny-a.pkl')
+    #testbuildtree('EvenLessTiny-a.pkl')
+    #testbuildtree('Tiny-b.pkl')
+    #testbuildtree('LessTiny-b.pkl')
+    #testbuildtree('EvenLessTiny-b.pkl')
