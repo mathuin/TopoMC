@@ -101,9 +101,9 @@ def testknn(filename=None, num_slices=1):
 
 if __name__ == '__main__':
     # run some tests here
-    testknn('Tiny-a.pkl',1)
-    testknn('LessTiny-a.pkl',2)
-    testknn('EvenLessTiny-a.pkl',3)
-    testknn('Tiny-b.pkl',1)
-    testknn('LessTiny-b.pkl',2)
-    testknn('EvenLessTiny-b.pkl',3)
+    testknn('Tiny-a.pkl.gz',1)
+    testknn('LessTiny-a.pkl.gz',2)
+    testknn('EvenLessTiny-a.pkl.gz',3)
+    testknn('Tiny-b.pkl.gz',1)
+    testknn('LessTiny-b.pkl.gz',2)
+    testknn('EvenLessTiny-b.pkl.gz',3)

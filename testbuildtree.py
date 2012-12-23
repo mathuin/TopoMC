@@ -47,9 +47,9 @@ def testbuildtree(filename=None):
 
 if __name__ == '__main__':
     # run some tests here
-    testbuildtree('Tiny-a.pkl')
-    #testbuildtree('LessTiny-a.pkl')
-    #testbuildtree('EvenLessTiny-a.pkl')
-    #testbuildtree('Tiny-b.pkl')
-    #testbuildtree('LessTiny-b.pkl')
-    #testbuildtree('EvenLessTiny-b.pkl')
+    testbuildtree('Tiny-a.pkl.gz')
+    #testbuildtree('LessTiny-a.pkl.gz')
+    #testbuildtree('EvenLessTiny-a.pkl.gz')
+    #testbuildtree('Tiny-b.pkl.gz')
+    #testbuildtree('LessTiny-b.pkl.gz')
+    #testbuildtree('EvenLessTiny-b.pkl.gz')

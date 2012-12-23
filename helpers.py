@@ -3,9 +3,10 @@ import pyopencl as cl
 import pyopencl.array as cla
 from math import sqrt
 from itertools import islice
+import gzip
 
 def load_vars_from_file(filename):
-    jar = open(filename, 'r')
+    jar = gzip.open(filename, 'r')
     coords = pickle.load(jar)
     values = pickle.load(jar)
     base = pickle.load(jar)
@@ -17,18 +18,17 @@ def load_vars_from_file(filename):
     return (coords, values, base, nnear, usemajority, oldretval)
 
 def configure_cl(filename, platform_num=0):
+    # platform_num is 0 for NVIDIA CUDA and 1 for Intel here at home
     # initialize object
     cldict = {}
     # define basic components
-    #print cl.get_platforms()
-    # need 1 for Intel for printf
     cldict['platform'] = cl.get_platforms()[platform_num]
-    #print cldict['platform'].get_devices()
     cldict['device'] = cldict['platform'].get_devices()[0]
     cldict['context'] = cl.Context([cldict['device']])
     cldict['queue'] = cl.CommandQueue(cldict['context'])
     # load programs
     filestr = ''.join(open(filename, 'r').readlines())
+    # cldict['program'] = cl.Program(cldict['context'], filestr).build(options=['-cl-nv-verbose'], devices=[cldict['device']])
     cldict['program'] = cl.Program(cldict['context'], filestr).build(devices=[cldict['device']])
     buildlog = cldict['program'].get_build_info(cldict['device'], cl.program_build_info.LOG)
     if (len(buildlog) > 1):
@@ -38,13 +38,15 @@ def configure_cl(filename, platform_num=0):
     # do something smart with these eventually
     cldict['preferred_multiple'] = kernel.get_work_group_info(cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE, cldict['device'])
     cldict['work_group_size'] = kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, cldict['device'])
+    cldict['local_mem_size'] = kernel.get_work_group_info(cl.kernel_work_group_info.LOCAL_MEM_SIZE, cldict['device'])
+    cldict['private_mem_size'] = kernel.get_work_group_info(cl.kernel_work_group_info.PRIVATE_MEM_SIZE, cldict['device'])
     # set parameters
     # - work groups (3 for 48 cores / 16 cores per halfwarp, 2 for overcommitting)
     num_groups_for_1d = cldict['device'].max_compute_units * 3 * 2
     num_groups_for_2d = cldict['device'].max_compute_units * 2 # * 3 * 2
     # - local size (dialed up to the max)
-    local_size_for_1d = cldict['device'].max_work_group_size
-    local_size_for_2d = int(sqrt(cldict['device'].max_work_group_size))
+    local_size_for_1d = cldict['work_group_size']
+    local_size_for_2d = cldict['work_group_size']
     cldict['local_size_1d'] = (local_size_for_1d, )
     cldict['local_size_2d'] = (local_size_for_2d, local_size_for_2d, )
     # - global size (just enough to keep work groups overcommitted)
