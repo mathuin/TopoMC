@@ -104,7 +104,7 @@ class Region:
 
     @property
     def mapfile(self):
-        return os.path.join(self.mapsdir, 'Map.tif')
+        return os.path.join(self.regiondir, 'Map.tif')
 
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
