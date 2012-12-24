@@ -4,6 +4,8 @@ import numpy as np
 from scipy.spatial import cKDTree as KDTree
 from math import log
 from time import time
+from utils import chunks
+from itertools import product
 #
 import gzip
 import cPickle as pickle
@@ -23,6 +25,7 @@ class idt:
         Keyword arguments:
         coords -- input coordinates (x, y) 
         values -- input values
+
         """
         self.coords = np.asarray(coords, dtype=np.float32)
         self.values = np.asarray(values, dtype=np.int32)
@@ -76,7 +79,7 @@ class idt:
         else:
             self.tree = KDTree(coords)
 
-    def __call__(self, base, nnear=None, majority=True):
+    def __call__(self, base, shape, nnear=None, majority=True, pickle_vars=False):
         """
         For each query point in the base array, find the K nearest
         neighbors and calculate either the majority value or the
@@ -86,14 +89,14 @@ class idt:
         base -- output array (x, y)
         nnear -- number of neighbors to check
         majority -- boolean: whether to use the majority algorithm
+        pickle -- boolean: save variables for pickling
 
         """
-        # set nearest neighbors to default value of 11 if not set
+        # Set nearest neighbors to default value of 11 if not set.
         if nnear == None:
             nnear = 11
+
         if self.canCL and self.wantCL:
-            lenbase = len(base)
-            base_arr = np.asarray(base, dtype=np.float32)
             # These values do not change from run to run.
             values_buf = cla.to_device(self.queue, self.values)
             tree_buf = cla.to_device(self.queue, self.tree)
@@ -101,20 +104,20 @@ class idt:
             lentree_arg = np.uint32(len(self.tree))
             nnear_arg = np.uint32(nnear)
             usemajority_arg = np.uint32(1 if majority else 0)
-            # Calculate how many base element can be evaluated per run.
+            # Calculate how many base elements can be evaluated per run.
             static_data = self.values.nbytes + self.tree.nbytes + self.coords.nbytes + lentree_arg.nbytes + nnear_arg.nbytes + usemajority_arg.nbytes
             # Each base element is two float32's and its retval is one int32.
             bytes_per_elem_single = 2*4
             bytes_per_elem_total = bytes_per_elem_single + 4
             # Check both single and total limits.
             elems_per_slice_single = [int(0.95*device.max_mem_alloc_size/bytes_per_elem_single) for device in self.devices]
-            elems_per_slice_total = [int(0.95*device.global_mem_size-static_data/bytes_per_elem_total) for device in self.devices]
+            elems_per_slice_total = [int((0.95*device.global_mem_size-static_data)/bytes_per_elem_total) for device in self.devices]
             elem_limits = [elems_per_slice_single[x] if elems_per_slice_single[x]<elems_per_slice_total[x] else elems_per_slice_total[x] for x in xrange(len(self.devices))]
             # For now, at least, do not create retval or chunk buffer here.
             results = []
             # NB: Only supporting one device for now.
             best_device = np.argmax(elem_limits)
-            for chunk in self.chunks(base_arr, elem_limits[best_device]):
+            for chunk in chunks(base, elem_limits[best_device]):
                 # Create retvals and chunk buffer here instead of above.
                 lenchunk = len(chunk)
                 retvals_arr = np.empty(lenchunk, dtype=np.int32)
@@ -151,14 +154,18 @@ class idt:
                         wz = np.dot(w, self.values[index])
                 results[jinterpol] = wz
                 jinterpol += 1
-        return np.asarray(results, dtype=np.uint32)
-
-    @staticmethod
-    def chunks(data, chunksize=100):
-        """Overly-simple chunker..."""
-        intervals = range(0, data.size, chunksize) + [None]
-        for start, stop in zip(intervals[:-1], intervals[1:]):
-            yield np.array(data[start:stop])
+        if pickle_vars:
+            # Pickle variables for testing purposes.
+            print 'Pickling...'
+            f = gzip.open('idt-%d-%d-%d.pkl.gz' % (self.values.shape[0], base.shape[0], (1 if majority else 0)), 'wb')
+            pickle.dump(self.coords, f, -1)
+            pickle.dump(self.values, f, -1)
+            pickle.dump(base, f, -1)
+            pickle.dump(shape, f, -1)
+            pickle.dump(nnear, f, -1)
+            pickle.dump(majority, f, -1)
+            # pickle.dump(results, f, -1)
+        return np.asarray(results, dtype=np.uint32).reshape(shape)
 
     def buildtree(self):
         """Build left-balanced KD tree from coordinates."""
@@ -211,10 +218,9 @@ class idt:
         coords = pickle.load(jar)
         values = pickle.load(jar)
         base = pickle.load(jar)
+        shape = pickle.load(jar)
         nnear = pickle.load(jar)
         usemajority = pickle.load(jar)
-        # oldretval = pickle.load(jar)
-        oldretval = None
         jar.close()
         lenbase = len(base)
 
@@ -223,7 +229,7 @@ class idt:
         gpu_idt = idt(coords, values, wantCL=True)
         if gpu_idt.canCL == False:
             raise AssertionError, 'Cannot run test without working OpenCL'
-        gpu_results = gpu_idt(base, nnear=nnear, majority=(usemajority==1))
+        gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority==1), pickle_vars=False)
         atime2 = time()
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
@@ -231,29 +237,25 @@ class idt:
         print 'Generating results with cKDTree'
         btime1 = time()
         cpu_idt = idt(coords, values, wantCL=False)
-        cpu_results = cpu_idt(base, nnear=nnear, majority=(usemajority==1))
+        cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority==1), pickle_vars=False)
         btime2 = time()
         bdelta = btime2-btime1
         print '... finished in ', bdelta, 'seconds!'
 
         # Compare the results.
-        minmismatch = int(0.01*lenbase)
-        nomatch = sum([1 if cpu_results[x] != gpu_results[x] else 0 for x in xrange(lenbase)])
-        if nomatch > minmismatch:
+        allowed_error_percentage = 1
+        maxnomatch = int(allowed_error_percentage*0.01*lenbase)
+        xlen, ylen = gpu_results.shape
+        nomatch = sum([1 if cpu_results[x,y] != gpu_results[x,y] else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+        if nomatch > maxnomatch:
             print nomatch, 'of', lenbase, 'failed to match'
             raise AssertionError
         else:
-            print 'less than one percent failed to match'
+            print 'less than %d%% failed to match' % allowed_error_percentage
         
 if __name__ == '__main__':
-    # run some tests here
-    # idt.test('Tiny-a.pkl.gz')
-    # idt.test('LessTiny-a.pkl.gz')
-    # idt.test('EvenLessTiny-a.pkl.gz')
-    # idt.test('Tiny-b.pkl.gz')
-    # idt.test('LessTiny-b.pkl.gz')
-    # idt.test('EvenLessTiny-b.pkl.gz')
-    idt.test('BlockIsland-a.pkl.gz')
-    idt.test('BlockIsland-b.pkl.gz')
-    # idt.test('CratersOfTheMoon-a.pkl.gz')
-    # idt.test('CratersOfTheMoon-b.pkl.gz')
+    # Block Island test data
+    idt.test('idt-BlockIsland-a.pkl.gz')
+    idt.test('idt-BlockIsland-b.pkl.gz')
+    # idt.test('idt-CratersOfTheMoon-a.pkl.gz')
+    # idt.test('idt-CratersOfTheMoon-b.pkl.gz')

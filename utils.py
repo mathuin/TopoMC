@@ -3,6 +3,7 @@ import os, fnmatch
 import shutil
 from memoize import memoize
 from pymclevel.materials import alphaMaterials
+import numpy as np
 
 def cleanmkdir(dir):
     """Cleans out existing directory and rebuilds."""
@@ -57,3 +58,10 @@ def locate(pattern, root=os.curdir):
     for path, dirs, files in os.walk(os.path.abspath(root)):
         for filename in fnmatch.filter(files, pattern):
             yield os.path.join(path, filename)
+
+def chunks(data, chunksize=100):
+    """Overly-simple chunker..."""
+    intervals = range(0, data.size, chunksize) + [None]
+    for start, stop in zip(intervals[:-1], intervals[1:]):
+        yield np.array(data[start:stop])
+
