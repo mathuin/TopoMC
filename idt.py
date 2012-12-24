@@ -3,6 +3,10 @@ from __future__ import division
 import numpy as np
 from scipy.spatial import cKDTree as KDTree
 from math import log
+from time import time
+#
+import gzip
+import cPickle as pickle
 
 try:
     import pyopencl as cl
@@ -136,18 +140,18 @@ class idt:
                 elif distance[0] < 1e-10:
                     wz = self.values[index[0]]
                 else:
-                    w = 1/dist
+                    w = 1/distance
                     w /= np.sum(w)
                     if majority:
-                        majordict = dict([(x, 0) for x in self.values[ix]])
-                        for zval, wval in zip(self.values[ix], w):
+                        majordict = dict([(x, 0) for x in self.values[index]])
+                        for zval, wval in zip(self.values[index], w):
                             majordict[zval] += wval
                         wz = max(majordict, key=majordict.get)
                     else:
-                        wz = np.dot(w, self.values[ix])
+                        wz = np.dot(w, self.values[index])
                 results[jinterpol] = wz
                 jinterpol += 1
-        return np.asarray(results)
+        return np.asarray(results, dtype=np.uint32)
 
     @staticmethod
     def chunks(data, chunksize=100):
@@ -157,6 +161,7 @@ class idt:
             yield np.array(data[start:stop])
 
     def buildtree(self):
+        """Build left-balanced KD tree from coordinates."""
         # initialize tree and stack
         tree = np.empty(len(self.coords)+1, dtype=np.uint32)
         tree[0] = 0
@@ -199,3 +204,56 @@ class idt:
         # return the tree
         return tree
 
+    @staticmethod
+    def test(filename=None):
+        # Import from pickled variables for now.
+        jar = gzip.open(filename, 'r')
+        coords = pickle.load(jar)
+        values = pickle.load(jar)
+        base = pickle.load(jar)
+        nnear = pickle.load(jar)
+        usemajority = pickle.load(jar)
+        # oldretval = pickle.load(jar)
+        oldretval = None
+        jar.close()
+        lenbase = len(base)
+
+        print 'Generating results with OpenCL'
+        atime1 = time()
+        gpu_idt = idt(coords, values, wantCL=True)
+        if gpu_idt.canCL == False:
+            raise AssertionError, 'Cannot run test without working OpenCL'
+        gpu_results = gpu_idt(base, nnear=nnear, majority=(usemajority==1))
+        atime2 = time()
+        adelta = atime2-atime1
+        print '... finished in ', adelta, 'seconds!'
+
+        print 'Generating results with cKDTree'
+        btime1 = time()
+        cpu_idt = idt(coords, values, wantCL=False)
+        cpu_results = cpu_idt(base, nnear=nnear, majority=(usemajority==1))
+        btime2 = time()
+        bdelta = btime2-btime1
+        print '... finished in ', bdelta, 'seconds!'
+
+        # Compare the results.
+        minmismatch = int(0.01*lenbase)
+        nomatch = sum([1 if cpu_results[x] != gpu_results[x] else 0 for x in xrange(lenbase)])
+        if nomatch > minmismatch:
+            print nomatch, 'of', lenbase, 'failed to match'
+            raise AssertionError
+        else:
+            print 'less than one percent failed to match'
+        
+if __name__ == '__main__':
+    # run some tests here
+    # idt.test('Tiny-a.pkl.gz')
+    # idt.test('LessTiny-a.pkl.gz')
+    # idt.test('EvenLessTiny-a.pkl.gz')
+    # idt.test('Tiny-b.pkl.gz')
+    # idt.test('LessTiny-b.pkl.gz')
+    # idt.test('EvenLessTiny-b.pkl.gz')
+    idt.test('BlockIsland-a.pkl.gz')
+    idt.test('BlockIsland-b.pkl.gz')
+    # idt.test('CratersOfTheMoon-a.pkl.gz')
+    # idt.test('CratersOfTheMoon-b.pkl.gz')
