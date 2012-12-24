@@ -22,7 +22,7 @@ from bathy import getBathy
 from crust import Crust
 import numpy
 #
-from clidt import CLIDT
+from idt import idt
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     def __init__(self):
@@ -653,11 +653,13 @@ class Region:
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
             depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
             # 4. an inverse distance tree must be built from that
-            lcCLIDT = CLIDT(coords, values, depthbase, wantCL=wantCL)
+            # lcCLIDT = CLIDT(coords, values, depthbase, wantCL=wantCL)
+            lcIDT = idt(coords, values, wantCL=wantCL)
             # 5. the desired output comes from that inverse distance tree
-            deptharray = lcCLIDT()
+            # deptharray = lcCLIDT()
+            deptharray = lcIDT(depthbase)
             deptharray.resize((depthylen, depthxlen))
-            lcCLIDT = None
+            lcIDT = None
         else:
             warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
 

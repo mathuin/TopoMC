@@ -8,8 +8,8 @@ from invdisttree import Invdisttree
 
 from buildtree import buildtree
 
-def testknnplus(filename=None, num_slices=1):
-    print 'testknnplus %s %d' % (filename, num_slices)
+def testidt(filename=None, num_slices=1):
+    print 'testidt %s %d' % (filename, num_slices)
     (coords, values, base, nnear, usemajority, oldretval) = load_vars_from_file(filename)
     lenbase = len(base)
     # building tree with CPU
@@ -20,7 +20,7 @@ def testknnplus(filename=None, num_slices=1):
     adelta = atime2-atime1
     print '... finished in ', adelta, 'seconds!'
     # now finding KNN with GPU
-    gpu = configure_cl('knnplus.cl', 1)
+    gpu = configure_cl('idt.cl', 1)
     # create buffers and arguments
     print 'finding ', nnear, 'nearest neighbors with GPU'
     ctime1 = time()
@@ -75,7 +75,7 @@ def testknnplus(filename=None, num_slices=1):
         # print "coords size: ", coords_buf.size
         # print "chunk size: ", chunk_buf.size
         # print "total: ", retvals_buf.size+values_buf.size+tree_buf.size+coords_buf.size+chunk_buf.size
-        event = gpu['program'].knnplus(gpu['queue'], gpu['global_size_1d'], gpu['local_size_1d'], retvals_buf, values_buf, tree_buf, coords_buf, lentree_arg, chunk_buf, lenchunk_arg, ink_arg, usemajority_arg)
+        event = gpu['program'].idt(gpu['queue'], gpu['global_size_1d'], gpu['local_size_1d'], retvals_buf, values_buf, tree_buf, coords_buf, lentree_arg, chunk_buf, lenchunk_arg, ink_arg, usemajority_arg)
         event.wait()
         cl.enqueue_copy(gpu['queue'], retvals_arr, retvals_buf)
         # print Counter(retvals_arr)
@@ -110,13 +110,13 @@ def testknnplus(filename=None, num_slices=1):
 
 if __name__ == '__main__':
     # run some tests here
-    # testknnplus('Tiny-a.pkl.gz')
-    # testknnplus('LessTiny-a.pkl.gz')
-    # testknnplus('EvenLessTiny-a.pkl.gz')
-    # testknnplus('Tiny-b.pkl.gz')
-    # testknnplus('LessTiny-b.pkl.gz')
-    # testknnplus('EvenLessTiny-b.pkl.gz')
-    testknnplus('BlockIsland-a.pkl.gz')
-    testknnplus('BlockIsland-b.pkl.gz')
-    # testknnplus('CratersOfTheMoon-a.pkl.gz')
-    # testknnplus('CratersOfTheMoon-b.pkl.gz')
+    # testidt('Tiny-a.pkl.gz')
+    # testidt('LessTiny-a.pkl.gz')
+    # testidt('EvenLessTiny-a.pkl.gz')
+    # testidt('Tiny-b.pkl.gz')
+    # testidt('LessTiny-b.pkl.gz')
+    # testidt('EvenLessTiny-b.pkl.gz')
+    testidt('BlockIsland-a.pkl.gz')
+    testidt('BlockIsland-b.pkl.gz')
+    # testidt('CratersOfTheMoon-a.pkl.gz')
+    # testidt('CratersOfTheMoon-b.pkl.gz')

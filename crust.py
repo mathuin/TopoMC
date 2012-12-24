@@ -1,7 +1,7 @@
 # crust module
 from itertools import product
 from random import randint, uniform
-from clidt import CLIDT
+from idt import idt
 
 class Crust:
     """Smoothly irregular crust between the surface and the underlying stone."""
@@ -20,9 +20,11 @@ class Crust:
         self.coords = [(randint(0, self.zsize-1), randint(0, self.xsize-1)) for dummy in xrange(self.numcoords)]
         self.values = [uniform(Crust.minwidth, Crust.maxwidth) for elem in xrange(self.numcoords)]
         self.base = [(z, x) for z, x in product(xrange(self.zsize), xrange(self.xsize))]
-        self.clidt = CLIDT(self.coords, self.values, self.base, wantCL=self.wantCL, majority=False)
+        self.idt = idt(self.coords, self.values, wantCL=self.wantCL)
+        # self.clidt = CLIDT(self.coords, self.values, self.base, wantCL=self.wantCL, majority=False)
 
     def __call__(self):
-        retval = self.clidt()
+        # retval = self.clidt()
+        retval = self.idt(self.base, majority=False)
         retval.resize((self.zsize, self.xsize))
         return retval
