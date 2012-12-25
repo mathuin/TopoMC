@@ -79,6 +79,7 @@ class elev:
         pickle -- boolean: save variables for pickling
 
         """
+
         if self.canCL and self.wantCL:
             elarray_arr = np.asarray(self.elarray.flatten(), dtype=np.int32)
             # These values do not change from run to run.

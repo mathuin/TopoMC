@@ -19,6 +19,7 @@ from pymclevel import mclevel
 from osgeo import gdal, osr
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 from bathy import getBathy
+from newbathy import bathy
 from crust import crust
 import numpy as np
 #
@@ -676,7 +677,9 @@ class Region:
         lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
         geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
         projection = srs.ExportToWkt()
-        bathyarray = getBathy(deptharray, self.maxdepth, geotrans, projection)
+        # bathyarray = getBathy(deptharray, self.maxdepth, geotrans, projection)
+        bathyObj = bathy(deptharray, geotrans, projection, wantCL=wantCL)
+        bathyarray = bathyObj(self.maxdepth)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         # perform terrain translation
         # NB: figure out why this doesn't work up above

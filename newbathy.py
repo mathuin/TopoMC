@@ -1,10 +1,9 @@
-# Inverse distance tree -- OpenCL and cKDTree both
-from __future__ import division
-import numpy as np
-from scipy.spatial import cKDTree as KDTree
-from time import time
+# Bathymetric data -- OpenCL and GDAL both
+from osgeo import gdal
 from utils import chunks, buildtree
 from itertools import product
+from time import time
+import numpy as np
 #
 import gzip
 import cPickle as pickle
@@ -16,23 +15,23 @@ try:
 except ImportError:
     hasCL = False
 
-class idt:
-    def __init__(self, coords, values, wantCL=True, platform_num=None):
+class bathy:
+    def __init__(self, lcarray, geotrans, projection, wantCL=True, platform_num=None):
         """
-        Take the coordinates and values and build a KD tree.
+        Take the landcover array and GIS information.
 
         Keyword arguments:
-        coords -- input coordinates (x, y) 
-        values -- input values
+        lcarray -- array of landcover values
+        geotrans -- geodetic transformation
+        projection -- map projection
 
         """
-        self.coords = np.asarray(coords, dtype=np.float32)
-        self.values = np.asarray(values, dtype=np.int32)
+        
+        self.lcarray = lcarray
+        self.geotrans = geotrans
+        self.projection = projection
 
-        if self.coords.shape[0] != self.values.shape[0]:
-            raise AssertionError, "lencoords does not equal lenvalues"
-
-        self.wantCL = wantCL
+        self.wantCL = False # wantCL
         self.canCL = False
 
         if hasCL and self.wantCL:
@@ -49,7 +48,7 @@ class idt:
                 except IndexError:
                     raise
                 self.queue = cl.CommandQueue(self.context)
-                filestr = ''.join(open('idt.cl', 'r').readlines())
+                filestr = ''.join(open('bathy.cl', 'r').readlines())
                 self.program = cl.Program(self.context, filestr).build(devices=self.devices)
                 for device in self.devices:
                     buildlog = self.program.get_build_info(device, cl.program_build_info.LOG)
@@ -71,40 +70,45 @@ class idt:
                 self.canCL = True
             # FIXME: Use an exception type here.
             except:
-                print 'warning: unable to use pyopencl, defaulting to cKDTree'
-
+                print 'warning: unable to use pyopencl, defaulting to GDAL'
         if self.canCL:
-            self.tree = buildtree(coords)
-        else:
-            self.tree = KDTree(coords)
+            # Build coordinates and values from lcarray. 
+            xlen, ylen = self.lcarray.shape
+            # lcxmin = self.geotrans[0]
+            # scale = self.geotrans[1]
+            # lcymax = self.geotrans[3]
+            # depthxrange = [lcxmin + scale * x for x in xrange(xlen)]
+            # depthyrange = [lcymax - scale * y for y in xrange(ylen)]
+            # rawcoords = [(x, y) for y in depthyrange for x in depthxrange]
+            rawcoords = [(x, y) for y in xrange(ylen) for x in xrange(xlen)]
+            # Make a tree out of non-water points.
+            dryindices = np.where(self.lcarray != 11)
+            # self.coords = np.array([rawcoords[dryindices[1][x]*xlen+dryindices[0][x]] for x in xrange(len(dryindices[0]))], dtype=np.float32)
+            self.coords = np.array([(dryindices[1][x], dryindices[0][x]) for x in xrange(len(dryindices[0]))], dtype=np.float32)
+            print self.coords.shape
+            self.tree = buildtree(self.coords)
 
-    def __call__(self, base, shape, nnear=None, majority=True, pickle_vars=False):
+    def __call__(self, maxdepth, pickle_vars=True):
         """
-        For each query point in the base array, find the K nearest
-        neighbors and calculate either the majority value or the
-        inverse-weighted value for those neighbors.
+        Traverse the landcover array.  For every point of type
+        'water', calculate the distance to the nearest non-water
+        point, stopping at maxdepth.
 
         Keyword arguments:
-        base -- output array (x, y)
-        nnear -- number of neighbors to check
-        majority -- boolean: whether to use the majority algorithm
-        pickle -- boolean: save variables for pickling
+        maxdepth -- maximum value for depth
 
         """
-        # Set nearest neighbors to default value of 11 if not set.
-        if nnear == None:
-            nnear = 11
 
         if self.canCL and self.wantCL:
+            xlen, ylen = self.lcarray.shape
+            base = np.array([(x, y) for y in xrange(maxdepth, ylen-maxdepth) for x in xrange(maxdepth, xlen-maxdepth)], dtype=np.float32)
             # These values do not change from run to run.
-            values_buf = cla.to_device(self.queue, self.values)
             tree_buf = cla.to_device(self.queue, self.tree)
             coords_buf = cla.to_device(self.queue, self.coords)
             lentree_arg = np.uint32(len(self.tree))
-            nnear_arg = np.uint32(nnear)
-            usemajority_arg = np.uint32(1 if majority else 0)
+            maxdepth_arg = np.float32(maxdepth)
             # Calculate how many base elements can be evaluated per run.
-            static_data = self.values.nbytes + self.tree.nbytes + self.coords.nbytes + lentree_arg.nbytes + nnear_arg.nbytes + usemajority_arg.nbytes
+            static_data = self.tree.nbytes + self.coords.nbytes + lentree_arg.nbytes + maxdepth_arg.nbytes
             # Each base element is two float32's and its retval is one int32.
             bytes_per_elem_single = 2*4
             bytes_per_elem_total = bytes_per_elem_single + 4
@@ -123,7 +127,7 @@ class idt:
                 retvals_buf = cla.to_device(self.queue, retvals_arr)
                 chunk_buf = cla.to_device(self.queue, chunk)
                 lenchunk_arg = np.uint32(lenchunk)
-                event = self.program.idt(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], retvals_buf.data, values_buf.data, tree_buf.data, coords_buf.data, lentree_arg, chunk_buf.data, lenchunk_arg, nnear_arg, usemajority_arg)
+                event = self.program.bathy(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], retvals_buf.data, tree_buf.data, coords_buf.data, lentree_arg, chunk_buf.data, lenchunk_arg, maxdepth_arg)
                 event.wait()
                 # cl.enqueue_copy(self.queue, retvals_arr, retvals_buf)
                 retvals_arr = retvals_buf.get()
@@ -131,68 +135,65 @@ class idt:
                     results = retvals_arr.tolist()
                 else:
                     results += retvals_arr.tolist()
+            results = np.array(results).reshape(xlen-2*maxdepth,ylen-2*maxdepth)
         else:
-            # from invdisttree.py
-            distances, indexes = self.tree.query(base, k=nnear)
-            results = np.zeros((len(distances),) + np.shape(self.values[0]))
-            jinterpol = 0
-            for distance, index in zip(distances, indexes):
-                if nnear == 1:
-                    wz = self.values[index]
-                elif distance[0] < 1e-10:
-                    wz = self.values[index[0]]
-                else:
-                    w = 1/distance
-                    w /= np.sum(w)
-                    if majority:
-                        majordict = dict([(x, 0) for x in self.values[index]])
-                        for zval, wval in zip(self.values[index], w):
-                            majordict[zval] += wval
-                        wz = max(majordict, key=majordict.get)
-                    else:
-                        wz = np.dot(w, self.values[index])
-                results[jinterpol] = wz
-                jinterpol += 1
+            (depthz, depthx) = self.lcarray.shape
+            drv = gdal.GetDriverByName('MEM')
+            depthds = drv.Create('', depthx, depthz, 1, gdal.GetDataTypeByName('Byte'))
+            depthds.SetGeoTransform(self.geotrans)
+            depthds.SetProjection(self.projection)
+            depthband = depthds.GetRasterBand(1)
+            depthband.WriteArray(self.lcarray)
+            # create a duplicate dataset called bathyds
+            bathyds = drv.Create('', depthx, depthz, 1, gdal.GetDataTypeByName('Byte'))
+            bathyds.SetGeoTransform(self.geotrans)
+            bathyds.SetProjection(self.projection)
+            bathyband = bathyds.GetRasterBand(1)
+            # run compute proximity
+            values = ','.join([str(x) for x in xrange(256) if x is not 11])
+            options = ['MAXDIST=%d' % maxdepth, 'NODATA=%d' % maxdepth, 'VALUES=%s' % values]
+            gdal.ComputeProximity(depthband, bathyband, options)
+            # extract array
+            results = bathyband.ReadAsArray(maxdepth, maxdepth, bathyds.RasterXSize-2*maxdepth, bathyds.RasterYSize-2*maxdepth)
+    
         if pickle_vars:
             # Pickle variables for testing purposes.
             print 'Pickling...'
-            f = gzip.open('idt-%d-%d-%d.pkl.gz' % (self.values.shape[0], base.shape[0], (1 if majority else 0)), 'wb')
-            pickle.dump(self.coords, f, -1)
-            pickle.dump(self.values, f, -1)
-            pickle.dump(base, f, -1)
-            pickle.dump(shape, f, -1)
-            pickle.dump(nnear, f, -1)
-            pickle.dump(majority, f, -1)
+            f = gzip.open('bathy-%d-%d.pkl.gz' % (self.lcarray.shape[0], self.lcarray.shape[1]), 'wb')
+            pickle.dump(self.lcarray, f, -1)
+            pickle.dump(self.geotrans, f, -1)
+            pickle.dump(self.projection, f, -1)
+            pickle.dump(maxdepth, f, -1)
             # pickle.dump(results, f, -1)
-        return np.asarray(results, dtype=np.uint32).reshape(shape)
+        print results.shape, self.lcarray.shape, maxdepth
+        return np.asarray(results, dtype=np.int32).reshape(self.lcarray.shape[0]-maxdepth*2, self.lcarray.shape[1]-maxdepth*2)
 
     @staticmethod
     def test(filename=None):
         # Import from pickled variables for now.
         jar = gzip.open(filename, 'r')
-        coords = pickle.load(jar)
-        values = pickle.load(jar)
-        base = pickle.load(jar)
-        shape = pickle.load(jar)
-        nnear = pickle.load(jar)
-        usemajority = pickle.load(jar)
+        lcarray = pickle.load(jar)
+        geotrans = pickle.load(jar)
+        projection = pickle.load(jar)
+        maxdepth = pickle.load(jar)
         jar.close()
-        lenbase = len(base)
+        lenbase = (lcarray.shape[0]-maxdepth*2)*(lcarray.shape[1]-maxdepth*2)
 
         print 'Generating results with OpenCL'
         atime1 = time()
-        gpu_idt = idt(coords, values, wantCL=True)
-        if gpu_idt.canCL == False:
+        gpu_bathy = bathy(lcarray, geotrans, projection, wantCL=True)
+        print '... init took ', time()-atime1, 'seconds!'
+        if gpu_bathy.canCL == False:
             raise AssertionError, 'Cannot run test without working OpenCL'
-        gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority==1), pickle_vars=False)
+        gpu_results = gpu_bathy(maxdepth, pickle_vars=False)
         atime2 = time()
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
 
-        print 'Generating results with cKDTree'
+        print 'Generating results with numpy'
         btime1 = time()
-        cpu_idt = idt(coords, values, wantCL=False)
-        cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority==1), pickle_vars=False)
+        cpu_bathy = bathy(lcarray, geotrans, projection, wantCL=False)
+        cpu_results = cpu_bathy(maxdepth, pickle_vars=False)
         btime2 = time()
         bdelta = btime2-btime1
         print '... finished in ', bdelta, 'seconds!'
@@ -210,7 +211,9 @@ class idt:
         
 if __name__ == '__main__':
     # Block Island test data
-    idt.test('idt-BlockIsland-a.pkl.gz')
-    idt.test('idt-BlockIsland-b.pkl.gz')
-    # idt.test('idt-CratersOfTheMoon-a.pkl.gz')
-    # idt.test('idt-CratersOfTheMoon-b.pkl.gz')
+    bathy.test('bathy-BlockIsland.pkl.gz')
+    # bathy.test('bathy-CratersOfTheMoon.pkl.gz')
+        
+        
+        
+        
