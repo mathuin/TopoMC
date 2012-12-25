@@ -14,9 +14,6 @@ __kernel void bathy(__global int *retvals, __global uint *tree, __global float2 
   // lenbase -- INPUT: uint containing length of query points
   // maxdepth -- INPUT: maximum depth value
 
-  // 1.  remove idt/majority ending, replace with returning distance
-  // 2.  remove heap, replace with single value
-
   uint gid = get_global_id(0);
   uint gsize = get_global_size(0);
 
@@ -33,7 +30,8 @@ __kernel void bathy(__global int *retvals, __global uint *tree, __global float2 
     float worstcase = maxdepth * maxdepth;
     uint stackTop = 0;
     float queryValue, splitValue, diff, diff2;
-    int retval = (int) maxdepth;
+    int retval = maxdepth;
+    uint bestID = 1;
     
     // put root node on top of stack
     searchStackNode[stackTop] = 1;
@@ -85,6 +83,7 @@ __kernel void bathy(__global int *retvals, __global uint *tree, __global float2 
 
       // is this point closer than our current best point?
       if (diffDist2 < bestDist2) {
+	bestID = currIdx;
 	bestDist2 = diffDist2;
       }
       if (queryValue <= splitValue) {
@@ -130,9 +129,8 @@ __kernel void bathy(__global int *retvals, __global uint *tree, __global float2 
 
     // return distance
     if (bestDist2 < worstcase) {
-      retvals[idx] = (int) sqrt(bestDist2);
-    } else {
-      retvals[idx] = retval;
+      retval = sqrt(bestDist2);
     }
+    retvals[idx] = retval;
   }
 }

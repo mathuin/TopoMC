@@ -68,7 +68,7 @@ class elev:
             except:
                 print 'warning: unable to use pyopencl, defaulting to numpy'
 
-    def __call__(self, trim, vscale, sealevel, pickle_vars=False):
+    def __call__(self, trim, vscale, sealevel, pickle_vars=True):
         """
         Shoehorn the array into the range required by Minecraft.
 

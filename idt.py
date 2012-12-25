@@ -78,7 +78,7 @@ class idt:
         else:
             self.tree = KDTree(coords)
 
-    def __call__(self, base, shape, nnear=None, majority=True, pickle_vars=False):
+    def __call__(self, base, shape, nnear=None, majority=True, pickle_vars=True):
         """
         For each query point in the base array, find the K nearest
         neighbors and calculate either the majority value or the

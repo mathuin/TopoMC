@@ -31,7 +31,7 @@ class bathy:
         self.geotrans = geotrans
         self.projection = projection
 
-        self.wantCL = False # wantCL
+        self.wantCL = wantCL
         self.canCL = False
 
         if hasCL and self.wantCL:
@@ -49,7 +49,11 @@ class bathy:
                     raise
                 self.queue = cl.CommandQueue(self.context)
                 filestr = ''.join(open('bathy.cl', 'r').readlines())
-                self.program = cl.Program(self.context, filestr).build(devices=self.devices)
+                try:
+                    self.program = cl.Program(self.context, filestr).build(devices=self.devices)
+                except:
+                    print 'problems compiling program'
+                    raise
                 for device in self.devices:
                     buildlog = self.program.get_build_info(device, cl.program_build_info.LOG)
                     if (len(buildlog) > 1):
@@ -85,7 +89,6 @@ class bathy:
             dryindices = np.where(self.lcarray != 11)
             # self.coords = np.array([rawcoords[dryindices[1][x]*xlen+dryindices[0][x]] for x in xrange(len(dryindices[0]))], dtype=np.float32)
             self.coords = np.array([(dryindices[1][x], dryindices[0][x]) for x in xrange(len(dryindices[0]))], dtype=np.float32)
-            print self.coords.shape
             self.tree = buildtree(self.coords)
 
     def __call__(self, maxdepth, pickle_vars=True):
@@ -165,7 +168,6 @@ class bathy:
             pickle.dump(self.projection, f, -1)
             pickle.dump(maxdepth, f, -1)
             # pickle.dump(results, f, -1)
-        print results.shape, self.lcarray.shape, maxdepth
         return np.asarray(results, dtype=np.int32).reshape(self.lcarray.shape[0]-maxdepth*2, self.lcarray.shape[1]-maxdepth*2)
 
     @staticmethod
@@ -204,8 +206,19 @@ class bathy:
         xlen, ylen = gpu_results.shape
         nomatch = sum([1 if cpu_results[x,y] != gpu_results[x,y] else 0 for x, y in product(xrange(xlen), xrange(ylen))])
         if nomatch > maxnomatch:
-            print nomatch, 'of', lenbase, 'failed to match'
-            raise AssertionError
+            countprint = 0
+            for x, y in product(xrange(xlen), xrange(ylen)):
+                # if abs(cpu_results[x,y] - gpu_results[x,y]) > 2.0:
+                if abs(cpu_results[x,y] - gpu_results[x,y]) > 2.0 and gpu_results[x,y] != maxdepth:
+                    countprint += 1
+                    if countprint < 10:
+                        print "no match at ", x, y
+                        print " CPU: ", cpu_results[x,y]
+                        print " GPU: ", gpu_results[x,y]
+                    else:
+                        break
+
+            raise AssertionError, '%d of %d failed to match' % (nomatch, lenbase)
         else:
             print 'less than %d%% failed to match' % allowed_error_percentage
         
@@ -213,7 +226,3 @@ if __name__ == '__main__':
     # Block Island test data
     bathy.test('bathy-BlockIsland.pkl.gz')
     # bathy.test('bathy-CratersOfTheMoon.pkl.gz')
-        
-        
-        
-        
