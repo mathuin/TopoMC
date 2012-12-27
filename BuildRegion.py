@@ -46,7 +46,7 @@ def main():
     yamlfile.close()
 
     # exit if map does not exist
-    if not os.path.exists(myRegion.mapname):
+    if not os.path.exists(myRegion.mapfile):
         raise IOError, "no map file exists"
 
     # tree and ore variables

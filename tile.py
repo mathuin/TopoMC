@@ -27,7 +27,7 @@ class Tile:
         # snag stuff from the region first
         self.name = region.name
         self.size = region.tilesize
-        self.mapname = region.mapname
+        self.mapfile = region.mapfile
         self.tilex = int(tilex)
         self.tiley = int(tiley)
         self.tiles = region.tiles
@@ -53,7 +53,7 @@ class Tile:
         sy = self.size
 
         # load arrays from map file
-        mapds = gdal.Open(self.mapname, GA_ReadOnly)
+        mapds = gdal.Open(self.mapfile, GA_ReadOnly)
         lcarray = mapds.GetRasterBand(Region.rasters['landcover']).ReadAsArray(ox, oy, sx, sy)
         elarray = mapds.GetRasterBand(Region.rasters['elevation']).ReadAsArray(ox, oy, sx, sy)
         bathyarray = mapds.GetRasterBand(Region.rasters['bathy']).ReadAsArray(ox, oy, sx, sy)
