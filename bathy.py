@@ -106,45 +106,43 @@ class bathy:
             best_device = np.argmax(row_limits)
             best_rows = row_limits[best_device]
             # For now, at least, do not create retval or chunk buffer here.
-            currdepth = 0
-            while (currdepth <= maxdepth):
-                # Iterate through this entire mess once per depth level
-                currdepth_arg = np.uint32(currdepth)
-                row_list = np.array([x for x in xrange(xlen)])
-                negfound = False
-                for row_chunk in chunks(row_list, best_rows):
-                    # Create retvals and chunk buffer here instead of above.
-                    # Do not prepend buffer rows for first row.
-                    realfirst = row_chunk[0]
-                    if (row_chunk[0] != row_list[0]):
-                        realfirst -= maxdepth
-                    # Do not postpend buffer rows for last row.
-                    reallast = row_chunk[-1]
-                    if (row_chunk[-1] != row_list[-1]):
-                        reallast += maxdepth
-                    chunk = np.copy(workingarr[realfirst*ylen:reallast*ylen])
-                    outchunk_buf = cla.empty(self.queue, chunk.shape, chunk.dtype)
-                    inchunk_buf = cla.to_device(self.queue, chunk)
-                    newxlen = reallast-realfirst
-                    newxlen_arg = np.uint32(newxlen)
-                    lenchunk = newxlen*ylen
-                    lenchunk_arg = np.uint32(lenchunk)
-                    event = self.program.bathy(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], outchunk_buf.data, inchunk_buf.data, newxlen_arg, ylen_arg, currdepth_arg, maxdepth_arg)
+            # Iterate through this entire mess once per depth level
+            row_list = np.array([x for x in xrange(xlen)])
+            negfound = False
+            for row_chunk in chunks(row_list, best_rows):
+                # Do not prepend buffer rows for first row.
+                realfirst = row_chunk[0]
+                if (row_chunk[0] != row_list[0]):
+                    realfirst -= maxdepth
+                # Do not postpend buffer rows for last row.
+                reallast = row_chunk[-1]
+                if (row_chunk[-1] != row_list[-1]):
+                    reallast += maxdepth
+                # Create retvals and chunk buffer here instead of above.
+                chunk = np.copy(workingarr[realfirst*ylen:reallast*ylen])
+                outchunk_buf = cla.empty(self.queue, chunk.shape, chunk.dtype)
+                inchunk_buf = cla.to_device(self.queue, chunk)
+                newxlen = reallast-realfirst
+                newxlen_arg = np.uint32(newxlen)
+                lenchunk = newxlen*ylen
+                lenchunk_arg = np.uint32(lenchunk)
+                currdepth = 0
+                while (currdepth <= maxdepth):
+                    currdepth_arg = np.uint32(currdepth)
+                    if (currdepth % 2 == 0):
+                        event = self.program.bathy(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], outchunk_buf.data, inchunk_buf.data, newxlen_arg, ylen_arg, currdepth_arg, maxdepth_arg)
+                    else:
+                        event = self.program.bathy(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], inchunk_buf.data, outchunk_buf.data, newxlen_arg, ylen_arg, currdepth_arg, maxdepth_arg)
                     event.wait()
-                    # cl.enqueue_copy(self.queue, retvals_arr, retvals_buf)
-                    # copy important parts of chunk_buf.data back 
-                    chunk_arr = outchunk_buf.get()
-                    copytop = 0
-                    if (row_chunk[0] != row_list[0]):
-                        copytop += maxdepth
-                    copybot = len(row_chunk)-1
-                    workingarr[row_chunk[0]*ylen:row_chunk[-1]*ylen] = chunk_arr[copytop*ylen:copybot*ylen]
-                    # write a smart check for done
-                    negfound = any([True if x == -1 else False for x in chunk_arr])
-                if negfound == False:
-                    # we are done!
-                    break
-                currdepth += 1
+                    currdepth += 1
+                # cl.enqueue_copy(self.queue, retvals_arr, retvals_buf)
+                # copy important parts of chunk_buf.data back 
+                chunk_arr = outchunk_buf.get()
+                copytop = 0
+                if (row_chunk[0] != row_list[0]):
+                    copytop += maxdepth
+                copybot = len(row_chunk)-1
+                workingarr[row_chunk[0]*ylen:row_chunk[-1]*ylen] = chunk_arr[copytop*ylen:copybot*ylen]
             results = workingarr.reshape((self.lcarray.shape))[maxdepth:-1*maxdepth,maxdepth:-1*maxdepth]
         else:
             (depthz, depthx) = self.lcarray.shape
@@ -207,7 +205,7 @@ class bathy:
         print '... finished in ', bdelta, 'seconds!'
 
         # Compare the results.
-        allowed_error_percentage = 1
+        allowed_error_percentage = 5
         maxnomatch = int(allowed_error_percentage*0.01*lenbase)
         xlen, ylen = gpu_results.shape
         nomatch = sum([1 if cpu_results[x,y] != gpu_results[x,y] else 0 for x, y in product(xrange(xlen), xrange(ylen))])
@@ -230,4 +228,4 @@ class bathy:
 if __name__ == '__main__':
     # Block Island test data
     bathy.test('bathy-BlockIsland.pkl.gz')
-    # bathy.test('bathy-CratersOfTheMoon.pkl.gz')
+    bathy.test('bathy-CratersOfTheMoon.pkl.gz')
