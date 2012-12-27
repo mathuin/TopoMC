@@ -18,11 +18,12 @@ from pymclevel import mclevel
 
 from osgeo import gdal, osr
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
-from bathy import getBathy
-from crust import Crust
-import numpy
+from bathy import bathy
+from crust import crust
+import numpy as np
 #
-from clidt import CLIDT
+from idt import idt
+from elev import elev
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     def __init__(self):
@@ -525,7 +526,7 @@ class Region:
                 self.downloadfile(layerID, downloadURL)
         self.buildvrts()
 
-    def buildmap(self, wantCL=True):
+    def buildmap(self, wantCL=True, pickle_vars=False):
         """Use downloaded files and other parameters to build multi-raster map."""
 
         # warp elevation data into new format
@@ -607,13 +608,14 @@ class Region:
         mapds.SetProjection(srs.ExportToWkt())
 
         # modify elarray and save it as raster band 2
-        actualel = ((elarray - self.trim)/self.vscale)+self.sealevel
+        elevObj = elev(elarray, wantCL=wantCL)
+        actualel = elevObj(self.trim, self.vscale, self.sealevel, pickle_vars=pickle_vars)
         mapds.GetRasterBand(Region.rasters['elevation']).WriteArray(actualel)
         elarray = None
         actualel = None
 
         # generate crust and save it as raster band 4
-        newcrust = Crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=wantCL)
+        newcrust = crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=wantCL)
         crustarray = newcrust()
         mapds.GetRasterBand(Region.rasters['crust']).WriteArray(crustarray)
         crustarray = None
@@ -637,13 +639,13 @@ class Region:
             if (vrtnodata == None):
                 vrtnodata = 0
             values[values == vrtnodata] = 11
-            values = values.flatten()
+            values = np.array(values.flatten(), dtype=np.int32)
             vrtband = None
             # 2. a new array of original scale coordinates must be created
             vrtxrange = [vrtgeotrans[0] + vrtgeotrans[1] * x for x in xrange(vrtds.RasterXSize)]
             vrtyrange = [vrtgeotrans[3] + vrtgeotrans[5] * y for y in xrange(vrtds.RasterYSize)]
             vrtds = None
-            coords = numpy.array([(x, y) for y in vrtyrange for x in vrtxrange])
+            coords = np.array([(x, y) for y in vrtyrange for x in vrtxrange], dtype=np.float32)
             # 3. a new array of goal scale coordinates must be made
             # landcover extents are used for the bathy depth array
             # yes, it's confusing.  sorry.
@@ -651,13 +653,13 @@ class Region:
             depthylen = int((lcextents['ymax']-lcextents['ymin'])/self.scale)
             depthxrange = [lcextents['xmin'] + self.scale * x for x in xrange(depthxlen)]
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
-            depthbase = numpy.array([(x, y) for y in depthyrange for x in depthxrange])
+            depthbase = np.array([(x, y) for y in depthyrange for x in depthxrange], dtype=np.float32)
             # 4. an inverse distance tree must be built from that
-            lcCLIDT = CLIDT(coords, values, depthbase, wantCL=wantCL)
+            lcIDT = idt(coords, values, wantCL=wantCL)
             # 5. the desired output comes from that inverse distance tree
-            deptharray = lcCLIDT()
-            deptharray.resize((depthylen, depthxlen))
-            lcCLIDT = None
+            depthshape = (depthylen, depthxlen)
+            deptharray = lcIDT(depthbase, depthshape, pickle_vars=pickle_vars)
+            lcIDT = None
         else:
             warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
 
@@ -674,7 +676,8 @@ class Region:
         lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
         geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
         projection = srs.ExportToWkt()
-        bathyarray = getBathy(deptharray, self.maxdepth, geotrans, projection)
+        bathyObj = bathy(deptharray, geotrans, projection, wantCL=wantCL)
+        bathyarray = bathyObj(self.maxdepth, pickle_vars=pickle_vars)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         # perform terrain translation
         # NB: figure out why this doesn't work up above
@@ -684,7 +687,7 @@ class Region:
             for key in trans:
                 lcarray[lcarray == key] = 1000+trans[key]
             lcarray[lcarray > 1000] -= 1000
-            for value in numpy.unique(lcarray).flat:
+            for value in np.unique(lcarray).flat:
                 if value not in Terrain.terdict:
                     print "bad value: ", value
         mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)
