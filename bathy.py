@@ -49,11 +49,7 @@ class bathy:
                     raise
                 self.queue = cl.CommandQueue(self.context)
                 filestr = ''.join(open('bathy.cl', 'r').readlines())
-                try:
-                    self.program = cl.Program(self.context, filestr).build(devices=self.devices)
-                except:
-                    print 'problems compiling program'
-                    raise
+                self.program = cl.Program(self.context, filestr).build(devices=self.devices)
                 for device in self.devices:
                     buildlog = self.program.get_build_info(device, cl.program_build_info.LOG)
                     if (len(buildlog) > 1):
@@ -72,26 +68,10 @@ class bathy:
                     self.local_size[device] = (work_group_size, )
                     self.global_size[device] = (num_groups_for_1d * work_group_size,  )
                 self.canCL = True
-            # FIXME: Use an exception type here.
-            except:
+            except cl.RuntimeError:
                 print 'warning: unable to use pyopencl, defaulting to GDAL'
-        if self.canCL:
-            # Build coordinates and values from lcarray. 
-            xlen, ylen = self.lcarray.shape
-            # lcxmin = self.geotrans[0]
-            # scale = self.geotrans[1]
-            # lcymax = self.geotrans[3]
-            # depthxrange = [lcxmin + scale * x for x in xrange(xlen)]
-            # depthyrange = [lcymax - scale * y for y in xrange(ylen)]
-            # rawcoords = [(x, y) for y in depthyrange for x in depthxrange]
-            rawcoords = [(x, y) for y in xrange(ylen) for x in xrange(xlen)]
-            # Make a tree out of non-water points.
-            dryindices = np.where(self.lcarray != 11)
-            # self.coords = np.array([rawcoords[dryindices[1][x]*xlen+dryindices[0][x]] for x in xrange(len(dryindices[0]))], dtype=np.float32)
-            self.coords = np.array([(dryindices[1][x], dryindices[0][x]) for x in xrange(len(dryindices[0]))], dtype=np.float32)
-            self.tree = buildtree(self.coords)
 
-    def __call__(self, maxdepth, pickle_vars=True):
+    def __call__(self, maxdepth, pickle_vars=False):
         """
         Traverse the landcover array.  For every point of type
         'water', calculate the distance to the nearest non-water
@@ -103,42 +83,69 @@ class bathy:
         """
 
         if self.canCL and self.wantCL:
+            # Create working array
             xlen, ylen = self.lcarray.shape
-            base = np.array([(x, y) for y in xrange(maxdepth, ylen-maxdepth) for x in xrange(maxdepth, xlen-maxdepth)], dtype=np.float32)
+            workingarr = np.array(self.lcarray.ravel(), dtype=np.int32)
             # These values do not change from run to run.
-            tree_buf = cla.to_device(self.queue, self.tree)
-            coords_buf = cla.to_device(self.queue, self.coords)
-            lentree_arg = np.uint32(len(self.tree))
-            maxdepth_arg = np.float32(maxdepth)
+            ylen_arg = np.uint32(ylen)
+            maxdepth_arg = np.uint32(maxdepth)
             # Calculate how many base elements can be evaluated per run.
-            static_data = self.tree.nbytes + self.coords.nbytes + lentree_arg.nbytes + maxdepth_arg.nbytes
-            # Each base element is two float32's and its retval is one int32.
+            # Each run requires xlen, ylen, currdepth, and maxdepth -- all 32bit.
+            static_data = 4 * 4
+            # Each base element requires two 32bit integers.
             bytes_per_elem_single = 2*4
-            bytes_per_elem_total = bytes_per_elem_single + 4
+            bytes_per_elem_total = bytes_per_elem_single
+            # Use rows instead of elems for two-dimensional arrays.
+            bytes_per_row_single = bytes_per_elem_single * ylen
+            bytes_per_row_total = bytes_per_elem_total * ylen
             # Check both single and total limits.
-            elems_per_slice_single = [int(0.95*device.max_mem_alloc_size/bytes_per_elem_single) for device in self.devices]
-            elems_per_slice_total = [int((0.95*device.global_mem_size-static_data)/bytes_per_elem_total) for device in self.devices]
-            elem_limits = [elems_per_slice_single[x] if elems_per_slice_single[x]<elems_per_slice_total[x] else elems_per_slice_total[x] for x in xrange(len(self.devices))]
-            # For now, at least, do not create retval or chunk buffer here.
-            results = []
+            rows_per_slice_single = [int(0.95*device.max_mem_alloc_size/bytes_per_row_single) for device in self.devices]
+            rows_per_slice_total = [int((0.95*device.global_mem_size-static_data)/bytes_per_row_total) for device in self.devices]
+            row_limits = [rows_per_slice_single[x] if rows_per_slice_single[x]<rows_per_slice_total[x] else rows_per_slice_total[x] for x in xrange(len(self.devices))]
             # NB: Only supporting one device for now.
-            best_device = np.argmax(elem_limits)
-            for chunk in chunks(base, elem_limits[best_device]):
-                # Create retvals and chunk buffer here instead of above.
-                lenchunk = len(chunk)
-                retvals_arr = np.empty(lenchunk, dtype=np.int32)
-                retvals_buf = cla.to_device(self.queue, retvals_arr)
-                chunk_buf = cla.to_device(self.queue, chunk)
-                lenchunk_arg = np.uint32(lenchunk)
-                event = self.program.bathy(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], retvals_buf.data, tree_buf.data, coords_buf.data, lentree_arg, chunk_buf.data, lenchunk_arg, maxdepth_arg)
-                event.wait()
-                # cl.enqueue_copy(self.queue, retvals_arr, retvals_buf)
-                retvals_arr = retvals_buf.get()
-                if results == []:
-                    results = retvals_arr.tolist()
-                else:
-                    results += retvals_arr.tolist()
-            results = np.array(results).reshape(xlen-2*maxdepth,ylen-2*maxdepth)
+            best_device = np.argmax(row_limits)
+            best_rows = row_limits[best_device]
+            # For now, at least, do not create retval or chunk buffer here.
+            currdepth = 0
+            while (currdepth <= maxdepth):
+                # Iterate through this entire mess once per depth level
+                currdepth_arg = np.uint32(currdepth)
+                row_list = np.array([x for x in xrange(xlen)])
+                negfound = False
+                for row_chunk in chunks(row_list, best_rows):
+                    # Create retvals and chunk buffer here instead of above.
+                    # Do not prepend buffer rows for first row.
+                    realfirst = row_chunk[0]
+                    if (row_chunk[0] != row_list[0]):
+                        realfirst -= maxdepth
+                    # Do not postpend buffer rows for last row.
+                    reallast = row_chunk[-1]
+                    if (row_chunk[-1] != row_list[-1]):
+                        reallast += maxdepth
+                    chunk = np.copy(workingarr[realfirst*ylen:reallast*ylen])
+                    outchunk_buf = cla.empty(self.queue, chunk.shape, chunk.dtype)
+                    inchunk_buf = cla.to_device(self.queue, chunk)
+                    newxlen = reallast-realfirst
+                    newxlen_arg = np.uint32(newxlen)
+                    lenchunk = newxlen*ylen
+                    lenchunk_arg = np.uint32(lenchunk)
+                    event = self.program.bathy(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], outchunk_buf.data, inchunk_buf.data, newxlen_arg, ylen_arg, currdepth_arg, maxdepth_arg)
+                    event.wait()
+                    # cl.enqueue_copy(self.queue, retvals_arr, retvals_buf)
+                    # copy important parts of chunk_buf.data back 
+                    chunk_arr = outchunk_buf.get()
+                    copytop = 0
+                    if (row_chunk[0] != row_list[0]):
+                        copytop += maxdepth
+                    copybot = len(row_chunk)-1
+                    workingarr[row_chunk[0]*ylen:row_chunk[-1]*ylen] = chunk_arr[copytop*ylen:copybot*ylen]
+                    # write a smart check for done
+                    negfound = any([True if x == -1 else False for x in chunk_arr])
+                if negfound == False:
+                    # we are done!
+                    break
+                currdepth += 1
+            results = workingarr.reshape((self.lcarray.shape))[maxdepth:-1*maxdepth,maxdepth:-1*maxdepth]
         else:
             (depthz, depthx) = self.lcarray.shape
             drv = gdal.GetDriverByName('MEM')
@@ -168,7 +175,7 @@ class bathy:
             pickle.dump(self.projection, f, -1)
             pickle.dump(maxdepth, f, -1)
             # pickle.dump(results, f, -1)
-        return np.asarray(results, dtype=np.int32).reshape(self.lcarray.shape[0]-maxdepth*2, self.lcarray.shape[1]-maxdepth*2)
+        return results
 
     @staticmethod
     def test(filename=None):
@@ -184,7 +191,6 @@ class bathy:
         print 'Generating results with OpenCL'
         atime1 = time()
         gpu_bathy = bathy(lcarray, geotrans, projection, wantCL=True)
-        print '... init took ', time()-atime1, 'seconds!'
         if gpu_bathy.canCL == False:
             raise AssertionError, 'Cannot run test without working OpenCL'
         gpu_results = gpu_bathy(maxdepth, pickle_vars=False)
@@ -192,7 +198,7 @@ class bathy:
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
 
-        print 'Generating results with numpy'
+        print 'Generating results with GDAL'
         btime1 = time()
         cpu_bathy = bathy(lcarray, geotrans, projection, wantCL=False)
         cpu_results = cpu_bathy(maxdepth, pickle_vars=False)
@@ -208,8 +214,7 @@ class bathy:
         if nomatch > maxnomatch:
             countprint = 0
             for x, y in product(xrange(xlen), xrange(ylen)):
-                # if abs(cpu_results[x,y] - gpu_results[x,y]) > 2.0:
-                if abs(cpu_results[x,y] - gpu_results[x,y]) > 2.0 and gpu_results[x,y] != maxdepth:
+                if abs(cpu_results[x,y] - gpu_results[x,y]) > 2:
                     countprint += 1
                     if countprint < 10:
                         print "no match at ", x, y
