@@ -526,7 +526,7 @@ class Region:
                 self.downloadfile(layerID, downloadURL)
         self.buildvrts()
 
-    def buildmap(self, wantCL=True):
+    def buildmap(self, wantCL=True, pickle_vars=False):
         """Use downloaded files and other parameters to build multi-raster map."""
 
         # warp elevation data into new format
@@ -609,7 +609,7 @@ class Region:
 
         # modify elarray and save it as raster band 2
         elevObj = elev(elarray, wantCL=wantCL)
-        actualel = elevObj(self.trim, self.vscale, self.sealevel)
+        actualel = elevObj(self.trim, self.vscale, self.sealevel, pickle_vars=pickle_vars)
         mapds.GetRasterBand(Region.rasters['elevation']).WriteArray(actualel)
         elarray = None
         actualel = None
@@ -658,7 +658,7 @@ class Region:
             lcIDT = idt(coords, values, wantCL=wantCL)
             # 5. the desired output comes from that inverse distance tree
             depthshape = (depthylen, depthxlen)
-            deptharray = lcIDT(depthbase, depthshape)
+            deptharray = lcIDT(depthbase, depthshape, pickle_vars=pickle_vars)
             lcIDT = None
         else:
             warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
@@ -677,7 +677,7 @@ class Region:
         geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
         projection = srs.ExportToWkt()
         bathyObj = bathy(deptharray, geotrans, projection, wantCL=wantCL)
-        bathyarray = bathyObj(self.maxdepth)
+        bathyarray = bathyObj(self.maxdepth, pickle_vars=pickle_vars)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         # perform terrain translation
         # NB: figure out why this doesn't work up above
