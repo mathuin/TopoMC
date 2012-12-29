@@ -526,8 +526,14 @@ class Region:
                 self.downloadfile(layerID, downloadURL)
         self.buildvrts()
 
-    def buildmap(self, wantCL=True, pickle_vars=False):
+    def buildmap(self, wantCL=True, do_pickle=False):
         """Use downloaded files and other parameters to build multi-raster map."""
+
+        # set pickle variable
+        if do_pickle:
+            pickle_name=self.name
+        else:
+            pickle_name=None
 
         # warp elevation data into new format
         # NB: can't do this to landcover until mode algorithm is supported
@@ -609,14 +615,14 @@ class Region:
 
         # modify elarray and save it as raster band 2
         elevObj = elev(elarray, wantCL=wantCL)
-        actualel = elevObj(self.trim, self.vscale, self.sealevel, pickle_vars=pickle_vars)
+        actualel = elevObj(self.trim, self.vscale, self.sealevel, pickle_name=pickle_name)
         mapds.GetRasterBand(Region.rasters['elevation']).WriteArray(actualel)
         elarray = None
         actualel = None
 
         # generate crust and save it as raster band 4
         newcrust = crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=wantCL)
-        crustarray = newcrust()
+        crustarray = newcrust(pickle_name=pickle_name)
         mapds.GetRasterBand(Region.rasters['crust']).WriteArray(crustarray)
         crustarray = None
         newcrust = None
@@ -629,7 +635,7 @@ class Region:
 
         # if True, use new code, if False, use gdalwarp
         if True:
-            # 1. the new file must be read into an array and flattened
+            # 1. the new file must be read into an array and raveled
             vrtds = gdal.Open(lcvrt, GA_ReadOnly)
             vrtgeotrans = vrtds.GetGeoTransform()
             vrtband = vrtds.GetRasterBand(1)
@@ -639,7 +645,6 @@ class Region:
             if (vrtnodata == None):
                 vrtnodata = 0
             values[values == vrtnodata] = 11
-            values = np.array(values.flatten(), dtype=np.int32)
             vrtband = None
             # 2. a new array of original scale coordinates must be created
             vrtxrange = [vrtgeotrans[0] + vrtgeotrans[1] * x for x in xrange(vrtds.RasterXSize)]
@@ -655,10 +660,10 @@ class Region:
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
             depthbase = np.array([(x, y) for y in depthyrange for x in depthxrange], dtype=np.float32)
             # 4. an inverse distance tree must be built from that
-            lcIDT = idt(coords, values, wantCL=wantCL)
+            lcIDT = idt(coords, values.ravel().astype(np.int32), wantCL=wantCL)
             # 5. the desired output comes from that inverse distance tree
             depthshape = (depthylen, depthxlen)
-            deptharray = lcIDT(depthbase, depthshape, pickle_vars=pickle_vars)
+            deptharray = lcIDT(depthbase, depthshape, pickle_name=pickle_name)
             lcIDT = None
         else:
             warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
@@ -677,7 +682,7 @@ class Region:
         geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
         projection = srs.ExportToWkt()
         bathyObj = bathy(deptharray, geotrans, projection, wantCL=wantCL)
-        bathyarray = bathyObj(self.maxdepth, pickle_vars=pickle_vars)
+        bathyarray = bathyObj(self.maxdepth, pickle_name=pickle_name)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         # perform terrain translation
         # NB: figure out why this doesn't work up above

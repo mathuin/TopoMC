@@ -71,7 +71,7 @@ class bathy:
             except cl.RuntimeError:
                 print 'warning: unable to use pyopencl, defaulting to GDAL'
 
-    def __call__(self, maxdepth, pickle_vars=False):
+    def __call__(self, maxdepth, pickle_name=None):
         """
         Traverse the landcover array.  For every point of type
         'water', calculate the distance to the nearest non-water
@@ -164,10 +164,11 @@ class bathy:
             # extract array
             results = bathyband.ReadAsArray(maxdepth, maxdepth, bathyds.RasterXSize-2*maxdepth, bathyds.RasterYSize-2*maxdepth)
     
-        if pickle_vars:
+        if pickle_name != None:
             # Pickle variables for testing purposes.
-            print 'Pickling...'
-            f = gzip.open('bathy-%d-%d.pkl.gz' % (self.lcarray.shape[0], self.lcarray.shape[1]), 'wb')
+            picklefilename = 'bathy-%s.pkl.gz' % pickle_name
+            print 'Pickling to %s...' % picklefilename
+            f = gzip.open(picklefilename, 'wb')
             pickle.dump(self.lcarray, f, -1)
             pickle.dump(self.geotrans, f, -1)
             pickle.dump(self.projection, f, -1)
@@ -176,9 +177,9 @@ class bathy:
         return results
 
     @staticmethod
-    def test(filename=None):
+    def test(fileobj, image=False):
         # Import from pickled variables for now.
-        jar = gzip.open(filename, 'r')
+        jar = gzip.GzipFile(fileobj=fileobj)
         lcarray = pickle.load(jar)
         geotrans = pickle.load(jar)
         projection = pickle.load(jar)
@@ -191,7 +192,7 @@ class bathy:
         gpu_bathy = bathy(lcarray, geotrans, projection, wantCL=True)
         if gpu_bathy.canCL == False:
             raise AssertionError, 'Cannot run test without working OpenCL'
-        gpu_results = gpu_bathy(maxdepth, pickle_vars=False)
+        gpu_results = gpu_bathy(maxdepth)
         atime2 = time()
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
@@ -199,33 +200,53 @@ class bathy:
         print 'Generating results with GDAL'
         btime1 = time()
         cpu_bathy = bathy(lcarray, geotrans, projection, wantCL=False)
-        cpu_results = cpu_bathy(maxdepth, pickle_vars=False)
+        cpu_results = cpu_bathy(maxdepth)
         btime2 = time()
         bdelta = btime2-btime1
         print '... finished in ', bdelta, 'seconds!'
 
         # Compare the results.
-        allowed_error_percentage = 5
+        allowed_error_percentage = 1
         maxnomatch = int(allowed_error_percentage*0.01*lenbase)
         xlen, ylen = gpu_results.shape
-        nomatch = sum([1 if cpu_results[x,y] != gpu_results[x,y] else 0 for x, y in product(xrange(xlen), xrange(ylen))])
-        if nomatch > maxnomatch:
-            countprint = 0
-            for x, y in product(xrange(xlen), xrange(ylen)):
-                if abs(cpu_results[x,y] - gpu_results[x,y]) > 2:
-                    countprint += 1
-                    if countprint < 10:
-                        print "no match at ", x, y
-                        print " CPU: ", cpu_results[x,y]
-                        print " GPU: ", gpu_results[x,y]
-                    else:
-                        break
-
-            raise AssertionError, '%d of %d failed to match' % (nomatch, lenbase)
+        if image:
+            print 'Generating image of differences'
+            import Image, re
+            imagefile = re.sub('pkl.gz', 'png', fileobj.name)
+            # diffarr = (cpu_results + 128 - gpu_results)
+            diffarr = np.array([[int(128 + cpu_results[x,y] - gpu_results[x,y]) for y in xrange(ylen)] for x in xrange(xlen)], dtype=np.int32)
+            Image.fromarray(diffarr).save(imagefile)
         else:
-            print 'less than %d%% failed to match' % allowed_error_percentage
+            nomatch = sum([1 if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            if nomatch > maxnomatch:
+                countprint = 0
+                for x, y in product(xrange(xlen), xrange(ylen)):
+                    if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001:
+                        countprint += 1
+                        if countprint < 10:
+                            print "no match at ", x, y
+                            print " CPU: ", cpu_results[x,y]
+                            print " GPU: ", gpu_results[x,y]
+                        else:
+                            break
+                raise AssertionError, '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
+            else:
+                print '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
         
 if __name__ == '__main__':
-    # Block Island test data
-    bathy.test('bathy-BlockIsland.pkl.gz')
-    bathy.test('bathy-CratersOfTheMoon.pkl.gz')
+    import argparse
+    import glob
+
+    parser = argparse.ArgumentParser(description='Test bathy functionality with OpenCL and GDAL.')
+    parser.add_argument('files', type=argparse.FileType('r'), nargs='*',
+                        help='a data file to be processed')
+    parser.add_argument('--image', action='store_true',
+                        help='generate an image with the differences')
+
+    args = parser.parse_args()
+    if (args.files == []):
+        args.files = [open(file) for file in glob.glob('./bathy-*.pkl.gz')]
+    for testfile in args.files:
+        print 'Testing %s' % testfile.name
+        bathy.test(testfile, image=args.image)
+        testfile.close()

@@ -23,6 +23,6 @@ class crust:
         self.base = np.array([(z, x) for z, x in product(xrange(zsize), xrange(xsize))], dtype=np.float32)
         self.idt = idt(coords, values, wantCL=wantCL)
 
-    def __call__(self):
-        retval = self.idt(self.base, self.shape, majority=False)
+    def __call__(self, pickle_name=None):
+        retval = self.idt(self.base, self.shape, majority=False, pickle_name=pickle_name)
         return retval

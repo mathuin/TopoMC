@@ -1,4 +1,4 @@
-__kernel void elev(__global int *retvals, __global int *values, const int lenvalues, const int trim, const int vscale, const int sealevel) {
+__kernel void elev(__global float *retvals, __global float *values, const uint lenvalues, const float trim, const float vscale, const float sealevel) {
   // retvals -- OUTPUT: int array of shape (lenvalues)
   //            containing values for map
   // values -- INPUT: int array of shape (lenvalues)

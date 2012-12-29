@@ -26,6 +26,8 @@ class elev:
         """
 
         self.elarray = elarray
+        # sigh
+        self.elflat = elarray.flatten().astype(np.float32)
 
         self.wantCL = wantCL
         self.canCL = False
@@ -68,7 +70,7 @@ class elev:
             except:
                 print 'warning: unable to use pyopencl, defaulting to numpy'
 
-    def __call__(self, trim, vscale, sealevel, pickle_vars=False):
+    def __call__(self, trim, vscale, sealevel, pickle_name=None):
         """
         Shoehorn the array into the range required by Minecraft.
 
@@ -81,14 +83,13 @@ class elev:
         """
 
         if self.canCL and self.wantCL:
-            elarray_arr = np.asarray(self.elarray.flatten(), dtype=np.int32)
             # These values do not change from run to run.
-            trim_arg = np.int32(trim)
-            vscale_arg = np.int32(vscale)
-            sealevel_arg = np.int32(sealevel)
+            trim_arg = np.float32(trim)
+            vscale_arg = np.float32(vscale)
+            sealevel_arg = np.float32(sealevel)
             # Calculate how many retval elements can be evaluated per run.
             static_data = trim_arg.nbytes + vscale_arg.nbytes + sealevel_arg.nbytes
-            # Each retval element is one int32 and its original value is one int32.
+            # Each retval element is one float32 and its original value is one float32.
             bytes_per_elem_single = 4
             bytes_per_elem_total = bytes_per_elem_single + 4
             elems_per_slice_single = [int(0.95*device.max_mem_alloc_size/bytes_per_elem_single) for device in self.devices]
@@ -98,10 +99,10 @@ class elev:
             results = []
             # NB: Only supporting one device for now.
             best_device = np.argmax(elem_limits)
-            for chunk in chunks(elarray_arr, elem_limits[best_device]):
+            for chunk in chunks(self.elflat, elem_limits[best_device]):
                 # Create retvals and chunk buffer here instead of above.
                 lenchunk = len(chunk)
-                retvals_arr = np.empty(lenchunk, dtype=np.int32)
+                retvals_arr = np.empty(lenchunk, dtype=np.float32)
                 retvals_buf = cla.to_device(self.queue, retvals_arr)
                 chunk_buf = cla.to_device(self.queue, chunk)
                 lenchunk_arg = np.uint32(lenchunk)
@@ -114,22 +115,23 @@ class elev:
                 else:
                     results += retvals_arr.tolist()
         else:
-            results = ((self.elarray.flatten() - trim)/vscale)+sealevel
-        if pickle_vars:
+            results = ((self.elflat - trim)/vscale)+sealevel
+        if pickle_name != None:
             # Pickle variables for testing purposes.
-            print 'Pickling...'
-            f = gzip.open('elev-%d-%d.pkl.gz' % (self.elarray.shape[0], self.elarray.shape[1]), 'wb')
+            picklefilename = 'elev-%s.pkl.gz' % pickle_name
+            print 'Pickling to %s...' % picklefilename
+            f = gzip.open(picklefilename, 'wb')
             pickle.dump(self.elarray, f, -1)
             pickle.dump(trim, f, -1)
             pickle.dump(vscale, f, -1)
             pickle.dump(sealevel, f, -1)
             # pickle.dump(results, f, -1)
-        return np.asarray(results, dtype=np.int32).reshape(self.elarray.shape)
+        return np.asarray(results).reshape(self.elarray.shape)
 
     @staticmethod
-    def test(filename=None):
+    def test(fileobj, image=False):
         # Import from pickled variables for now.
-        jar = gzip.open(filename, 'r')
+        jar = gzip.GzipFile(fileobj=fileobj)
         elarray = pickle.load(jar)
         trim = pickle.load(jar)
         vscale = pickle.load(jar)
@@ -142,7 +144,7 @@ class elev:
         gpu_elev = elev(elarray, wantCL=True)
         if gpu_elev.canCL == False:
             raise AssertionError, 'Cannot run test without working OpenCL'
-        gpu_results = gpu_elev(trim, vscale, sealevel, pickle_vars=False)
+        gpu_results = gpu_elev(trim, vscale, sealevel)
         atime2 = time()
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
@@ -150,7 +152,7 @@ class elev:
         print 'Generating results with numpy'
         btime1 = time()
         cpu_elev = elev(elarray, wantCL=False)
-        cpu_results = cpu_elev(trim, vscale, sealevel, pickle_vars=False)
+        cpu_results = cpu_elev(trim, vscale, sealevel)
         btime2 = time()
         bdelta = btime2-btime1
         print '... finished in ', bdelta, 'seconds!'
@@ -159,14 +161,44 @@ class elev:
         allowed_error_percentage = 1
         maxnomatch = int(allowed_error_percentage*0.01*lenelarray)
         xlen, ylen = gpu_results.shape
-        nomatch = sum([1 if cpu_results[x,y] != gpu_results[x,y] else 0 for x, y in product(xrange(xlen), xrange(ylen))])
-        if nomatch > maxnomatch:
-            print nomatch, 'of', lenelarray, 'failed to match'
-            raise AssertionError
+        if image:
+            print 'Generating image of differences'
+            import Image, re
+            imagefile = re.sub('pkl.gz', 'png', fileobj.name)
+            # diffarr = (cpu_results + 128 - gpu_results).astype(np.int32)
+            diffarr = np.array([[int(128 + cpu_results[x,y] - gpu_results[x,y]) for y in xrange(ylen)] for x in xrange(xlen)], dtype=np.int32)
+            Image.fromarray(diffarr).save(imagefile)
         else:
-            print 'less than %d%% failed to match' % allowed_error_percentage
+            nomatch = sum([1 if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            if nomatch > maxnomatch:
+                countprint = 0
+                for x, y in product(xrange(xlen), xrange(ylen)):
+                    if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001:
+                        countprint += 1
+                        if countprint < 10:
+                            print "no match at ", x, y
+                            print " CPU: ", cpu_results[x,y]
+                            print " GPU: ", gpu_results[x,y]
+                        else:
+                            break
+                raise AssertionError, '%d of %d (%d%%) failed to match' % (nomatch, lenelarray, 100*nomatch/lenelarray)
+            else:
+                print '%d of %d (%d%%) failed to match' % (nomatch, lenelarray, 100*nomatch/lenelarray)
         
 if __name__ == '__main__':
-    # Block Island test data
-    elev.test('elev-BlockIsland.pkl.gz')
-    # elev.test('elev-CratersOfTheMoon.pkl.gz')
+    import argparse
+    import glob
+
+    parser = argparse.ArgumentParser(description='Test elev functionality with OpenCL and numpy.')
+    parser.add_argument('files', type=argparse.FileType('r'), nargs='*',
+                        help='a data file to be processed')
+    parser.add_argument('--image', action='store_true',
+                        help='generate an image with the differences')
+
+    args = parser.parse_args()
+    if (args.files == []):
+        args.files = [open(file) for file in glob.glob('./elev-*.pkl.gz')]
+    for testfile in args.files:
+        print 'Testing %s' % testfile.name
+        elev.test(testfile, image=args.image)
+        testfile.close()

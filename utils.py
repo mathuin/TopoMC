@@ -91,7 +91,7 @@ def buildtree(coords):
             continue
         # generate sorted index of array 
         splitarr = np.hsplit(coords[indices], 2)
-        newindices = np.lexsort((splitarr[1-axis].flatten(), splitarr[axis].flatten()))
+        newindices = np.lexsort((splitarr[1-axis].ravel(), splitarr[axis].ravel()))
         # now calculate n, m, and r
         n = len(newindices)
         m = int(2**(int(log(n,2))))

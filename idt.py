@@ -78,7 +78,7 @@ class idt:
         else:
             self.tree = KDTree(coords)
 
-    def __call__(self, base, shape, nnear=None, majority=True, pickle_vars=False):
+    def __call__(self, base, shape, nnear=None, majority=True, pickle_name=None):
         """
         For each query point in the base array, find the K nearest
         neighbors and calculate either the majority value or the
@@ -153,10 +153,11 @@ class idt:
                         wz = np.dot(w, self.values[index])
                 results[jinterpol] = wz
                 jinterpol += 1
-        if pickle_vars:
+        if pickle_name != None:
             # Pickle variables for testing purposes.
-            print 'Pickling...'
-            f = gzip.open('idt-%d-%d-%d.pkl.gz' % (self.values.shape[0], base.shape[0], (1 if majority else 0)), 'wb')
+            picklefilename = 'idt-%s-%d.pkl.gz' % (pickle_name, (1 if majority else 0))
+            print 'Pickling to %s...' % picklefilename
+            f = gzip.open(picklefilename, 'wb')
             pickle.dump(self.coords, f, -1)
             pickle.dump(self.values, f, -1)
             pickle.dump(base, f, -1)
@@ -167,9 +168,9 @@ class idt:
         return np.asarray(results, dtype=np.uint32).reshape(shape)
 
     @staticmethod
-    def test(filename=None):
+    def test(fileobj, image=False):
         # Import from pickled variables for now.
-        jar = gzip.open(filename, 'r')
+        jar = gzip.GzipFile(fileobj=fileobj)
         coords = pickle.load(jar)
         values = pickle.load(jar)
         base = pickle.load(jar)
@@ -184,7 +185,7 @@ class idt:
         gpu_idt = idt(coords, values, wantCL=True)
         if gpu_idt.canCL == False:
             raise AssertionError, 'Cannot run test without working OpenCL'
-        gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority==1), pickle_vars=False)
+        gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority==1))
         atime2 = time()
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
@@ -192,7 +193,7 @@ class idt:
         print 'Generating results with cKDTree'
         btime1 = time()
         cpu_idt = idt(coords, values, wantCL=False)
-        cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority==1), pickle_vars=False)
+        cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority==1))
         btime2 = time()
         bdelta = btime2-btime1
         print '... finished in ', bdelta, 'seconds!'
@@ -201,16 +202,44 @@ class idt:
         allowed_error_percentage = 1
         maxnomatch = int(allowed_error_percentage*0.01*lenbase)
         xlen, ylen = gpu_results.shape
-        nomatch = sum([1 if cpu_results[x,y] != gpu_results[x,y] else 0 for x, y in product(xrange(xlen), xrange(ylen))])
-        if nomatch > maxnomatch:
-            print nomatch, 'of', lenbase, 'failed to match'
-            raise AssertionError
+        if image:
+            print 'Generating image of differences'
+            import Image, re
+            imagefile = re.sub('pkl.gz', 'png', fileobj.name)
+            # diffarr = (cpu_results + 128 - gpu_results).astype(np.int32)
+            diffarr = np.array([[int(128 + cpu_results[x,y] - gpu_results[x,y]) for y in xrange(ylen)] for x in xrange(xlen)], dtype=np.int32)
+            Image.fromarray(diffarr).save(imagefile)
         else:
-            print 'less than %d%% failed to match' % allowed_error_percentage
-        
+            nomatch = sum([1 if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            if nomatch > maxnomatch:
+                countprint = 0
+                for x, y in product(xrange(xlen), xrange(ylen)):
+                    if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001:
+                        countprint += 1
+                        if countprint < 10:
+                            print "no match at ", x, y
+                            print " CPU: ", cpu_results[x,y]
+                            print " GPU: ", gpu_results[x,y]
+                        else:
+                            break
+                raise AssertionError, '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
+            else:
+                print '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
+
 if __name__ == '__main__':
-    # Block Island test data
-    idt.test('idt-BlockIsland-a.pkl.gz')
-    idt.test('idt-BlockIsland-b.pkl.gz')
-    # idt.test('idt-CratersOfTheMoon-a.pkl.gz')
-    # idt.test('idt-CratersOfTheMoon-b.pkl.gz')
+    import argparse
+    import glob
+
+    parser = argparse.ArgumentParser(description='Test IDT functionality with OpenCL and cKDTree/Invdisttree.')
+    parser.add_argument('files', type=argparse.FileType('r'), nargs='*',
+                        help='a data file to be processed')
+    parser.add_argument('--image', action='store_true',
+                        help='generate an image with the differences')
+
+    args = parser.parse_args()
+    if (args.files == []):
+        args.files = [open(file) for file in glob.glob('./idt-*.pkl.gz')]
+    for testfile in args.files:
+        print 'Testing %s' % testfile.name
+        idt.test(testfile, image=args.image)
+        testfile.close()
