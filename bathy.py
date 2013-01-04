@@ -16,7 +16,7 @@ except ImportError:
     hasCL = False
 
 
-class bathy:
+class Bathy:
 
     def __init__(self, lcarray, geotrans, projection, wantCL=True,
                  platform_num=None):
@@ -193,7 +193,7 @@ class bathy:
 
         print 'Generating results with OpenCL'
         atime1 = time()
-        gpu_bathy = bathy(lcarray, geotrans, projection, wantCL=True)
+        gpu_bathy = Bathy(lcarray, geotrans, projection, wantCL=True)
         if gpu_bathy.canCL is False:
             raise AssertionError('Cannot run test without working OpenCL')
         gpu_results = gpu_bathy(maxdepth)
@@ -203,7 +203,7 @@ class bathy:
 
         print 'Generating results with GDAL'
         btime1 = time()
-        cpu_bathy = bathy(lcarray, geotrans, projection, wantCL=False)
+        cpu_bathy = Bathy(lcarray, geotrans, projection, wantCL=False)
         cpu_results = cpu_bathy(maxdepth)
         btime2 = time()
         bdelta = btime2-btime1
@@ -253,5 +253,5 @@ if __name__ == '__main__':
         args.files = [open(file) for file in glob.glob('./bathy-*.pkl.gz')]
     for testfile in args.files:
         print 'Testing %s' % testfile.name
-        bathy.test(testfile, image=args.image)
+        Bathy.test(testfile, image=args.image)
         testfile.close()

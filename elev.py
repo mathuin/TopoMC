@@ -16,7 +16,7 @@ except ImportError:
     hasCL = False
 
 
-class elev:
+class Elev:
 
     def __init__(self, elarray, wantCL=True, platform_num=None):
         """
@@ -147,7 +147,7 @@ class elev:
 
         print 'Generating results with OpenCL'
         atime1 = time()
-        gpu_elev = elev(elarray, wantCL=True)
+        gpu_elev = Elev(elarray, wantCL=True)
         if gpu_elev.canCL is False:
             raise AssertionError('Cannot run test without working OpenCL')
         gpu_results = gpu_elev(trim, vscale, sealevel)
@@ -157,7 +157,7 @@ class elev:
 
         print 'Generating results with numpy'
         btime1 = time()
-        cpu_elev = elev(elarray, wantCL=False)
+        cpu_elev = Elev(elarray, wantCL=False)
         cpu_results = cpu_elev(trim, vscale, sealevel)
         btime2 = time()
         bdelta = btime2-btime1
@@ -207,5 +207,5 @@ if __name__ == '__main__':
         args.files = [open(file) for file in glob.glob('./elev-*.pkl.gz')]
     for testfile in args.files:
         print 'Testing %s' % testfile.name
-        elev.test(testfile, image=args.image)
+        Elev.test(testfile, image=args.image)
         testfile.close()

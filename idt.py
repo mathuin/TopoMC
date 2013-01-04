@@ -17,7 +17,7 @@ except ImportError:
     hasCL = False
 
 
-class idt:
+class IDT:
 
     def __init__(self, coords, values, wantCL=True, platform_num=None):
         """
@@ -188,7 +188,7 @@ class idt:
 
         print 'Generating results with OpenCL'
         atime1 = time()
-        gpu_idt = idt(coords, values, wantCL=True)
+        gpu_idt = IDT(coords, values, wantCL=True)
         if gpu_idt.canCL is False:
             raise AssertionError('Cannot run test without working OpenCL')
         gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority == 1))
@@ -198,7 +198,7 @@ class idt:
 
         print 'Generating results with cKDTree'
         btime1 = time()
-        cpu_idt = idt(coords, values, wantCL=False)
+        cpu_idt = IDT(coords, values, wantCL=False)
         cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority == 1))
         btime2 = time()
         bdelta = btime2-btime1
@@ -248,5 +248,5 @@ if __name__ == '__main__':
         args.files = [open(file) for file in glob.glob('./idt-*.pkl.gz')]
     for testfile in args.files:
         print 'Testing %s' % testfile.name
-        idt.test(testfile, image=args.image)
+        IDT.test(testfile, image=args.image)
         testfile.close()

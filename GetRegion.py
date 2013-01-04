@@ -65,7 +65,7 @@ def main():
     myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs, doOre=args.doOre, doSchematics=args.doSchematics)
 
     print "Downloading files..."
-    myRegion.getfiles()
+    myRegion.get_files()
 
 if __name__ == '__main__':
     sys.exit(main())

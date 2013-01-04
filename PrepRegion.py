@@ -22,7 +22,7 @@ def main():
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 
-    myRegion.buildmap(args.doOCL, args.doPickle)
+    myRegion.build_map(args.doOCL, args.doPickle)
 
 if __name__ == '__main__':
     sys.exit(main())

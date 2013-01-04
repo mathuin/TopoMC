@@ -18,13 +18,12 @@ from pymclevel import mclevel
 
 from osgeo import gdal, osr
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
-from bathy import bathy
-from crust import crust
+from bathy import Bathy
+from crust import Crust
 import numpy as np
 #
-from idt import idt
-from elev import elev
-
+from idt import IDT
+from elev import Elev
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     def __init__(self):
@@ -50,7 +49,8 @@ class Region:
     rasters = {'landcover': 1, 'elevation': 2, 'bathy': 3, 'crust': 4}
 
     # sadness
-    zipfileBroken = False
+    zipfile_broken = False
+    gdalwarp_broken_for_landcover = True
 
     # default values
     tilesize = 256
@@ -119,7 +119,7 @@ class Region:
         if tilesize is None:
             tilesize = Region.tilesize
         else:
-            if (tilesize % 16 != 0):
+            if tilesize % 16 != 0:
                 raise AttributeError('bad tilesize %s' % tilesize)
         self.tilesize = tilesize
 
@@ -127,7 +127,7 @@ class Region:
         if scale is None:
             scale = Region.scale
         else:
-            if (scale > 0):
+            if scale > 0:
                 self.scale = int(scale)
             else:
                 raise AttributeError('bad scale %s' % scale)
@@ -156,9 +156,9 @@ class Region:
 
         # disable overly dense elevation products
         self.productIDs = Region.productIDs
-        if (scale > 5):
+        if scale > 5:
             self.productIDs['elevation'].remove('ND9')
-        if (scale > 15):
+        if scale > 15:
             self.productIDs['elevation'].remove('ND3')
 
         # specified IDs must be in region list
@@ -242,12 +242,13 @@ class Region:
 
         # check availability of product IDs and identify specific layer IDs
         # NB: TEST CODE FOR CORVALLIS TO WORK AROUND USGS FAIL
+        # TURNS OUT USGS FAILS ON DOWNLOAD AS WELL AS INVENTORY
         try:
-            self.lclayer = self.checkavail(landcoverIDs, 'landcover')
+            self.lclayer = self.check_availability(landcoverIDs, 'landcover')
         except AttributeError:
             self.lclayer = 'L0602HT'
         try:
-            self.ellayer = self.checkavail(elevationIDs, 'elevation')
+            self.ellayer = self.check_availability(elevationIDs, 'elevation')
         except AttributeError:
             self.ellayer = 'ND302HT'
 
@@ -256,7 +257,7 @@ class Region:
         yaml.dump(self, stream)
         stream.close()
 
-    def decodeLayerID(self, layerID):
+    def decode_LayerID(self, layerID):
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
         productID = layerID[0]+layerID[1]+layerID[2]
         try:
@@ -283,16 +284,16 @@ class Region:
             raise AttributeError('Invalid compressiontype %s' % compressiontype)
 
         compressiontype = layerID[6]
-        if (compressiontype == "T"):
+        if compressiontype == "T":
             cType = "tgz"
-        elif (compressiontype == "Z"):
+        elif compressiontype == "Z":
             cType = "zip"
         else:
             raise AttributeError('Invalid compressiontype %s' % compressiontype)
 
         return (pType, iType, mType, cType)
 
-    def checkavail(self, productlist, maptype):
+    def check_availability(self, productlist, maptype):
         """Check availability with web service."""
         mapextents = self.wgs84extents[maptype]
 
@@ -307,7 +308,7 @@ class Region:
         for attribute in desiredAttributes:
             if attribute in attributeList[0]:
                 attributes.append(attribute)
-        if len(attributes) == 0:
+        if not attributes:
             raise AttributeError("No attributes found")
 
         # return_attributes arguments dictionary
@@ -320,7 +321,7 @@ class Region:
         # in our case, there's only one key: PRODUCTKEY
         for elem in rAatts.ArrayOfCustomAttributes:
             for each in elem[0]:
-                if (each[0] == 'PRODUCTKEY' and each[1] in productlist):
+                if each[0] == 'PRODUCTKEY' and each[1] in productlist:
                     offered.append(each[1])
         # this should extract the first
         try:
@@ -359,7 +360,7 @@ class Region:
             raise AttributeError('no acceptable compression format found')
         return str(layerID)
 
-    def requestvalidation(self, layerIDs):
+    def request_validation(self, layerIDs):
         """Generates download URLs from layer IDs."""
         retval = {}
 
@@ -369,7 +370,7 @@ class Region:
 
         # we now iterate through layerIDs
         for layerID in layerIDs:
-            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
+            (pType, iType, mType, cType) = self.decode_LayerID(layerID)
             mapextents = self.wgs84extents[pType]
             # NB: CHUNK_SIZE can be 100, 15, 25, 50, 75, 250
             xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250)
@@ -385,9 +386,9 @@ class Region:
 
         return retval
 
-    def downloadfile(self, layerID, downloadURL):
+    def download_file(self, layerID, downloadURL):
         """Actually download the file at the URL."""
-        (pType, iType, mType, cType) = self.decodeLayerID(layerID)
+        (pType, iType, mType, cType) = self.decode_LayerID(layerID)
         layerdir = os.path.join(self.mapsdir, layerID)
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
@@ -430,7 +431,7 @@ class Region:
             endPos = result.find("</ns:return>")
             (code, status) = result[startPos:endPos].split(',', 1)
             print "  status is %s" % status
-            if (int(code) == 400):
+            if int(code) == 400:
                 break
             sleep(15)
 
@@ -480,17 +481,17 @@ class Region:
             endPos = result.find("</ns:return>")
             status = result[startPos:endPos]
 
-    def buildvrts(self):
+    def build_vrts(self):
         """Extracts image files and merges as necessary."""
 
         layerIDs = [name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name))]
         if layerIDs == []:
             raise IOError('No files found')
         for layerID in layerIDs:
-            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
+            (pType, iType, mType, cType) = self.decode_LayerID(layerID)
             filesuffix = cType.lower()
             layerdir = os.path.join(self.mapsdir, layerID)
-            compfiles = [name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix))]
+            compfiles = [name for name in os.listdir(layerdir) if os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)]
             for compfile in compfiles:
                 (compbase, compext) = os.path.splitext(compfile)
                 fullfile = os.path.join(layerdir, compfile)
@@ -499,25 +500,25 @@ class Region:
                 # tar (at least) expects Unix pathnames
                 compimage = '/'.join([compbase, compfile])
                 cleanmkdir(datasubdir)
-                if (Region.zipfileBroken is False):
-                    if (cType == "tgz"):
-                        cFile = tarfile.open(fullfile)
-                    elif (cType == "zip"):
-                        cFile = zipfile.ZipFile(fullfile)
-                    cFile.extract(compimage, layerdir)
-                    cFile.close()
-                else:
-                    if (cType == "tgz"):
+                if Region.zipfile_broken:
+                    if cType == "tgz":
                         cFile = tarfile.open(fullfile)
                         cFile.extract(compimage, layerdir)
-                    elif (cType == "zip"):
+                    elif cType == "zip":
                         omfgcompimage = os.path.join(compbase, compfile)
                         os.mkdir(os.path.dirname(os.path.join(datasubdir, compimage)))
                         cFile = zipfile.ZipFile(fullfile)
                         cFile.extract(omfgcompimage, datasubdir)
                         os.rename(os.path.join(datasubdir, omfgcompimage), os.path.join(layerdir, compimage))
                     cFile.close()
-                # convert tif to good SRS
+                else:
+                    if cType == "tgz":
+                        cFile = tarfile.open(fullfile)
+                    elif cType == "zip":
+                        cFile = zipfile.ZipFile(fullfile)
+                    cFile.extract(compimage, layerdir)
+                    cFile.close()
+                # Convert incoming file to good SRS.
                 rawfile = os.path.join(layerdir, compbase, compfile)
                 goodfile = os.path.join(layerdir, compbase, "%s.good%s" % (compbase, iType))
                 warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.t_srs, rawfile, goodfile)
@@ -527,16 +528,16 @@ class Region:
             buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join(['"%s"' % x for x in locate('*.good*', root=layerdir)]))
             os.system('%s' % buildvrtcmd)
 
-    def getfiles(self):
+    def get_files(self):
         """Get files from USGS."""
         layerIDs = [self.lclayer, self.ellayer]
-        downloadURLs = self.requestvalidation(layerIDs)
+        downloadURLs = self.request_validation(layerIDs)
         for layerID in downloadURLs.keys():
             for downloadURL in downloadURLs[layerID]:
-                self.downloadfile(layerID, downloadURL)
-        self.buildvrts()
+                self.download_file(layerID, downloadURL)
+        self.build_vrts()
 
-    def buildmap(self, wantCL=True, do_pickle=False):
+    def build_map(self, wantCL=True, do_pickle=False):
         """Use downloaded files and other parameters to build multi-raster map."""
 
         # set pickle variable
@@ -578,11 +579,11 @@ class Region:
         # sealevel depends upon elmin
         minsealevel = 2
         # if minimum elevation is below sea level, add extra space
-        if (elmin < 0):
+        if elmin < 0:
             minsealevel += int(-1.0*elmin/self.scale)
         maxsealevel = Region.tileheight - Region.headroom
         oldsealevel = self.sealevel
-        if (oldsealevel > maxsealevel or oldsealevel < minsealevel):
+        if oldsealevel > maxsealevel or oldsealevel < minsealevel:
             print "warning: sealevel value %d outside %d-%d range" % (oldsealevel, minsealevel, maxsealevel)
         self.sealevel = int(min(max(oldsealevel, minsealevel), maxsealevel))
 
@@ -590,7 +591,7 @@ class Region:
         minmaxdepth = 1
         maxmaxdepth = self.sealevel - 1
         oldmaxdepth = self.maxdepth
-        if (oldmaxdepth > maxmaxdepth or oldmaxdepth < minmaxdepth):
+        if oldmaxdepth > maxmaxdepth or oldmaxdepth < minmaxdepth:
             print "warning: maxdepth value %d outside %d-%d range" % (oldmaxdepth, minmaxdepth, maxmaxdepth)
         self.maxdepth = int(min(max(oldmaxdepth, minmaxdepth), maxmaxdepth))
 
@@ -598,7 +599,7 @@ class Region:
         mintrim = Region.trim
         maxtrim = max(elmin, mintrim)
         oldtrim = self.trim
-        if (oldtrim > maxtrim or oldtrim < mintrim):
+        if oldtrim > maxtrim or oldtrim < mintrim:
             print "warning: trim value %d outside %d-%d range" % (oldtrim, mintrim, maxtrim)
         self.trim = int(min(max(oldtrim, mintrim), maxtrim))
 
@@ -608,7 +609,7 @@ class Region:
         elroom = Region.tileheight - Region.headroom - self.sealevel
         minvscale = ceil(eltrimmed / elroom)
         oldvscale = self.vscale
-        if (oldvscale < minvscale):
+        if oldvscale < minvscale:
             print "warning: vscale value %d smaller than minimum value %d" % (oldvscale, minvscale)
         self.vscale = int(max(oldvscale, minvscale))
 
@@ -624,14 +625,14 @@ class Region:
         mapds.SetProjection(srs.ExportToWkt())
 
         # modify elarray and save it as raster band 2
-        elevObj = elev(elarray, wantCL=wantCL)
+        elevObj = Elev(elarray, wantCL=wantCL)
         actualel = elevObj(self.trim, self.vscale, self.sealevel, pickle_name=pickle_name)
         mapds.GetRasterBand(Region.rasters['elevation']).WriteArray(actualel)
         elarray = None
         actualel = None
 
         # generate crust and save it as raster band 4
-        newcrust = crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=wantCL)
+        newcrust = Crust(mapds.RasterXSize, mapds.RasterYSize, wantCL=wantCL)
         crustarray = newcrust(pickle_name=pickle_name)
         mapds.GetRasterBand(Region.rasters['crust']).WriteArray(crustarray)
         crustarray = None
@@ -644,7 +645,7 @@ class Region:
         lcextents = self.albersextents['landcover']
 
         # if True, use new code, if False, use gdalwarp
-        if True:
+        if Region.gdalwarp_broken_for_landcover:
             # 1. the new file must be read into an array and raveled
             vrtds = gdal.Open(lcvrt, GA_ReadOnly)
             vrtgeotrans = vrtds.GetGeoTransform()
@@ -652,7 +653,7 @@ class Region:
             values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
             # nodata is treated as water, which is 11
             vrtnodata = vrtband.GetNoDataValue()
-            if (vrtnodata is None):
+            if vrtnodata is None:
                 vrtnodata = 0
             values[values == vrtnodata] = 11
             vrtband = None
@@ -670,7 +671,7 @@ class Region:
             depthyrange = [lcextents['ymax'] - self.scale * y for y in xrange(depthylen)]
             depthbase = np.array([(x, y) for y in depthyrange for x in depthxrange], dtype=np.float32)
             # 4. an inverse distance tree must be built from that
-            lcIDT = idt(coords, values.ravel().astype(np.int32), wantCL=wantCL)
+            lcIDT = IDT(coords, values.ravel().astype(np.int32), wantCL=wantCL)
             # 5. the desired output comes from that inverse distance tree
             depthshape = (depthylen, depthxlen)
             deptharray = lcIDT(depthbase, depthshape, pickle_name=pickle_name)
@@ -691,7 +692,7 @@ class Region:
         lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
         geotrans = [lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale]
         projection = srs.ExportToWkt()
-        bathyObj = bathy(deptharray, geotrans, projection, wantCL=wantCL)
+        bathyObj = Bathy(deptharray, geotrans, projection, wantCL=wantCL)
         bathyarray = bathyObj(self.maxdepth, pickle_name=pickle_name)
         mapds.GetRasterBand(Region.rasters['bathy']).WriteArray(bathyarray)
         # perform terrain translation
