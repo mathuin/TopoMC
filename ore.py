@@ -8,6 +8,7 @@ from utils import materialNamed
 
 # http://www.minecraftforum.net/topic/25886-elites-of-minecraft-the-miner-first-ore-loss-calculated/ (must be logged in)
 
+
 class Ore:
     """Each type of ore will be an instance of this class."""
 
@@ -45,7 +46,7 @@ class Ore:
         yr = xrange(-1 * y1, y1)
         zr = xrange(-1 * z1, z1)
         # calculate ellipsoid
-        oreCoords = [ [mcx+x, mcy+y, mcz+z] for x, y, z in product(xr, yr, zr) if x*x/x2+y*y/y2+z*z/z2 <= 1 ]
+        oreCoords = [[mcx+x, mcy+y, mcz+z] for x, y, z in product(xr, yr, zr) if x*x/x2+y*y/y2+z*z/z2 <= 1]
         # if len(oreCoords) > self.size+2:
         #     print "warning: oreCoords larger than self.size -- %d > %d" % (len(oreCoords), self.size)
         # if len(oreCoords) < self.size-2:
@@ -68,8 +69,7 @@ class Ore:
                 orey = randint(0, maxy)
                 orez = randint(0, tile.size)
                 coords = [orex+tile.mcoffsetx, orey, orez+tile.mcoffsetz]
-                if (orex < extent or (tile.size-orex) < extent or
-                    orez < extent or (tile.size-orez) < extent):
+                if (orex < extent or (tile.size-orex) < extent or orez < extent or (tile.size-orez) < extent):
                     try:
                         tile.ores[ore]
                     except KeyError:
@@ -97,4 +97,4 @@ oreObjs = [
     Ore('Emerald Ore', 5, 1, 8),
     Ore('Diamond Ore', 4, 1, 7),
     Ore('Redstone Ore', 4, 8, 7),
-    Ore('Lapis Lazuli Ore', 4, 3, 7) ]
+    Ore('Lapis Lazuli Ore', 4, 3, 7)]

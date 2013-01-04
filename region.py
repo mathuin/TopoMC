@@ -25,6 +25,7 @@ import numpy as np
 from idt import idt
 from elev import elev
 
+
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     def __init__(self):
         pass
@@ -36,6 +37,7 @@ class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
         result.headers = headers
         return result
 
+
 class Region:
     """I have no idea what I'm doing here."""
 
@@ -46,7 +48,7 @@ class Region:
 
     # raster layer order
     rasters = {'landcover': 1, 'elevation': 2, 'bathy': 3, 'crust': 4}
-    
+
     # sadness
     zipfileBroken = False
 
@@ -64,31 +66,31 @@ class Region:
     headroom = 16
 
     # product types in order of preference
-    productIDs = { 'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
-                   'landcover': sorted(Terrain.translate.keys()) }
+    productIDs = {'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
+                  'landcover': sorted(Terrain.translate.keys())}
 
     # image types
     # NB: only tif is known to work here
-    imageTypes = { 'tif': ['02'],
-                   'arc': ['01'],
-                   'bil': ['03'],
-                   'GridFloat': ['05'],
-                   'IMG': ['12'],
-                   'bil_16int': ['15'] }
+    imageTypes = {'tif': ['02'],
+                  'arc': ['01'],
+                  'bil': ['03'],
+                  'GridFloat': ['05'],
+                  'IMG': ['12'],
+                  'bil_16int': ['15']}
 
     # meta types
     # NB: currently ignored
-    metaTypes = { 'ALL': ['A'],
-                  'FAQ': ['F'],
-                  'HTML': ['H'],
-                  'SGML': ['S'],
-                  'TXT': ['T'],
-                  'XML': ['X'] }
+    metaTypes = {'ALL': ['A'],
+                 'FAQ': ['F'],
+                 'HTML': ['H'],
+                 'SGML': ['S'],
+                 'TXT': ['T'],
+                 'XML': ['X']}
 
     # compression types
     # NB: zipfile module broken so tgz recommended
-    compressionTypes = { 'tgz': ['T'],
-                         'zip': ['Z'] }
+    compressionTypes = {'tgz': ['T'],
+                        'zip': ['Z']}
 
     # properties
     @property
@@ -114,40 +116,40 @@ class Region:
 
         # tile must be an even multiple of chunk width
         # chunkWidth not defined in pymclevel but is hardcoded everywhere
-        if tilesize == None:
+        if tilesize is None:
             tilesize = Region.tilesize
         else:
             if (tilesize % 16 != 0):
-                raise AttributeError, 'bad tilesize %s' % tilesize
+                raise AttributeError('bad tilesize %s' % tilesize)
         self.tilesize = tilesize
 
         # scale can be any positive integer
-        if scale == None:
+        if scale is None:
             scale = Region.scale
         else:
             if (scale > 0):
                 self.scale = int(scale)
             else:
-                raise AttributeError, 'bad scale %s' % scale
+                raise AttributeError('bad scale %s' % scale)
 
         # sealevel and maxdepth are not checked until after files are retrieved
-        if sealevel == None:
+        if sealevel is None:
             sealevel = Region.sealevel
         else:
             self.sealevel = sealevel
 
-        if maxdepth == None:
+        if maxdepth is None:
             maxdepth = Region.maxdepth
         else:
             self.maxdepth = maxdepth
 
         # trim and vscale are not checked until after files are retrieved
-        if trim == None:
+        if trim is None:
             trim = Region.trim
         else:
             self.trim = trim
 
-        if vscale == None:
+        if vscale is None:
             vscale = Region.vscale
         else:
             self.vscale = vscale
@@ -160,19 +162,19 @@ class Region:
             self.productIDs['elevation'].remove('ND3')
 
         # specified IDs must be in region list
-        if lcIDs == None:
+        if lcIDs is None:
             landcoverIDs = self.productIDs['landcover']
         else:
-            landcoverIDs = [ ID for ID in lcIDs if ID in self.productIDs['landcover'] ]
+            landcoverIDs = [ID for ID in lcIDs if ID in self.productIDs['landcover']]
             if landcoverIDs == []:
-                raise AttributeError, 'invalid landcover ID'
+                raise AttributeError('invalid landcover ID')
 
-        if elIDs == None:
+        if elIDs is None:
             elevationIDs = self.productIDs['elevation']
         else:
-            elevationIDs = [ ID for ID in elIDs if ID in self.productIDs['elevation'] ]
+            elevationIDs = [ID for ID in elIDs if ID in self.productIDs['elevation']]
             if elevationIDs == []:
-                raise AttributeError, 'invalid elevation ID'
+                raise AttributeError('invalid elevation ID')
 
         # enable or disable ore and schematics
         self.doOre = doOre
@@ -183,7 +185,7 @@ class Region:
         cleanmkdir(self.mapsdir)
 
         # these are the latlong values
-        self.llextents = { 'xmax': max(xmax, xmin), 'xmin': min(xmax, xmin), 'ymax': max(ymax, ymin), 'ymin': min(ymax, ymin) }
+        self.llextents = {'xmax': max(xmax, xmin), 'xmin': min(xmax, xmin), 'ymax': max(ymax, ymin), 'ymin': min(ymax, ymin)}
 
         # access the web service
         # NB: raise hell if it is inaccessible
@@ -212,15 +214,15 @@ class Region:
 
         # calculate tile edges
         realsize = self.scale * self.tilesize
-        self.tiles = { 'xmax': int(ceil(mxmax / realsize)), 'xmin': int(floor(mxmin / realsize)), 'ymax': int(ceil(mymax / realsize)), 'ymin': int(floor(mymin / realsize)) }
+        self.tiles = {'xmax': int(ceil(mxmax / realsize)), 'xmin': int(floor(mxmin / realsize)), 'ymax': int(ceil(mymax / realsize)), 'ymin': int(floor(mymin / realsize))}
 
-        self.albersextents = { 'landcover': dict(), 'elevation': dict() }
-        self.wgs84extents = { 'landcover': dict(), 'elevation': dict() }
+        self.albersextents = {'landcover': dict(), 'elevation': dict()}
+        self.wgs84extents = {'landcover': dict(), 'elevation': dict()}
 
         # landcover has a maxdepth-sized border
-        self.albersextents['elevation'] = { 'xmax': self.tiles['xmax'] * realsize, 'xmin': self.tiles['xmin'] * realsize, 'ymax': self.tiles['ymax'] * realsize, 'ymin': self.tiles['ymin'] * realsize }
+        self.albersextents['elevation'] = {'xmax': self.tiles['xmax'] * realsize, 'xmin': self.tiles['xmin'] * realsize, 'ymax': self.tiles['ymax'] * realsize, 'ymin': self.tiles['ymin'] * realsize}
         borderwidth = self.maxdepth * self.scale
-        self.albersextents['landcover'] = { 'xmax': self.albersextents['elevation']['xmax'] + borderwidth, 'xmin': self.albersextents['elevation']['xmin'] - borderwidth, 'ymax': self.albersextents['elevation']['ymax'] + borderwidth, 'ymin': self.albersextents['elevation']['ymin'] - borderwidth }
+        self.albersextents['landcover'] = {'xmax': self.albersextents['elevation']['xmax'] + borderwidth, 'xmin': self.albersextents['elevation']['xmin'] - borderwidth, 'ymax': self.albersextents['elevation']['ymax'] + borderwidth, 'ymin': self.albersextents['elevation']['ymin'] - borderwidth}
 
         # now convert back from Albers to WGS84
         for maptype in ['landcover', 'elevation']:
@@ -236,11 +238,18 @@ class Region:
             # select maximum values
             xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
             yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
-            self.wgs84extents[maptype] = { 'xmax': max(xfloat), 'xmin': min(xfloat), 'ymax': max(yfloat), 'ymin': min(yfloat) }
+            self.wgs84extents[maptype] = {'xmax': max(xfloat), 'xmin': min(xfloat), 'ymax': max(yfloat), 'ymin': min(yfloat)}
 
         # check availability of product IDs and identify specific layer IDs
-        self.lclayer = self.checkavail(landcoverIDs, 'landcover')
-        self.ellayer = self.checkavail(elevationIDs, 'elevation')
+        # NB: TEST CODE FOR CORVALLIS TO WORK AROUND USGS FAIL
+        try:
+            self.lclayer = self.checkavail(landcoverIDs, 'landcover')
+        except AttributeError:
+            self.lclayer = 'L0602HT'
+        try:
+            self.ellayer = self.checkavail(elevationIDs, 'elevation')
+        except AttributeError:
+            self.ellayer = 'ND302HT'
 
         # write the values to the file
         stream = file(os.path.join(self.regionfile), 'w')
@@ -251,27 +260,27 @@ class Region:
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
         productID = layerID[0]+layerID[1]+layerID[2]
         try:
-            pType = [ product for product in self.productIDs.keys() if productID in self.productIDs[product] ][0]
+            pType = [product for product in self.productIDs.keys() if productID in self.productIDs[product]][0]
         except IndexError:
-            raise AttributeError, 'Invalid productID %s' % productID
+            raise AttributeError('Invalid productID %s' % productID)
 
         imagetype = layerID[3]+layerID[4]
         try:
-            iType = [ image for image in Region.imageTypes.keys() if imagetype in Region.imageTypes[image] ][0]
+            iType = [image for image in Region.imageTypes.keys() if imagetype in Region.imageTypes[image]][0]
         except IndexError:
-            raise AttributeError, 'Invalid imagetype %s' % imagetype
-        
+            raise AttributeError('Invalid imagetype %s' % imagetype)
+
         metatype = layerID[5]
         try:
-            mType = [ meta for meta in Region.metaTypes.keys() if metatype in Region.metaTypes[meta] ][0]
+            mType = [meta for meta in Region.metaTypes.keys() if metatype in Region.metaTypes[meta]][0]
         except IndexError:
-            raise AttributeError, 'Invalid metatype %s' % metatype
+            raise AttributeError('Invalid metatype %s' % metatype)
 
         compressiontype = layerID[6]
         try:
-            mType = [ compression for compression in Region.compressionTypes.keys() if compressiontype in Region.compressionTypes[compression] ][0]
+            mType = [compression for compression in Region.compressionTypes.keys() if compressiontype in Region.compressionTypes[compression]][0]
         except IndexError:
-            raise AttributeError, 'Invalid compressiontype %s' % compressiontype
+            raise AttributeError('Invalid compressiontype %s' % compressiontype)
 
         compressiontype = layerID[6]
         if (compressiontype == "T"):
@@ -279,8 +288,8 @@ class Region:
         elif (compressiontype == "Z"):
             cType = "zip"
         else:
-            raise AttributeError, 'Invalid compressiontype %s' % compressiontype
-        
+            raise AttributeError('Invalid compressiontype %s' % compressiontype)
+
         return (pType, iType, mType, cType)
 
     def checkavail(self, productlist, maptype):
@@ -299,8 +308,8 @@ class Region:
             if attribute in attributeList[0]:
                 attributes.append(attribute)
         if len(attributes) == 0:
-            raise AttributeError, "No attributes found"
-    
+            raise AttributeError("No attributes found")
+
         # return_attributes arguments dictionary
         rAdict = {'Attribs': ','.join(attributes), 'XMin': mapextents['xmin'], 'XMax': mapextents['xmax'], 'YMin': mapextents['ymin'], 'YMax': mapextents['ymax'], 'EPSG': Region.wgs84}
         rAatts = clientInv.service.return_Attributes(**rAdict)
@@ -315,9 +324,9 @@ class Region:
                     offered.append(each[1])
         # this should extract the first
         try:
-            productID = [ ID for ID in productlist if ID in offered ][0]
+            productID = [ID for ID in productlist if ID in offered][0]
         except IndexError:
-            raise AttributeError, "No products are available for this location!"
+            raise AttributeError("No products are available for this location!")
         # check download options
         # NB: integrate with new types seen above
         OFgood = [u'GeoTIFF']
@@ -337,17 +346,17 @@ class Region:
         if OFfound:
             layerID += OFfound[0]
         else:
-            raise AttributeError, 'no acceptable output format found'
+            raise AttributeError('no acceptable output format found')
         MFfound = [MFdict[MFval] for MFval in MFgood if MFval in MFdict]
         if MFfound:
             layerID += MFfound[0]
         else:
-            raise AttributeError, 'no acceptable metadata format found'
+            raise AttributeError('no acceptable metadata format found')
         CFfound = [CFdict[CFval] for CFval in CFgood if CFval in CFdict]
         if CFfound:
             layerID += CFfound[0]
         else:
-            raise AttributeError, 'no acceptable compression format found'
+            raise AttributeError('no acceptable compression format found')
         return str(layerID)
 
     def requestvalidation(self, layerIDs):
@@ -362,7 +371,8 @@ class Region:
         for layerID in layerIDs:
             (pType, iType, mType, cType) = self.decodeLayerID(layerID)
             mapextents = self.wgs84extents[pType]
-            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250) # can be 100, 15, 25, 50, 75, 250
+            # NB: CHUNK_SIZE can be 100, 15, 25, 50, 75, 250
+            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250)
 
             response = clientRequest.service.processAOI2(xmlString)
 
@@ -386,12 +396,12 @@ class Region:
         # initiateDownload and get the response code
         # put _this_ in its own function!
         try:
-            page = urllib2.urlopen(downloadURL.replace(' ','%20'))
+            page = urllib2.urlopen(downloadURL.replace(' ', '%20'))
         except IOError, e:
             if hasattr(e, 'reason'):
-                raise IOError, e.reason
+                raise IOError(e.reason)
             elif hasattr(e, 'code'):
-                raise IOError, e.code
+                raise IOError(e.code)
             else:
                 raise IOError
         else:
@@ -414,7 +424,7 @@ class Region:
             dsPage = urllib2.urlopen("http://extract.cr.usgs.gov/axis2/services/DownloadService/getDownloadStatus?downloadID=%s" % requestID)
             result = dsPage.read()
             dsPage.close()
-            result = result.replace("&#xd;\n"," ")
+            result = result.replace("&#xd;\n", " ")
             # parse out status code and status text
             startPos = result.find("<ns:return>") + 11
             endPos = result.find("</ns:return>")
@@ -429,13 +439,13 @@ class Region:
             page3 = urllib2.Request(getFileURL)
             opener = urllib2.build_opener(SmartRedirectHandler())
             obj = opener.open(page3)
-            location = obj.headers['Location'] 
-            filename = location.split('/')[-1].split('#')[0].split('?')[0]        
+            location = obj.headers['Location']
+            filename = location.split('/')[-1].split('#')[0].split('?')[0]
         except IOError, e:
             if hasattr(e, 'reason'):
-                raise IOError, e.reason
+                raise IOError(e.reason)
             elif hasattr(e, 'code'):
-                raise IOError, e.code
+                raise IOError(e.code)
             else:
                 raise IOError
         else:
@@ -455,16 +465,16 @@ class Region:
             page4 = urllib2.urlopen(setStatusURL)
         except IOError, e:
             if hasattr(e, 'reason'):
-                raise IOError, e.reason
+                raise IOError(e.reason)
             elif hasattr(e, 'code'):
-                raise IOError, e.code
+                raise IOError(e.code)
             else:
                 raise IOError
         else:
             result = page4.read()
             page4.close()
             # remove carriage returns
-            result = result.replace("&#xd;\n"," ")
+            result = result.replace("&#xd;\n", " ")
             # parse out status code and status text
             startPos = result.find("<ns:return>") + 11
             endPos = result.find("</ns:return>")
@@ -473,14 +483,14 @@ class Region:
     def buildvrts(self):
         """Extracts image files and merges as necessary."""
 
-        layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
+        layerIDs = [name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name))]
         if layerIDs == []:
-            raise IOError, 'No files found'
+            raise IOError('No files found')
         for layerID in layerIDs:
             (pType, iType, mType, cType) = self.decodeLayerID(layerID)
             filesuffix = cType.lower()
             layerdir = os.path.join(self.mapsdir, layerID)
-            compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
+            compfiles = [name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix))]
             for compfile in compfiles:
                 (compbase, compext) = os.path.splitext(compfile)
                 fullfile = os.path.join(layerdir, compfile)
@@ -489,7 +499,7 @@ class Region:
                 # tar (at least) expects Unix pathnames
                 compimage = '/'.join([compbase, compfile])
                 cleanmkdir(datasubdir)
-                if (Region.zipfileBroken == False):
+                if (Region.zipfileBroken is False):
                     if (cType == "tgz"):
                         cFile = tarfile.open(fullfile)
                     elif (cType == "zip"):
@@ -531,13 +541,13 @@ class Region:
 
         # set pickle variable
         if do_pickle:
-            pickle_name=self.name
+            pickle_name = self.name
         else:
-            pickle_name=None
+            pickle_name = None
 
         # warp elevation data into new format
         # NB: can't do this to landcover until mode algorithm is supported
-        elvrt = os.path.join(self.mapsdir, self.ellayer, '%s.vrt' % (self.ellayer)) 
+        elvrt = os.path.join(self.mapsdir, self.ellayer, '%s.vrt' % (self.ellayer))
         elfile = os.path.join(self.mapsdir, self.ellayer, '%s.tif' % (self.ellayer))
         elextents = self.albersextents['elevation']
         warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
@@ -628,7 +638,7 @@ class Region:
         newcrust = None
 
         # read landcover array
-        lcvrt = os.path.join(self.mapsdir, self.lclayer, '%s.vrt' % (self.lclayer)) 
+        lcvrt = os.path.join(self.mapsdir, self.lclayer, '%s.vrt' % (self.lclayer))
         lcfile = os.path.join(self.mapsdir, self.lclayer, '%s.tif' % (self.lclayer))
         # here are the things that need to happen
         lcextents = self.albersextents['landcover']
@@ -642,7 +652,7 @@ class Region:
             values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
             # nodata is treated as water, which is 11
             vrtnodata = vrtband.GetNoDataValue()
-            if (vrtnodata == None):
+            if (vrtnodata is None):
                 vrtnodata = 0
             values[values == vrtnodata] = 11
             vrtband = None
@@ -679,7 +689,7 @@ class Region:
             # depth array is entire landcover region, landcover array is subset
             deptharray = lcband.ReadAsArray(0, 0, lcds.RasterXSize, lcds.RasterYSize)
         lcarray = deptharray[self.maxdepth:-1*self.maxdepth, self.maxdepth:-1*self.maxdepth]
-        geotrans = [ lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale ]
+        geotrans = [lcextents['xmin'], self.scale, 0, lcextents['ymax'], 0, -1 * self.scale]
         projection = srs.ExportToWkt()
         bathyObj = bathy(deptharray, geotrans, projection, wantCL=wantCL)
         bathyarray = bathyObj(self.maxdepth, pickle_name=pickle_name)

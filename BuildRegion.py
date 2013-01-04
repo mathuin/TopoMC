@@ -13,6 +13,7 @@ from tree import Tree, treeObjs
 from ore import Ore, oreObjs
 from pymclevel import mclevel
 
+
 def buildtile(args):
     """Given a region name and coordinates, build the corresponding tile."""
     # this should work for single and multi threaded cases
@@ -22,6 +23,7 @@ def buildtile(args):
     yamlfile.close()
     myTile = Tile(myRegion, tilex, tiley)
     myTile()
+
 
 def main():
     """Builds a region."""
@@ -47,7 +49,7 @@ def main():
 
     # exit if map does not exist
     if not os.path.exists(myRegion.mapfile):
-        raise IOError, "no map file exists"
+        raise IOError('no map file exists')
 
     # tree and ore variables
     treeobjs = dict([(tree.name, tree) for tree in treeObjs])
@@ -117,4 +119,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

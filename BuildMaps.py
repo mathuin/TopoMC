@@ -7,6 +7,7 @@ from utils import cleanmkdir
 from pymclevel import mclevel
 import argparse
 
+
 def center(name):
     """Returns the center chunk values for a given region."""
     worlddir = os.path.join('Worlds', name, 'level.dat')
@@ -17,6 +18,7 @@ def center(name):
     bounds = None
     world = None
     return centerx/16, centerz/16
+
 
 def main():
     """The main routine."""
@@ -39,5 +41,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-    

@@ -7,6 +7,7 @@ import argparse
 import os
 import yaml
 
+
 def main():
     """Rebuilds maps on broken regions."""
     parser = argparse.ArgumentParser(description='Prepares downloaded regions for building.')

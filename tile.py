@@ -17,6 +17,7 @@ from terrain import Terrain
 from tree import Tree, treeObjs
 from ore import Ore
 
+
 class Tile:
     """Tiles are the base render object.  or something."""
 
@@ -35,9 +36,9 @@ class Tile:
         self.doSchematics = region.doSchematics
 
         if (self.tilex < self.tiles['xmin']) or (self.tilex >= self.tiles['xmax']):
-            raise AttributeError, "tilex (%d) must be between %d and %d" % (self.tilex, self.tiles['xmin'], self.tiles['xmax'])
+            raise AttributeError('tilex (%d) must be between %d and %d' % (self.tilex, self.tiles['xmin'], self.tiles['xmax']))
         if (self.tiley < self.tiles['ymin']) or (self.tiley >= self.tiles['ymax']):
-            raise AttributeError, "tiley (%d) must be between %d and %d" % (self.tiley, self.tiles['ymin'], self.tiles['ymax'])
+            raise AttributeError('tiley (%d) must be between %d and %d' % (self.tiley, self.tiles['ymin'], self.tiles['ymax']))
 
         # create the tile directory if necessary
         self.tiledir = os.path.join(region.regiondir, 'Tiles', '%dx%d' % (self.tilex, self.tiley))
@@ -62,7 +63,7 @@ class Tile:
         # calculate Minecraft corners
         self.mcoffsetx = self.tilex * self.size
         self.mcoffsetz = self.tiley * self.size
-        
+
         # build a Minecraft world via pymclevel from blocks and data
         self.world = mclevel.MCInfdevOldLevel(self.tiledir, create=True)
         tilebox = box.BoundingBox((self.mcoffsetx, 0, self.mcoffsetz), (self.size, self.world.Height, self.size))
@@ -83,8 +84,8 @@ class Tile:
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
             (blocks, datas, tree) = Terrain.place(mcx, mcy, mcz, lcval, crustval, bathyval, self.doSchematics)
-            [ self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0 ]
-            [ self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0 ]
+            [self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0]
+            [self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0]
             # if trees are placed, elevation cannot be changed
             if tree:
                 Tree.placetreeintile(self, tree, mcx, mcy, mcz)

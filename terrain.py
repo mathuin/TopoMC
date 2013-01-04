@@ -2,18 +2,20 @@ from random import random, choice
 from utils import materialNamed, height
 from schematic import Schematic
 
+
 class Terrain:
     """Base class for landcover definitions."""
 
     # terrain translation
     # key = productID
     # value = dict(key=old, value=new)
-    translate = { 'L01': { 32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91 },
-                  'L04': { 32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91 },
-                  'L07': { 32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91 },
-                  'L10': { 32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91 },
-                  'L06': { 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 95: 91 },
-                  'L92': { 85: 21, 21: 22, 22: 24, 23: 25, 32: 31, 62: 82, 83: 82, 84: 82, 92: 90 } }
+    translate = {
+        'L01': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
+        'L04': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
+        'L07': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
+        'L10': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
+        'L06': {52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 95: 91},
+        'L92': {85: 21, 21: 22, 22: 24, 23: 25, 32: 31, 62: 82, 83: 82, 84: 82, 92: 90}}
 
     # local constants
     tallgrassProb = 0.05
@@ -65,7 +67,7 @@ class Terrain:
         choices = ['Cactus', 'Cactus', 'Cactus', 'Sugar Cane']
         (blockType, tree) = ('Stone', None) if random() < stoneProb else ('Sand', Terrain.placetree(Terrain.treeProb, choices))
         return (y, [(crustval, 'Sand'), (2, blockType)], tree)
-    
+
     @staticmethod
     def placeforest(x, y, z, crustval, trees):
         return (y, [(crustval, 'Dirt'), (1, 'Grass')], Terrain.placetree(Terrain.forestProb, trees))
@@ -165,7 +167,7 @@ class Terrain:
         return Terrain.placegrass(x, y, z, crustval)
 
     # dictionary used by place
-    terdict = { 0: zero, 11: eleven, 12: twelve, 21: twentyone, 22: twentytwo, 23: twentythree, 24: twentyfour, 25: twentyfive, 31: thirtyone, 32: thirtytwo, 41: fortyone, 42: fortytwo, 43: fortythree, 51: fiftyone, 71: seventyone, 81: eightyone, 82: eightytwo, 91: ninetyone }
+    terdict = {0: zero, 11: eleven, 12: twelve, 21: twentyone, 22: twentytwo, 23: twentythree, 24: twentyfour, 25: twentyfive, 31: thirtyone, 32: thirtytwo, 41: fortyone, 42: fortytwo, 43: fortythree, 51: fiftyone, 71: seventyone, 81: eightyone, 82: eightytwo, 91: ninetyone}
 
     # method that actually places terrain
     @staticmethod
@@ -175,17 +177,15 @@ class Terrain:
         except KeyError:
             print "lcval value %s not found!" % lcval
         (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doSchematics)
-        merged = [ (depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column ]
+        merged = [(depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column]
         # y=0 is always bedrock
-        blocks = [ (0, materialNamed('Bedrock')) ]
-        datas = [ (0, 0) ]
-        core = [ ((y - height(merged)), ('End Stone', 0)) ] + merged
+        blocks = [(0, materialNamed('Bedrock'))]
+        datas = [(0, 0)]
+        core = [((y - height(merged)), ('End Stone', 0))] + merged
         base = 0
         while core:
             (depth, (block, data)) = core.pop(0)
-            [ blocks.append((y, materialNamed(block) if type(block) is str else block)) for y in xrange(base, base+depth) if y > 0 ]
-            [ datas.append((y, data)) for y in xrange(base, base+depth) if y > 0 ]
+            [blocks.append((y, materialNamed(block) if type(block) is str else block)) for y in xrange(base, base+depth) if y > 0]
+            [datas.append((y, data)) for y in xrange(base, base+depth) if y > 0]
             base += depth
         return blocks, datas, tree
-
-

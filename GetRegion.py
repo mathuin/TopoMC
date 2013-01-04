@@ -6,23 +6,26 @@ from region import Region
 import sys
 import argparse
 
+
 def checkElevationIDs(string):
     """Checks to see if the given product IDs are valid."""
     givenIDs = string.split(',')
-    validIDs = [ ID for ID in givenIDs if ID in Region.productIDs['elevation'] ]
+    validIDs = [ID for ID in givenIDs if ID in Region.productIDs['elevation']]
     if validIDs == givenIDs:
         return givenIDs
     else:
         raise argparse.ArgumentTypeError, 'elevation IDs invalid: %s' % string
 
+
 def checkLandcoverIDs(string):
     """Checks to see if the given product IDs are valid."""
     givenIDs = string.split(',')
-    validIDs = [ ID for ID in givenIDs if ID in Region.productIDs['landcover'] ]
+    validIDs = [ID for ID in givenIDs if ID in Region.productIDs['landcover']]
     if validIDs == givenIDs:
         return givenIDs
     else:
         raise argparse.ArgumentTypeError, 'landcover IDs invalid: %s' % string
+
 
 def main():
     """Creates a specified region and downloads files from USGS."""
@@ -66,4 +69,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-

@@ -4,6 +4,7 @@ from itertools import product
 from random import randint, uniform
 from idt import idt
 
+
 class crust:
     """Smoothly irregular crust between the surface and the underlying stone."""
 
