@@ -30,17 +30,17 @@ class Tree:
         self.pattern = pattern
         # data value is integer for leafy trees and string for non-leafy trees
         if self.pattern is not None:
-            if type(data) is int:
+            if isinstance(data, int):
                 self.data = data
             else:
                 raise AttributeError('leafy trees require integer values for data: %d' % data)
         else:
-            if type(data) is str:
+            if isinstance(data, basestring):
                 self.data = data
             else:
                 raise AttributeError('non-leafy trees require string values for data: %d' % data)
         # heights (max, min, trunk)
-        if type(heights) is list and len(heights) is 3 and all([type(elem) is int for elem in heights]):
+        if isinstance(heights, list) and len(heights) is 3 and all([isinstance(elem, int) for elem in heights]):
             self.heights = heights
         else:
             raise AttributeError('heights array is not right: ', heights)

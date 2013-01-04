@@ -1,6 +1,6 @@
 # Bathymetric data -- OpenCL and GDAL both
 from osgeo import gdal
-from utils import chunks, buildtree
+from utils import chunks
 from itertools import product
 from time import time
 import numpy as np
@@ -194,7 +194,7 @@ class Bathy:
         print 'Generating results with OpenCL'
         atime1 = time()
         gpu_bathy = Bathy(lcarray, geotrans, projection, wantCL=True)
-        if gpu_bathy.canCL is False:
+        if not gpu_bathy.canCL:
             raise AssertionError('Cannot run test without working OpenCL')
         gpu_results = gpu_bathy(maxdepth)
         atime2 = time()

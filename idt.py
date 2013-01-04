@@ -3,7 +3,7 @@ from __future__ import division
 import numpy as np
 from scipy.spatial import cKDTree as KDTree
 from time import time
-from utils import chunks, buildtree
+from utils import chunks, build_tree
 from itertools import product
 #
 import gzip
@@ -72,12 +72,11 @@ class IDT:
                     self.local_size[device] = (work_group_size,)
                     self.global_size[device] = (num_groups_for_1d * work_group_size,)
                 self.canCL = True
-            # FIXME: Use an exception type here.
-            except:
+            except cl.RuntimeError:
                 print 'warning: unable to use pyopencl, defaulting to cKDTree'
 
         if self.canCL:
-            self.tree = buildtree(coords)
+            self.tree = build_tree(coords)
         else:
             self.tree = KDTree(coords)
 
@@ -189,7 +188,7 @@ class IDT:
         print 'Generating results with OpenCL'
         atime1 = time()
         gpu_idt = IDT(coords, values, wantCL=True)
-        if gpu_idt.canCL is False:
+        if not gpu_idt.canCL:
             raise AssertionError('Cannot run test without working OpenCL')
         gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority == 1))
         atime2 = time()

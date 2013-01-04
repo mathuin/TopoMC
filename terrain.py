@@ -39,7 +39,7 @@ class Terrain:
         # two possibilities for whichTree:
         # string: 100% this kind of tree
         # list: equal chances on which kind of tree
-        treeType = choice(whichTree) if type(whichTree) is list else whichTree
+        treeType = choice(whichTree) if isinstance(whichTree, list) else whichTree
         return treeType if random() < treeProb else None
 
     # common Terrain methods
@@ -177,7 +177,7 @@ class Terrain:
         except KeyError:
             print "lcval value %s not found!" % lcval
         (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doSchematics)
-        merged = [(depth, (block, 0)) if type(block) is not tuple else (depth, block) for (depth, block) in column]
+        merged = [(depth, block) if isinstance(block, tuple) else (depth, (block, 0)) for (depth, block) in column]
         # y=0 is always bedrock
         blocks = [(0, materialNamed('Bedrock'))]
         datas = [(0, 0)]
@@ -185,7 +185,7 @@ class Terrain:
         base = 0
         while core:
             (depth, (block, data)) = core.pop(0)
-            [blocks.append((y, materialNamed(block) if type(block) is str else block)) for y in xrange(base, base+depth) if y > 0]
+            [blocks.append((y, materialNamed(block) if isinstance(block, basestring) else block)) for y in xrange(base, base+depth) if y > 0]
             [datas.append((y, data)) for y in xrange(base, base+depth) if y > 0]
             base += depth
         return blocks, datas, tree

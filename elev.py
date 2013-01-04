@@ -68,8 +68,7 @@ class Elev:
                     self.local_size[device] = (work_group_size,)
                     self.global_size[device] = (num_groups_for_1d * work_group_size,)
                 self.canCL = True
-            # FIXME: Use an exception type here.
-            except:
+            except cl.RuntimeError:
                 print 'warning: unable to use pyopencl, defaulting to numpy'
 
     def __call__(self, trim, vscale, sealevel, pickle_name=None):
@@ -148,7 +147,7 @@ class Elev:
         print 'Generating results with OpenCL'
         atime1 = time()
         gpu_elev = Elev(elarray, wantCL=True)
-        if gpu_elev.canCL is False:
+        if not gpu_elev.canCL:
             raise AssertionError('Cannot run test without working OpenCL')
         gpu_results = gpu_elev(trim, vscale, sealevel)
         atime2 = time()

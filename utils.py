@@ -51,7 +51,7 @@ def names(blockID):
 def height(column):
     """Calculate the height of the column."""
     # NB: confirm that the column matches expectation
-    if type(column[0]) is tuple:
+    if isinstance(column[0], tuple):
         pairs = column
     else:
         print "oops, missed one!"
@@ -75,7 +75,7 @@ def chunks(data, chunksize=100):
         yield np.array(data[start:stop])
 
 
-def buildtree(coords):
+def build_tree(coords):
     """Build left-balanced KD tree from coordinates."""
     # initialize tree and stack
     tree = np.empty(len(coords)+1, dtype=np.uint32)
