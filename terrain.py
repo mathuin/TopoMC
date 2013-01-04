@@ -3,7 +3,7 @@ from utils import materialNamed, height
 from schematic import Schematic
 
 
-class Terrain:
+class Terrain(object):
     """Base class for landcover definitions."""
 
     # terrain translation

@@ -9,7 +9,7 @@ from utils import materialNamed
 # http://www.minecraftforum.net/topic/25886-elites-of-minecraft-the-miner-first-ore-loss-calculated/ (must be logged in)
 
 
-class Ore:
+class Ore(object):
     """Each type of ore will be an instance of this class."""
 
     # what ID is stone?

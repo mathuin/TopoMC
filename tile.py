@@ -18,7 +18,7 @@ from tree import Tree, treeObjs
 from ore import Ore
 
 
-class Tile:
+class Tile(object):
     """Tiles are the base render object.  or something."""
 
     def __init__(self, region, tilex, tiley):

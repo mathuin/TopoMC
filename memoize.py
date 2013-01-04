@@ -1,7 +1,7 @@
 # http://askawizard.blogspot.com/2008/09/decorators-python-saga-part-2_28.html
 
 
-class memoize:
+class memoize(object):
     def __init__(self, cache=None):
         self.cache = cache
 
@@ -9,7 +9,7 @@ class memoize:
         return Memoized(function, self.cache)
 
 
-class Memoized:
+class Memoized(object):
     def __init__(self, function, cache=None):
         if cache is None:
             cache = {}

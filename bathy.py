@@ -16,7 +16,7 @@ except ImportError:
     hasCL = False
 
 
-class Bathy:
+class Bathy(object):
 
     def __init__(self, lcarray, geotrans, projection, wantCL=True,
                  platform_num=None):
@@ -210,7 +210,7 @@ class Bathy:
         print '... finished in ', bdelta, 'seconds!'
 
         # Compare the results.
-        allowed_error_percentage = 1
+        allowed_error_percentage = 3
         maxnomatch = int(allowed_error_percentage*0.01*lenbase)
         xlen, ylen = gpu_results.shape
         if image:
@@ -223,6 +223,7 @@ class Bathy:
             Image.fromarray(diffarr).save(imagefile)
         else:
             nomatch = sum([1 if abs(cpu_results[x, y] - gpu_results[x, y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            nomatchmsg = '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
             if nomatch > maxnomatch:
                 countprint = 0
                 for x, y in product(xrange(xlen), xrange(ylen)):
@@ -234,11 +235,13 @@ class Bathy:
                             print " GPU: ", gpu_results[x, y]
                         else:
                             break
-                raise AssertionError('%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase))
+                raise AssertionError(nomatchmsg)
             else:
-                print '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
+                print nomatchmsg
 
-if __name__ == '__main__':
+def main():
+    """Test routine to confirm module consistency."""
+
     import argparse
     import glob
 
@@ -255,3 +258,7 @@ if __name__ == '__main__':
         print 'Testing %s' % testfile.name
         Bathy.test(testfile, image=args.image)
         testfile.close()
+
+
+if __name__ == '__main__':
+    main()

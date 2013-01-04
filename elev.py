@@ -16,7 +16,7 @@ except ImportError:
     hasCL = False
 
 
-class Elev:
+class Elev(object):
 
     def __init__(self, elarray, wantCL=True, platform_num=None):
         """
@@ -176,6 +176,7 @@ class Elev:
             Image.fromarray(diffarr).save(imagefile)
         else:
             nomatch = sum([1 if abs(cpu_results[x, y] - gpu_results[x, y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            nomatchmsg = '%d of %d (%d%%) failed to match' % (nomatch, lenelarray, 100*nomatch/lenelarray)
             if nomatch > maxnomatch:
                 countprint = 0
                 for x, y in product(xrange(xlen), xrange(ylen)):
@@ -187,11 +188,13 @@ class Elev:
                             print " GPU: ", gpu_results[x, y]
                         else:
                             break
-                raise AssertionError('%d of %d (%d%%) failed to match' % (nomatch, lenelarray, 100*nomatch/lenelarray))
+                raise AssertionError(nomatchmsg)
             else:
-                print '%d of %d (%d%%) failed to match' % (nomatch, lenelarray, 100*nomatch/lenelarray)
+                print nomatchmsg
 
-if __name__ == '__main__':
+def main():
+    """Test routine to confirm module consistency."""
+
     import argparse
     import glob
 
@@ -208,3 +211,7 @@ if __name__ == '__main__':
         print 'Testing %s' % testfile.name
         Elev.test(testfile, image=args.image)
         testfile.close()
+
+
+if __name__ == '__main__':
+    main()

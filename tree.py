@@ -7,7 +7,7 @@ from itertools import product
 from utils import materialNamed
 
 
-class Tree:
+class Tree(object):
     """Each type of tree will be an instance of this class."""
 
     # constants

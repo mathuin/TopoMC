@@ -4,7 +4,7 @@ import os
 from pymclevel import mclevel
 
 
-class Schematic:
+class Schematic(object):
     """
     Schematics are associated with landcover types.  When the
     landcover type comes up, the relevant portion of the schematic is

@@ -5,7 +5,7 @@ from random import randint, uniform
 from idt import IDT
 
 
-class Crust:
+class Crust(object):
     """Smoothly irregular crust between the surface and the underlying stone."""
 
     # these constants chosen by observation

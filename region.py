@@ -37,7 +37,7 @@ class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
         return result
 
 
-class Region:
+class Region(object):
     """I have no idea what I'm doing here."""
 
     # coordinate systems
@@ -67,7 +67,7 @@ class Region:
 
     # product types in order of preference
     productIDs = {'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
-                  'landcover': sorted(Terrain.translate.keys())}
+                  'landcover': sorted(Terrain.translate)}
 
     # image types
     # NB: only tif is known to work here
@@ -261,25 +261,25 @@ class Region:
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
         productID = layerID[0]+layerID[1]+layerID[2]
         try:
-            pType = [product for product in self.productIDs.keys() if productID in self.productIDs[product]][0]
+            pType = [product for product in self.productIDs if productID in self.productIDs[product]][0]
         except IndexError:
             raise AttributeError('Invalid productID %s' % productID)
 
         imagetype = layerID[3]+layerID[4]
         try:
-            iType = [image for image in Region.imageTypes.keys() if imagetype in Region.imageTypes[image]][0]
+            iType = [image for image in Region.imageTypes if imagetype in Region.imageTypes[image]][0]
         except IndexError:
             raise AttributeError('Invalid imagetype %s' % imagetype)
 
         metatype = layerID[5]
         try:
-            mType = [meta for meta in Region.metaTypes.keys() if metatype in Region.metaTypes[meta]][0]
+            mType = [meta for meta in Region.metaTypes if metatype in Region.metaTypes[meta]][0]
         except IndexError:
             raise AttributeError('Invalid metatype %s' % metatype)
 
         compressiontype = layerID[6]
         try:
-            mType = [compression for compression in Region.compressionTypes.keys() if compressiontype in Region.compressionTypes[compression]][0]
+            mType = [compression for compression in Region.compressionTypes if compressiontype in Region.compressionTypes[compression]][0]
         except IndexError:
             raise AttributeError('Invalid compressiontype %s' % compressiontype)
 
@@ -532,7 +532,7 @@ class Region:
         """Get files from USGS."""
         layerIDs = [self.lclayer, self.ellayer]
         downloadURLs = self.request_validation(layerIDs)
-        for layerID in downloadURLs.keys():
+        for layerID in downloadURLs:
             for downloadURL in downloadURLs[layerID]:
                 self.download_file(layerID, downloadURL)
         self.build_vrts()
