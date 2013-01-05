@@ -176,6 +176,8 @@ class Terrain(object):
             Terrain.terdict[lcval]
         except KeyError:
             print "lcval value %s not found!" % lcval
+        # JMT: EEK
+        doSchematics = True
         (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doSchematics)
         merged = [(depth, block) if isinstance(block, tuple) else (depth, (block, 0)) for (depth, block) in column]
         # y=0 is always bedrock

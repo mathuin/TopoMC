@@ -95,7 +95,7 @@ class Region(object):
     # properties
     @property
     def regiondir(self):
-        return os.path.join('Regions', self.name)
+        return os.path.join('regions', self.name)
 
     @property
     def regionfile(self):
@@ -241,16 +241,8 @@ class Region(object):
             self.wgs84extents[maptype] = {'xmax': max(xfloat), 'xmin': min(xfloat), 'ymax': max(yfloat), 'ymin': min(yfloat)}
 
         # check availability of product IDs and identify specific layer IDs
-        # NB: TEST CODE FOR CORVALLIS TO WORK AROUND USGS FAIL
-        # TURNS OUT USGS FAILS ON DOWNLOAD AS WELL AS INVENTORY
-        try:
-            self.lclayer = self.check_availability(landcoverIDs, 'landcover')
-        except AttributeError:
-            self.lclayer = 'L0602HT'
-        try:
-            self.ellayer = self.check_availability(elevationIDs, 'elevation')
-        except AttributeError:
-            self.ellayer = 'ND302HT'
+        self.lclayer = self.check_availability(landcoverIDs, 'landcover')
+        self.ellayer = self.check_availability(elevationIDs, 'elevation')
 
         # write the values to the file
         stream = file(os.path.join(self.regionfile), 'w')

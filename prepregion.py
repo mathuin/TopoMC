@@ -18,7 +18,7 @@ def main():
     args = parser.parse_args()
 
     print "Preparing region %s..." % args.name
-    yamlfile = file(os.path.join('Regions', args.name, 'Region.yaml'))
+    yamlfile = file(os.path.join('regions', args.name, 'Region.yaml'))
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 

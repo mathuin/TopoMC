@@ -27,7 +27,7 @@ class Schematic(object):
         if tag is None and layout is None:
             raise AttributeError('tag or layout must be specified')
         if layout is None:
-            filename = '%s.schematic' % tag
+            filename = 'schematics/%s.schematic' % tag
             if not os.path.exists(filename):
                 raise IOError('no file found')
             else:

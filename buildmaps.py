@@ -10,7 +10,7 @@ import argparse
 
 def center(name):
     """Returns the center chunk values for a given region."""
-    worlddir = os.path.join('Worlds', name, 'level.dat')
+    worlddir = os.path.join('worlds', name, 'level.dat')
     world = mclevel.fromFile(worlddir)
     bounds = world.bounds
     centerx = bounds.origin[0]+bounds.size[0]/2
@@ -32,10 +32,10 @@ def main():
     (centerx, centerz) = center(args.name)
 
     if args.gmaps:
-        cleanmkdir(os.path.join('Maps', args.name))
-        command = 'C10T=../c10t/build/c10t ../c10t/scripts/google-api/google-api.sh -w Worlds/%s -o Maps/%s -O "-M 2048 -z --center %d,%d"' % (args.name, args.name, centerx, centerz)
+        cleanmkdir(os.path.join('maps', args.name))
+        command = 'C10T=../c10t/build/c10t ../c10t/scripts/google-api/google-api.sh -w worlds/%s -o maps/%s -O "-M 2048 -z --center %d,%d"' % (args.name, args.name, centerx, centerz)
     else:
-        command = '../c10t/build/c10t -M 2048 -z -w Worlds/%s -o Maps/%s.png --center %d,%d' % (args.name, args.name, centerx, centerz)
+        command = '../c10t/build/c10t -M 2048 -z -w worlds/%s -o maps/%s.png --center %d,%d' % (args.name, args.name, centerx, centerz)
 
     os.system(command)
 
