@@ -7,6 +7,7 @@ import argparse
 import os
 import yaml
 
+
 def main():
     """Rebuilds maps on broken regions."""
     parser = argparse.ArgumentParser(description='Prepares downloaded regions for building.')
@@ -17,11 +18,11 @@ def main():
     args = parser.parse_args()
 
     print "Preparing region %s..." % args.name
-    yamlfile = file(os.path.join('Regions', args.name, 'Region.yaml'))
+    yamlfile = file(os.path.join('regions', args.name, 'Region.yaml'))
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 
-    myRegion.buildmap(args.doOCL, args.doPickle)
+    myRegion.build_map(args.doOCL, args.doPickle)
 
 if __name__ == '__main__':
     sys.exit(main())

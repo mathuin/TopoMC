@@ -3,7 +3,7 @@ from __future__ import division
 import numpy as np
 from scipy.spatial import cKDTree as KDTree
 from time import time
-from utils import chunks, buildtree
+from utils import chunks, build_tree
 from itertools import product
 #
 import gzip
@@ -16,21 +16,24 @@ try:
 except ImportError:
     hasCL = False
 
-class idt:
+
+class IDT(object):
+
     def __init__(self, coords, values, wantCL=True, platform_num=None):
         """
         Take the coordinates and values and build a KD tree.
 
         Keyword arguments:
-        coords -- input coordinates (x, y) 
+        coords -- input coordinates (x, y)
         values -- input values
 
         """
+
         self.coords = np.asarray(coords, dtype=np.float32)
         self.values = np.asarray(values, dtype=np.int32)
 
         if self.coords.shape[0] != self.values.shape[0]:
-            raise AssertionError, "lencoords does not equal lenvalues"
+            raise AssertionError('lencoords does not equal lenvalues')
 
         self.wantCL = wantCL
         self.canCL = False
@@ -66,15 +69,14 @@ class idt:
                 for device in self.devices:
                     work_group_size = self.kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, device)
                     num_groups_for_1d = device.max_compute_units * 3 * 2
-                    self.local_size[device] = (work_group_size, )
-                    self.global_size[device] = (num_groups_for_1d * work_group_size,  )
+                    self.local_size[device] = (work_group_size,)
+                    self.global_size[device] = (num_groups_for_1d * work_group_size,)
                 self.canCL = True
-            # FIXME: Use an exception type here.
-            except:
+            except cl.RuntimeError:
                 print 'warning: unable to use pyopencl, defaulting to cKDTree'
 
         if self.canCL:
-            self.tree = buildtree(coords)
+            self.tree = build_tree(coords)
         else:
             self.tree = KDTree(coords)
 
@@ -92,7 +94,7 @@ class idt:
 
         """
         # Set nearest neighbors to default value of 11 if not set.
-        if nnear == None:
+        if nnear is None:
             nnear = 11
 
         if self.canCL and self.wantCL:
@@ -105,17 +107,20 @@ class idt:
             usemajority_arg = np.uint32(1 if majority else 0)
             # Calculate how many base elements can be evaluated per run.
             static_data = self.values.nbytes + self.tree.nbytes + self.coords.nbytes + lentree_arg.nbytes + nnear_arg.nbytes + usemajority_arg.nbytes
-            # Each base element is two float32's and its retval is one int32.
-            bytes_per_elem_single = 2*4
-            bytes_per_elem_total = bytes_per_elem_single + 4
-            # Check both single and total limits.
-            elems_per_slice_single = [int(0.95*device.max_mem_alloc_size/bytes_per_elem_single) for device in self.devices]
-            elems_per_slice_total = [int((0.95*device.global_mem_size-static_data)/bytes_per_elem_total) for device in self.devices]
-            elem_limits = [elems_per_slice_single[x] if elems_per_slice_single[x]<elems_per_slice_total[x] else elems_per_slice_total[x] for x in xrange(len(self.devices))]
+            # Each base element is two float32s (8 bytes).
+            bpe_single = 2*4
+            # Each retval is one int32 (4 bytes).
+            bpe_total = bpe_single + 4
+            # Check both single and total limits for elems-per-slice.
+            eps_single = [int(0.95*device.max_mem_alloc_size/bpe_single) for device in self.devices]
+            eps_total = [int((0.95*device.global_mem_size-static_data)/bpe_total) for device in self.devices]
+            elem_limits = [min(eps_single[x], eps_total[x]) for x in xrange(len(self.devices))]
             # For now, at least, do not create retval or chunk buffer here.
             results = []
             # NB: Only supporting one device for now.
             best_device = np.argmax(elem_limits)
+            global_size = self.global_size[self.devices[best_device]]
+            local_size = self.local_size[self.devices[best_device]]
             for chunk in chunks(base, elem_limits[best_device]):
                 # Create retvals and chunk buffer here instead of above.
                 lenchunk = len(chunk)
@@ -123,9 +128,9 @@ class idt:
                 retvals_buf = cla.to_device(self.queue, retvals_arr)
                 chunk_buf = cla.to_device(self.queue, chunk)
                 lenchunk_arg = np.uint32(lenchunk)
-                event = self.program.idt(self.queue, self.global_size[self.devices[best_device]], self.local_size[self.devices[best_device]], retvals_buf.data, values_buf.data, tree_buf.data, coords_buf.data, lentree_arg, chunk_buf.data, lenchunk_arg, nnear_arg, usemajority_arg)
+                event = self.program.idt(self.queue, global_size, local_size, retvals_buf.data, values_buf.data, tree_buf.data, coords_buf.data, lentree_arg, chunk_buf.data, lenchunk_arg, nnear_arg, usemajority_arg)
                 event.wait()
-                # cl.enqueue_copy(self.queue, retvals_arr, retvals_buf)
+                # Copy retvals_buf to results.
                 retvals_arr = retvals_buf.get()
                 if results == []:
                     results = retvals_arr.tolist()
@@ -153,7 +158,7 @@ class idt:
                         wz = np.dot(w, self.values[index])
                 results[jinterpol] = wz
                 jinterpol += 1
-        if pickle_name != None:
+        if pickle_name is not None:
             # Pickle variables for testing purposes.
             picklefilename = 'idt-%s-%d.pkl.gz' % (pickle_name, (1 if majority else 0))
             print 'Pickling to %s...' % picklefilename
@@ -182,18 +187,18 @@ class idt:
 
         print 'Generating results with OpenCL'
         atime1 = time()
-        gpu_idt = idt(coords, values, wantCL=True)
-        if gpu_idt.canCL == False:
-            raise AssertionError, 'Cannot run test without working OpenCL'
-        gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority==1))
+        gpu_idt = IDT(coords, values, wantCL=True)
+        if not gpu_idt.canCL:
+            raise AssertionError('Cannot run test without working OpenCL')
+        gpu_results = gpu_idt(base, shape, nnear=nnear, majority=(usemajority == 1))
         atime2 = time()
         adelta = atime2-atime1
         print '... finished in ', adelta, 'seconds!'
 
         print 'Generating results with cKDTree'
         btime1 = time()
-        cpu_idt = idt(coords, values, wantCL=False)
-        cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority==1))
+        cpu_idt = IDT(coords, values, wantCL=False)
+        cpu_results = cpu_idt(base, shape, nnear=nnear, majority=(usemajority == 1))
         btime2 = time()
         bdelta = btime2-btime1
         print '... finished in ', bdelta, 'seconds!'
@@ -204,29 +209,33 @@ class idt:
         xlen, ylen = gpu_results.shape
         if image:
             print 'Generating image of differences'
-            import Image, re
+            import re
+            import Image
             imagefile = re.sub('pkl.gz', 'png', fileobj.name)
             # diffarr = (cpu_results + 128 - gpu_results).astype(np.int32)
-            diffarr = np.array([[int(128 + cpu_results[x,y] - gpu_results[x,y]) for y in xrange(ylen)] for x in xrange(xlen)], dtype=np.int32)
+            diffarr = np.array([[int(128 + cpu_results[x, y] - gpu_results[x, y]) for y in xrange(ylen)] for x in xrange(xlen)], dtype=np.int32)
             Image.fromarray(diffarr).save(imagefile)
         else:
-            nomatch = sum([1 if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            nomatch = sum([1 if abs(cpu_results[x, y] - gpu_results[x, y]) > 0.0001 else 0 for x, y in product(xrange(xlen), xrange(ylen))])
+            nomatchmsg = '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
             if nomatch > maxnomatch:
                 countprint = 0
                 for x, y in product(xrange(xlen), xrange(ylen)):
-                    if abs(cpu_results[x,y] - gpu_results[x,y]) > 0.0001:
+                    if abs(cpu_results[x, y] - gpu_results[x, y]) > 0.0001:
                         countprint += 1
                         if countprint < 10:
                             print "no match at ", x, y
-                            print " CPU: ", cpu_results[x,y]
-                            print " GPU: ", gpu_results[x,y]
+                            print " CPU: ", cpu_results[x, y]
+                            print " GPU: ", gpu_results[x, y]
                         else:
                             break
-                raise AssertionError, '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
+                raise AssertionError(nomatchmsg)
             else:
-                print '%d of %d (%d%%) failed to match' % (nomatch, lenbase, 100*nomatch/lenbase)
+                print nomatchmsg
 
-if __name__ == '__main__':
+def main():
+    """Test routine to confirm module consistency."""
+
     import argparse
     import glob
 
@@ -241,5 +250,9 @@ if __name__ == '__main__':
         args.files = [open(file) for file in glob.glob('./idt-*.pkl.gz')]
     for testfile in args.files:
         print 'Testing %s' % testfile.name
-        idt.test(testfile, image=args.image)
+        IDT.test(testfile, image=args.image)
         testfile.close()
+
+
+if __name__ == '__main__':
+    main()

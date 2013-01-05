@@ -4,6 +4,8 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 ## Major changes:
 
+* TopoMC has been pushed closer towards compliance with style guides.  May not affect you much but it surely affects me! :-)
+
 * TopoMC now generates Anvil worlds with full 256-block heights thanks to @codewarrior0 and his changes to mcedit/pymclevel!  Thank you!
 
 * TopoMC also now runs on Windows!  Kinda.  I think.  It works for me, anyway!  See [this](https://github.com/mathuin/TopoMC/wiki/RunningOnWindows) for more details!
@@ -45,17 +47,17 @@ Next, here's what to do!
 
 3.  Retrieve the region from the USGS.
 
-	`jmt@belle:~/git/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100`
+	`jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100`
 
 4.  Prepare the region for processing.
 
-	`jmt@belle:~/git/TopoMC$ ./PrepRegion.py --name Provincetown`
+	`jmt@belle:~/git/TopoMC$ ./prepregion.py --name Provincetown`
 
 5.  Construct the Minecraft world based on the region.
 
-	`jmt@belle:~/git/TopoMC$ ./BuildRegion.py --name Provincetown`
+	`jmt@belle:~/git/TopoMC$ ./buildregion.py --name Provincetown`
 
-### Geek knobs for GetRegion.py
+### Geek knobs for getregion.py
 
 GetRegion.py has a number of optional arguments not shown above.
 

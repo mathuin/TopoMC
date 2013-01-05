@@ -3,14 +3,18 @@ from utils import height
 import os
 from pymclevel import mclevel
 
-class Schematic:
-    """Schematics are associated with landcover types.  When the
+
+class Schematic(object):
+    """
+    Schematics are associated with landcover types.  When the
     landcover type comes up, the relevant portion of the schematic is
     placed.
 
     Schematics should be designed to mesh well together.  The sample schematics all
-    come from a specific pattern so streets and sidewalks go well together, but do 
-    not be limited by this example!"""
+    come from a specific pattern so streets and sidewalks go well together, but do
+    not be limited by this example!
+    """
+
     # dict
     # key: landcover value
     # value: schematic object
@@ -20,12 +24,12 @@ class Schematic:
         # handles:
         # - file-based (tag=foo, layout=None)
         # - layout-based (tag=None, layout=[[[(1, 'Stone')]]])
-        if tag == None and layout == None:
-            raise AttributeError, 'tag or layout must be specified'
-        if layout == None:
-            filename = '%s.schematic' % tag
+        if tag is None and layout is None:
+            raise AttributeError('tag or layout must be specified')
+        if layout is None:
+            filename = 'schematics/%s.schematic' % tag
             if not os.path.exists(filename):
-                raise IOError, 'no file found'
+                raise IOError('no file found')
             else:
                 schem = mclevel.fromFile(filename)
                 self.layout = [[Schematic.compressrow([(1, (int(schem.Blocks[elemX, elemZ, elemY]), int(schem.Data[elemX, elemZ, elemY]))) for elemY in xrange(schem.Height)]) for elemZ in xrange(schem.Length)] for elemX in xrange(schem.Width)]
@@ -49,10 +53,10 @@ class Schematic:
 
     def check(self, verbose=False):
         if not all([len(row) == self.length for row in self.layout]):
-            raise AttributeError, "not all rows are the same width"
+            raise AttributeError('not all rows are the same width')
 
         if not all([height(col) == self.height for row in self.layout for col in row]):
-            raise AttributeError, "not all cols are the same height"
+            raise AttributeError('not all cols are the same height')
 
         if verbose:
             print "schematic has dimensions %dX x %dY x %dZ" % (self.length, self.height, self.width)
@@ -61,7 +65,7 @@ class Schematic:
     def use(key, name, nameoffset, layout, offset):
         def decorator(target):
             def wrapper(*args, **kwargs):
-                # major assumption: 
+                # major assumption:
                 # args are (x, y, z, crustval, bathyval, doSchematics)
                 x = args[0]
                 y = args[1]
