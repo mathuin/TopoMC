@@ -16,7 +16,7 @@ from utils import cleanmkdir, locate
 from terrain import Terrain
 from pymclevel import mclevel
 
-from osgeo import gdal, osr
+from osgeo import gdal, osr, ogr
 from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 from bathy import Bathy
 from crust import Crust
@@ -42,7 +42,7 @@ class Region(object):
 
     # coordinate systems
     wgs84 = 4326
-    albers = 102039
+    albers = 102003 # USGS uses 102039 but this is GDAL
     t_srs = "+proj=aea +datum=NAD83 +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +units=m"
 
     # raster layer order
@@ -187,30 +187,8 @@ class Region(object):
         # these are the latlong values
         self.llextents = {'xmax': max(xmax, xmin), 'xmin': min(xmax, xmin), 'ymax': max(ymax, ymin), 'ymin': min(ymax, ymin)}
 
-        # access the web service
-        # NB: raise hell if it is inaccessible
-        wsdlConv = "http://extract.cr.usgs.gov/XMLWebServices/Coordinate_Conversion_Service.asmx?WSDL"
-        clientConv = suds.client.Client(wsdlConv)
-        # This web service returns suds.sax.text.Text not XML sigh
-        Convre = "<X Coordinate>(.*?)</X Coordinate > <Y Coordinate>(.*?)</Y Coordinate >"
-
-        # convert from WGS84 to Albers
-        ULdict = {'X_Value': self.llextents['xmin'], 'Y_Value': self.llextents['ymin'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
-        (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-        URdict = {'X_Value': self.llextents['xmax'], 'Y_Value': self.llextents['ymin'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
-        (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-        LLdict = {'X_Value': self.llextents['xmin'], 'Y_Value': self.llextents['ymax'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
-        (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-        LRdict = {'X_Value': self.llextents['xmax'], 'Y_Value': self.llextents['ymax'], 'Current_Coordinate_System': Region.wgs84, 'Target_Coordinate_System': Region.albers}
-        (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
-
-        # select maximum values for landcover extents
-        xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
-        yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
-        mxmax = max(xfloat)
-        mxmin = min(xfloat)
-        mymax = max(yfloat)
-        mymin = min(yfloat)
+        # Convert from WGS84 to Albers.
+        [mxmax, mxmin, mymax, mymin] = Region.get_corners(Region.wgs84, Region.albers, xmax, xmin, ymax, ymin)
 
         # calculate tile edges
         realsize = self.scale * self.tilesize
@@ -219,26 +197,15 @@ class Region(object):
         self.albersextents = {'landcover': dict(), 'elevation': dict()}
         self.wgs84extents = {'landcover': dict(), 'elevation': dict()}
 
-        # landcover has a maxdepth-sized border
+        # Landcover needs a maxdepth-sized border for bathy calculations.
         self.albersextents['elevation'] = {'xmax': self.tiles['xmax'] * realsize, 'xmin': self.tiles['xmin'] * realsize, 'ymax': self.tiles['ymax'] * realsize, 'ymin': self.tiles['ymin'] * realsize}
         borderwidth = self.maxdepth * self.scale
         self.albersextents['landcover'] = {'xmax': self.albersextents['elevation']['xmax'] + borderwidth, 'xmin': self.albersextents['elevation']['xmin'] - borderwidth, 'ymax': self.albersextents['elevation']['ymax'] + borderwidth, 'ymin': self.albersextents['elevation']['ymin'] - borderwidth}
 
-        # now convert back from Albers to WGS84
+        # Now convert back from Albers to WGS84.
         for maptype in ['landcover', 'elevation']:
-            ULdict = {'X_Value': self.albersextents[maptype]['xmin'], 'Y_Value': self.albersextents[maptype]['ymin'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-            (ULx, ULy) = re.findall(Convre, clientConv.service.getCoordinates(**ULdict))[0]
-            URdict = {'X_Value': self.albersextents[maptype]['xmax'], 'Y_Value': self.albersextents[maptype]['ymin'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-            (URx, URy) = re.findall(Convre, clientConv.service.getCoordinates(**URdict))[0]
-            LLdict = {'X_Value': self.albersextents[maptype]['xmin'], 'Y_Value': self.albersextents[maptype]['ymax'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-            (LLx, LLy) = re.findall(Convre, clientConv.service.getCoordinates(**LLdict))[0]
-            LRdict = {'X_Value': self.albersextents[maptype]['xmax'], 'Y_Value': self.albersextents[maptype]['ymax'], 'Current_Coordinate_System': Region.albers, 'Target_Coordinate_System': Region.wgs84}
-            (LRx, LRy) = re.findall(Convre, clientConv.service.getCoordinates(**LRdict))[0]
-
-            # select maximum values
-            xfloat = [float(x) for x in [ULx, URx, LLx, LRx]]
-            yfloat = [float(y) for y in [ULy, URy, LLy, LRy]]
-            self.wgs84extents[maptype] = {'xmax': max(xfloat), 'xmin': min(xfloat), 'ymax': max(yfloat), 'ymin': min(yfloat)}
+            [wxmax, wxmin, wymax, wymin] = Region.get_corners(Region.albers, Region.wgs84, self.albersextents[maptype]['xmax'], self.albersextents[maptype]['xmin'], self.albersextents[maptype]['ymax'], self.albersextents[maptype]['ymin'])
+            self.wgs84extents[maptype] = {'xmax': wxmax, 'xmin': wxmin, 'ymax': wymax, 'ymin': wymin}
 
         # check availability of product IDs and identify specific layer IDs
         self.lclayer = self.check_availability(landcoverIDs, 'landcover')
@@ -248,6 +215,28 @@ class Region(object):
         stream = file(os.path.join(self.regionfile), 'w')
         yaml.dump(self, stream)
         stream.close()
+
+    @staticmethod
+    def get_corners(fromCS, toCS, xmax, xmin, ymax, ymin):
+        """Transform the given extents from a source SR to a destination SR."""
+
+        fromSR = osr.SpatialReference()
+        fromSR.ImportFromEPSG(fromCS)
+        toSR = osr.SpatialReference()
+        toSR.ImportFromEPSG(toCS)
+
+        corners = [(x, y) for y in [ymin, ymax] for x in [xmin, xmax]]
+
+        xfloat = []
+        yfloat = []
+        for corner in corners:
+            point = ogr.CreateGeometryFromWkt('POINT(%s %s)' % (corner[0], corner[1]))
+            point.AssignSpatialReference(fromSR)
+            point.TransformTo(toSR)
+            xfloat.append(point.GetX())
+            yfloat.append(point.GetY())
+
+        return [max(xfloat), min(xfloat), max(yfloat), min(yfloat)]
 
     def decode_LayerID(self, layerID):
         """Given a layer ID, return the product type, image type, metadata type, and compression type."""
