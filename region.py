@@ -331,13 +331,20 @@ class Region:
             max_chunk_size = 8192
             # NB: USGS web servers do not handle resuming downloads correctly
             # so we have to drop incoming data on the floor
-            numBytes = 0
+            if 'Content-Range' in webPage.headers:
+                # Resuming downloads are now working
+                # We can start from where we left off
+                numBytes = existSize
+            else:
+                numBytes = 0
+            # if numBytes is less than existSize, do not save what we download
             while numBytes < existSize:
                 pbar.update(numBytes)
-                remaining = existSize - numBytes
-                chunk_size = remaining if remaining < max_chunk_size else max_chunk_size
+                left = existSize - numBytes
+                chunk_size = left if left < max_chunk_size else max_chunk_size
                 data = webPage.read(chunk_size)
                 numBytes = numBytes + len(data)
+            # if numBytes is less than maxSize, save what we download
             while numBytes < maxSize:
                 pbar.update(numBytes)
                 data = webPage.read(max_chunk_size)
