@@ -5,7 +5,8 @@ from math import ceil, floor
 import suds
 import re
 import os
-import urllib2
+import urllib,urllib2
+import urlparse
 import yaml
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -63,31 +64,14 @@ class Region:
     headroom = 16
 
     # product types in order of preference
-    productIDs = { 'elevation': ['ND9', 'ND3', 'NED', 'NAK'],
+    productIDs = { 'elevation': ['N3F', 'N2F', 'N1F'],
                    'landcover': sorted(Terrain.translate.keys()) }
+    # file suffix for extraction
+    # FIXME: check N2F value
+    exsuf = { 'N3F': '13', 'N2F': '12', 'N1F': '1' }
 
-    # image types
-    # NB: only tif is known to work here
-    imageTypes = { 'tif': ['02'],
-                   'arc': ['01'],
-                   'bil': ['03'],
-                   'GridFloat': ['05'],
-                   'IMG': ['12'],
-                   'bil_16int': ['15'] }
-
-    # meta types
-    # NB: currently ignored
-    metaTypes = { 'ALL': ['A'],
-                  'FAQ': ['F'],
-                  'HTML': ['H'],
-                  'SGML': ['S'],
-                  'TXT': ['T'],
-                  'XML': ['X'] }
-
-    # compression types
-    # NB: zipfile module broken so tgz recommended
-    compressionTypes = { 'tgz': ['T'],
-                         'zip': ['Z'] }
+    # download directory
+    downloaddir = os.path.join('Downloads')
 
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
@@ -136,10 +120,10 @@ class Region:
 
         # disable overly dense elevation products
         self.productIDs = Region.productIDs
-        if (scale > 5):
-            self.productIDs['elevation'].remove('ND9')
+        # if (scale > 5):
+        #     self.productIDs['elevation'].remove('ND9')
         if (scale > 15):
-            self.productIDs['elevation'].remove('ND3')
+            self.productIDs['elevation'].remove('N3F')
 
         # specified IDs must be in region list
         if lcIDs == None:
@@ -164,7 +148,7 @@ class Region:
         self.regiondir = os.path.join('Regions', self.name)
         cleanmkdir(self.regiondir)
 
-        self.mapsdir = os.path.join('Regions', self.name, 'Datasets')
+        self.mapsdir = os.path.join(self.regiondir, 'Datasets')
         cleanmkdir(self.mapsdir)
 
         self.mapname = os.path.join(self.regiondir, 'Map.tif')
@@ -279,14 +263,14 @@ class Region:
         clientInv = suds.client.Client(wsdlInv)
 
         # ensure desired attributes are present
-        desiredAttributes = ['PRODUCTKEY']
+        desiredAttributes = ['PRODUCTKEY','STATUS']
         attributes = []
         attributeList = clientInv.service.return_Attribute_List()
         for attribute in desiredAttributes:
             if attribute in attributeList[0]:
                 attributes.append(attribute)
-        if len(attributes) == 0:
-            raise AttributeError, "No attributes found"
+        if len(attributes) != len(desiredAttributes):
+            raise AttributeError, "Not all attributes found"
     
         # return_attributes arguments dictionary
         rAdict = {'Attribs': ','.join(attributes), 'XMin': mapextents['xmin'], 'XMax': mapextents['xmax'], 'YMin': mapextents['ymin'], 'YMax': mapextents['ymax'], 'EPSG': Region.wgs84}
@@ -294,48 +278,18 @@ class Region:
         # store offered products in a list
         offered = []
         # this returns an array of custom attributes
-        # each element of the array has a key-value pair
-        # in our case, there's only one key: PRODUCTKEY
+        # which is apparently a ball full of crazy
+        # NB: clean up this [0][0] crap!
         for elem in rAatts.ArrayOfCustomAttributes:
-            for each in elem[0]:
-                if (each[0] == 'PRODUCTKEY' and each[1] in productlist):
-                    offered.append(each[1])
+            if (elem[0][0][0] == 'PRODUCTKEY' and elem[0][0][1] in productlist and
+                elem[0][1][0] == 'STATUS' and elem[0][1][1] == 'Tiled'):
+                offered.append(elem[0][0][1])
         # this should extract the first
         try:
             productID = [ ID for ID in productlist if ID in offered ][0]
         except IndexError:
             raise AttributeError, "No products are available for this location!"
-        # check download options
-        # NB: integrate with new types seen above
-        OFgood = [u'GeoTIFF']
-        MFgood = [u'HTML', u'ALL', u'FAQ', u'SGML', u'TXT', u'XML']
-        CFgood = [u'TGZ', u'ZIP']
-        wsdlInv = "http://ags.cr.usgs.gov/index_service/Index_Service_SOAP.asmx?WSDL"
-        clientInv = suds.client.Client(wsdlInv)
-        productdict = {'ProductIDs': productID}
-        doproducts = clientInv.service.return_Download_Options(**productdict)
-        [doPID, doType, doOF, doCF, doMF] = [value for (key, value) in doproducts['DownloadOptions'][0]]
-        # assemble layerID
-        layerID = doPID
-        OFdict = dict([reversed(pair.split('-')) for pair in doOF.split(',')])
-        CFdict = dict([reversed(pair.split('-')) for pair in doCF.split(',')])
-        MFdict = dict([reversed(pair.split('-')) for pair in doMF.split(',')])
-        OFfound = [OFdict[OFval] for OFval in OFgood if OFval in OFdict]
-        if OFfound:
-            layerID += OFfound[0]
-        else:
-            raise AttributeError, 'no acceptable output format found'
-        MFfound = [MFdict[MFval] for MFval in MFgood if MFval in MFdict]
-        if MFfound:
-            layerID += MFfound[0]
-        else:
-            raise AttributeError, 'no acceptable metadata format found'
-        CFfound = [CFdict[CFval] for CFval in CFgood if CFval in CFdict]
-        if CFfound:
-            layerID += CFfound[0]
-        else:
-            raise AttributeError, 'no acceptable compression format found'
-        return str(layerID)
+        return productID
 
     def requestvalidation(self, layerIDs):
         """Generates download URLs from layer IDs."""
@@ -347,11 +301,11 @@ class Region:
 
         # we now iterate through layerIDs
         for layerID in layerIDs:
-            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
-            mapextents = self.wgs84extents[pType]
+            layername = [key for key in self.productIDs.keys() if layerID in self.productIDs[key]][0]
+            mapextents = self.wgs84extents[layername]
             xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250) # can be 100, 15, 25, 50, 75, 250
 
-            response = clientRequest.service.processAOI2(xmlString)
+            response = clientRequest.service.getTiledDataDirectURLs2(xmlString)
 
             print "Requested URLs for layer ID %s..." % layerID
 
@@ -362,100 +316,47 @@ class Region:
 
         return retval
 
-    def downloadfile(self, layerID, downloadURL):
-        """Actually download the file at the URL."""
-        (pType, iType, mType, cType) = self.decodeLayerID(layerID)
-        layerdir = os.path.join(self.mapsdir, layerID)
-        if not os.path.exists(layerdir):
-            os.makedirs(layerdir)
+    @staticmethod
+    def getfn(downloadURL):
+        pdURL = urlparse.urlparse(downloadURL)
+        pQS = urlparse.parse_qs(pdURL[4])
+        longfile = pQS['FNAME'][0]
+        justfile = os.path.split(longfile)[1]
+        return justfile
 
-        print "  Requesting download for %s." % layerID
-        # initiateDownload and get the response code
-        # put _this_ in its own function!
-        try:
-            page = urllib2.urlopen(downloadURL.replace(' ','%20'))
-        except IOError, e:
-            if hasattr(e, 'reason'):
-                raise IOError, e.reason
-            elif hasattr(e, 'code'):
-                raise IOError, e.code
-            else:
-                raise IOError
+    def retrievefile(self, layerID, downloadURL):
+        """Retrieve the datafile associated with the URL.  This may require downloading it from the USGS servers or extracting it from a local archive."""
+        fname = Region.getfn(downloadURL)
+        layerdir = os.path.join(Region.downloaddir, layerID)
+        # FIXME: do this more elegantly
+        os.system('mkdir -p %s' % layerdir)
+        downloadfile = os.path.join(layerdir, fname)
+        if os.path.exists(downloadfile):
+            print "Using cached file for layerID %s" % layerID
         else:
-            result = page.read()
-            page.close()
-            # parse response for request id
-            if result.find("VALID>false") > -1:
-                # problem with initiateDownload request string
-                # handle that here
-                pass
+            print "Downloading file from server for layerID %s" % layerID
+            try:
+                (tempfile, message) = urllib.urlretrieve(downloadURL, downloadfile)
+            except IOError, e:
+                print "whoops!"
+                raise IOError, e
             else:
-                # downloadRequest successfully entered into queue
-                startPos = result.find("<ns:return>") + 11
-                endPos = result.find("</ns:return>")
-                requestID = result[startPos:endPos]
-        print "  request ID is %s" % requestID
-
-        sleep(5)
-        while True:
-            dsPage = urllib2.urlopen("http://extract.cr.usgs.gov/axis2/services/DownloadService/getDownloadStatus?downloadID=%s" % requestID)
-            result = dsPage.read()
-            dsPage.close()
-            result = result.replace("&#xd;\n"," ")
-            # parse out status code and status text
-            startPos = result.find("<ns:return>") + 11
-            endPos = result.find("</ns:return>")
-            (code, status) = result[startPos:endPos].split(',', 1)
-            print "  status is %s" % status
-            if (int(code) == 400):
-                break
-            sleep(15)
-
-        getFileURL = "http://extract.cr.usgs.gov/axis2/services/DownloadService/getData?downloadID=%s" % requestID
-        try:
-            page3 = urllib2.Request(getFileURL)
-            opener = urllib2.build_opener(SmartRedirectHandler())
-            obj = opener.open(page3)
-            location = obj.headers['Location'] 
-            filename = location.split('/')[-1].split('#')[0].split('?')[0]        
-        except IOError, e:
-            if hasattr(e, 'reason'):
-                raise IOError, e.reason
-            elif hasattr(e, 'code'):
-                raise IOError, e.code
-            else:
-                raise IOError
+                print "Download complete!"
+        # FIXME: this is grotesque
+        extracthead = fname.split('.')[0]
+        # lame but works
+        if layerID in Region.exsuf.keys():
+            # elevation
+            extractfiles = [os.path.join(extracthead, '.'.join(['float%s_%s' % (extracthead, Region.exsuf[layerID]), suffix])) for suffix in 'flt', 'hdr', 'prj']
         else:
-            print "  downloading %s now!" % filename
-            downloadFile = open(os.path.join(layerdir, filename), 'wb')
-            while True:
-                data = obj.read(8192)
-                if data == "":
-                    break
-                downloadFile.write(data)
-            downloadFile.close()
-            obj.close()
-
-        # UGH
-        setStatusURL = "http://extract.cr.usgs.gov/axis2/services/DownloadService/setDownloadComplete?downloadID=%s" % requestID
-        try:
-            page4 = urllib2.urlopen(setStatusURL)
-        except IOError, e:
-            if hasattr(e, 'reason'):
-                raise IOError, e.reason
-            elif hasattr(e, 'code'):
-                raise IOError, e.code
+            # landcover
+            extractfiles = ['.'.join([extracthead, suffix]) for suffix in 'tif', 'tfw']
+        for extractfile in extractfiles:
+            if os.path.exists(os.path.join(layerdir, extractfile)):
+                print "Using existing file %s for layerID %s" % (extractfile, layerID)
             else:
-                raise IOError
-        else:
-            result = page4.read()
-            page4.close()
-            # remove carriage returns
-            result = result.replace("&#xd;\n"," ")
-            # parse out status code and status text
-            startPos = result.find("<ns:return>") + 11
-            endPos = result.find("</ns:return>")
-            status = result[startPos:endPos]
+                os.system('unzip %s %s -d %s' % (downloadfile, extractfile, layerdir))
+        return os.path.join(layerdir, extractfiles[0])
 
     def buildvrts(self):
         """Extracts image files and merges as necessary."""
@@ -505,21 +406,31 @@ class Region:
             os.system('%s' % buildvrtcmd)
 
     def getfiles(self):
-        """Get files from USGS."""
+        """Get files from USGS and extract them if necessary."""
         layerIDs = [self.lclayer, self.ellayer]
         downloadURLs = self.requestvalidation(layerIDs)
         for layerID in downloadURLs.keys():
+            extractlist = []
             for downloadURL in downloadURLs[layerID]:
-                self.downloadfile(layerID, downloadURL)
-        self.buildvrts()
+                extractfile = self.retrievefile(layerID, downloadURL)
+                extractlist.append(extractfile)
+            # build VRTs here for now
+            # will put back if good SRS nonsense still required
+            print 'before vrt for ', layerID
+            vrtfile = os.path.join(self.mapsdir, '%s.vrt' % layerID)
+            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join([extractfile for extractfile in extractlist]))
+            print 'build ', buildvrtcmd
+            os.system('%s' % buildvrtcmd)
+            print 'success?'
+        # self.buildvrts()
 
     def buildmap(self, wantCL=True):
         """Use downloaded files and other parameters to build multi-raster map."""
 
         # warp elevation data into new format
         # NB: can't do this to landcover until mode algorithm is supported
-        elvrt = os.path.join(self.mapsdir, self.ellayer, '%s.vrt' % (self.ellayer)) 
-        elfile = os.path.join(self.mapsdir, self.ellayer, '%s.tif' % (self.ellayer))
+        elvrt = os.path.join(self.mapsdir, '%s.vrt' % (self.ellayer)) 
+        elfile = os.path.join(self.mapsdir, '%s.tif' % (self.ellayer))
         elextents = self.albersextents['elevation']
         warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
 
@@ -608,8 +519,8 @@ class Region:
         newcrust = None
 
         # read landcover array
-        lcvrt = os.path.join(self.mapsdir, self.lclayer, '%s.vrt' % (self.lclayer)) 
-        lcfile = os.path.join(self.mapsdir, self.lclayer, '%s.tif' % (self.lclayer))
+        lcvrt = os.path.join(self.mapsdir, '%s.vrt' % (self.lclayer)) 
+        lcfile = os.path.join(self.mapsdir, '%s.tif' % (self.lclayer))
         # here are the things that need to happen
         lcextents = self.albersextents['landcover']
 
