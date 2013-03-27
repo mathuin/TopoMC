@@ -5,8 +5,9 @@ from math import ceil, floor
 import suds
 import re
 import os
-import urllib,urllib2
+import urllib2
 import urlparse
+from progressbar import ProgressBar, Percentage, Bar, ETA, FileTransferSpeed
 import yaml
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -29,12 +30,13 @@ class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     def __init__(self):
         pass
 
-    """stupid redirect handling craziness"""
     def http_error_302(self, req, fp, code, msg, headers):
-        result = urllib2.HTTPRedirectHandler.http_error_302(self, req, fp, code, msg, headers)
+        result = urllib2.HTTPRedirectHandler.http_error_302(self, req, fp, code,
+ msg, headers)
         result.status = code
         result.headers = headers
         return result
+
 
 class Region:
     """I have no idea what I'm doing here."""
@@ -218,42 +220,6 @@ class Region:
         yaml.dump(self, stream)
         stream.close()
 
-    def decodeLayerID(self, layerID):
-        """Given a layer ID, return the product type, image type, metadata type, and compression type."""
-        productID = layerID[0]+layerID[1]+layerID[2]
-        try:
-            pType = [ product for product in self.productIDs.keys() if productID in self.productIDs[product] ][0]
-        except IndexError:
-            raise AttributeError, 'Invalid productID %s' % productID
-
-        imagetype = layerID[3]+layerID[4]
-        try:
-            iType = [ image for image in Region.imageTypes.keys() if imagetype in Region.imageTypes[image] ][0]
-        except IndexError:
-            raise AttributeError, 'Invalid imagetype %s' % imagetype
-        
-        metatype = layerID[5]
-        try:
-            mType = [ meta for meta in Region.metaTypes.keys() if metatype in Region.metaTypes[meta] ][0]
-        except IndexError:
-            raise AttributeError, 'Invalid metatype %s' % metatype
-
-        compressiontype = layerID[6]
-        try:
-            mType = [ compression for compression in Region.compressionTypes.keys() if compressiontype in Region.compressionTypes[compression] ][0]
-        except IndexError:
-            raise AttributeError, 'Invalid compressiontype %s' % compressiontype
-
-        compressiontype = layerID[6]
-        if (compressiontype == "T"):
-            cType = "tgz"
-        elif (compressiontype == "Z"):
-            cType = "zip"
-        else:
-            raise AttributeError, 'Invalid compressiontype %s' % compressiontype
-        
-        return (pType, iType, mType, cType)
-
     def checkavail(self, productlist, maptype):
         """Check availability with web service."""
         mapextents = self.wgs84extents[maptype]
@@ -331,17 +297,57 @@ class Region:
         # FIXME: do this more elegantly
         os.system('mkdir -p %s' % layerdir)
         downloadfile = os.path.join(layerdir, fname)
+        # Apparently Range checks don't always work across Redirects
+        # So find the final URL before starting the download
+        opener = urllib2.build_opener(SmartRedirectHandler())
+        dURL = downloadURL
+        while True:
+            req = urllib2.Request(dURL)
+            webPage = opener.open(req)
+            if hasattr(webPage, 'status') and webPage.status == 302:
+                dURL = webPage.url
+            else:
+                break
+        print "dURL is ", dURL
+        maxSize = int(webPage.headers['Content-Length'])
+        webPage.close()
         if os.path.exists(downloadfile):
+            outputFile = open(downloadfile, 'ab')
+            existSize = os.path.getsize(downloadfile)
+            req.headers['Range'] = 'bytes=%s-%s' % (existSize, maxSize)
+        else:
+            outputFile = open(downloadfile, 'wb')
+            existSize = 0
+        print "existSize = ", existSize
+        webPage = opener.open(req)
+        print webPage.headers
+        print "maxSize = ", maxSize
+        if maxSize == existSize:
             print "Using cached file for layerID %s" % layerID
         else:
             print "Downloading file from server for layerID %s" % layerID
-            try:
-                (tempfile, message) = urllib.urlretrieve(downloadURL, downloadfile)
-            except IOError, e:
-                print "whoops!"
-                raise IOError, e
-            else:
-                print "Download complete!"
+            pbar = ProgressBar(widgets=[Percentage(), ' ', Bar(), ' ', ETA(), ' ', FileTransferSpeed()], maxval=maxSize).start()
+            # This chunk size may be small!
+            max_chunk_size = 8192
+            # NB: USGS web servers do not handle resuming downloads correctly
+            # so we have to drop incoming data on the floor
+            numBytes = 0
+            while numBytes < existSize:
+                pbar.update(numBytes)
+                remaining = existSize - numBytes
+                chunk_size = remaining if remaining < max_chunk_size else max_chunk_size
+                data = webPage.read(chunk_size)
+                numBytes = numBytes + len(data)
+            while numBytes < maxSize:
+                pbar.update(numBytes)
+                data = webPage.read(max_chunk_size)
+                if not data:
+                    break
+                outputFile.write(data)
+                numBytes = numBytes + len(data)
+            pbar.finish()
+            webPage.close()
+            outputFile.close()
         # FIXME: this is grotesque
         extracthead = fname.split('.')[0]
         # lame but works
@@ -358,53 +364,6 @@ class Region:
                 os.system('unzip %s %s -d %s' % (downloadfile, extractfile, layerdir))
         return os.path.join(layerdir, extractfiles[0])
 
-    def buildvrts(self):
-        """Extracts image files and merges as necessary."""
-
-        layerIDs = [ name for name in os.listdir(self.mapsdir) if os.path.isdir(os.path.join(self.mapsdir, name)) ]
-        if layerIDs == []:
-            raise IOError, 'No files found'
-        for layerID in layerIDs:
-            (pType, iType, mType, cType) = self.decodeLayerID(layerID)
-            filesuffix = cType.lower()
-            layerdir = os.path.join(self.mapsdir, layerID)
-            compfiles = [ name for name in os.listdir(layerdir) if (os.path.isfile(os.path.join(layerdir, name)) and name.endswith(filesuffix)) ]
-            for compfile in compfiles:
-                (compbase, compext) = os.path.splitext(compfile)
-                fullfile = os.path.join(layerdir, compfile)
-                datasubdir = os.path.join(layerdir, compbase)
-                compfile = '%s.%s' % (compbase, iType)
-                # tar (at least) expects Unix pathnames
-                compimage = '/'.join([compbase, compfile])
-                cleanmkdir(datasubdir)
-                if (Region.zipfileBroken == False):
-                    if (cType == "tgz"):
-                        cFile = tarfile.open(fullfile)
-                    elif (cType == "zip"):
-                        cFile = zipfile.ZipFile(fullfile)
-                    cFile.extract(compimage, layerdir)
-                    cFile.close()
-                else:
-                    if (cType == "tgz"):
-                        cFile = tarfile.open(fullfile)
-                        cFile.extract(compimage, layerdir)
-                    elif (cType == "zip"):
-                        omfgcompimage = os.path.join(compbase, compfile)
-                        os.mkdir(os.path.dirname(os.path.join(datasubdir, compimage)))
-                        cFile = zipfile.ZipFile(fullfile)
-                        cFile.extract(omfgcompimage, datasubdir)
-                        os.rename(os.path.join(datasubdir, omfgcompimage), os.path.join(layerdir, compimage))
-                    cFile.close()
-                # convert tif to good SRS
-                rawfile = os.path.join(layerdir, compbase, compfile)
-                goodfile = os.path.join(layerdir, compbase, "%s.good%s" % (compbase, iType))
-                warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.t_srs, rawfile, goodfile)
-                os.system('%s' % warpcmd)
-
-            vrtfile = os.path.join(layerdir, '%s.vrt' % layerID)
-            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join(['"%s"' % x for x in locate('*.good*', root=layerdir)]))
-            os.system('%s' % buildvrtcmd)
-
     def getfiles(self):
         """Get files from USGS and extract them if necessary."""
         layerIDs = [self.lclayer, self.ellayer]
@@ -416,13 +375,9 @@ class Region:
                 extractlist.append(extractfile)
             # build VRTs here for now
             # will put back if good SRS nonsense still required
-            print 'before vrt for ', layerID
             vrtfile = os.path.join(self.mapsdir, '%s.vrt' % layerID)
             buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join([extractfile for extractfile in extractlist]))
-            print 'build ', buildvrtcmd
             os.system('%s' % buildvrtcmd)
-            print 'success?'
-        # self.buildvrts()
 
     def buildmap(self, wantCL=True):
         """Use downloaded files and other parameters to build multi-raster map."""
@@ -525,11 +480,15 @@ class Region:
         lcextents = self.albersextents['landcover']
 
         # if True, use new code, if False, use gdalwarp
-        if True:
+        if False:
             # 1. the new file must be read into an array and flattened
             vrtds = gdal.Open(lcvrt, GA_ReadOnly)
             vrtgeotrans = vrtds.GetGeoTransform()
             vrtband = vrtds.GetRasterBand(1)
+            # NB: this needs to be limited to the desired lcextents!
+            print "LCExtents:", lcextents
+            print "GeoTransform:", vrtgeotrans
+            return None
             values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
             # nodata is treated as water, which is 11
             vrtnodata = vrtband.GetNoDataValue()
