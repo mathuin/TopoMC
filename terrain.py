@@ -9,13 +9,9 @@ class Terrain(object):
     # terrain translation
     # key = productID
     # value = dict(key=old, value=new)
-    translate = {
-        'L01': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
-        'L04': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
-        'L07': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
-        'L10': {32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91},
-        'L06': {52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 95: 91},
-        'L92': {85: 21, 21: 22, 22: 24, 23: 25, 32: 31, 62: 82, 83: 82, 84: 82, 92: 90}}
+    translate = { 'L1L': { 32: 31, 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 92: 91, 93: 91, 94: 91, 95: 91, 96: 91, 97: 91, 98: 91, 99: 91 },
+                  'L6N': { 52: 51, 72: 71, 73: 71, 74: 71, 90: 91, 95: 91 },
+                  }
 
     # local constants
     tallgrassProb = 0.05
@@ -176,8 +172,6 @@ class Terrain(object):
             Terrain.terdict[lcval]
         except KeyError:
             print "lcval value %s not found!" % lcval
-        # JMT: EEK
-        doSchematics = True
         (y, column, tree) = Terrain.terdict.get(lcval, Terrain.terdict[0])(x, y, z, crustval, bathyval, doSchematics)
         merged = [(depth, block) if isinstance(block, tuple) else (depth, (block, 0)) for (depth, block) in column]
         # y=0 is always bedrock

@@ -64,8 +64,9 @@ def main():
     print "Creating new region %s..." % args.name
     myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcIDs=args.landcoverIDs, elIDs=args.elevationIDs, doOre=args.doOre, doSchematics=args.doSchematics)
 
-    print "Downloading files..."
-    myRegion.get_files()
+    print "Retrieving files..."
+    myRegion.getfiles()
 
 if __name__ == '__main__':
     sys.exit(main())
+
