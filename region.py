@@ -11,10 +11,7 @@ from progressbar import ProgressBar, Percentage, Bar, ETA, FileTransferSpeed
 import yaml
 import logging
 logging.basicConfig(level=logging.INFO)
-from time import sleep
-import zipfile
-import tarfile
-from utils import cleanmkdir, locate
+from utils import cleanmkdir
 from terrain import Terrain
 from pymclevel import mclevel
 
@@ -27,19 +24,18 @@ import numpy
 from clidt import CLIDT
 
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
+    """Handle temporary redirections by saving status."""
     def __init__(self):
         pass
 
     def http_error_302(self, req, fp, code, msg, headers):
-        result = urllib2.HTTPRedirectHandler.http_error_302(self, req, fp, code,
- msg, headers)
+        result = urllib2.HTTPRedirectHandler.http_error_302(self, req, fp, code, msg, headers)
         result.status = code
         result.headers = headers
         return result
 
-
 class Region:
-    """I have no idea what I'm doing here."""
+    """Primary class for regions."""
 
     # coordinate systems
     wgs84 = 4326
@@ -49,9 +45,6 @@ class Region:
     # raster layer order
     rasters = {'landcover': 1, 'elevation': 2, 'bathy': 3, 'crust': 4}
     
-    # sadness
-    zipfileBroken = False
-
     # default values
     tilesize = 256
     scale = 6
@@ -123,6 +116,7 @@ class Region:
 
         # disable overly dense elevation products
         self.productIDs = Region.productIDs
+        # NB: ND9 no longer supported
         # if (scale > 5):
         #     self.productIDs['elevation'].remove('ND9')
         if (scale > 15):
@@ -221,7 +215,7 @@ class Region:
         yaml.dump(self, stream)
         stream.close()
 
-    def layername(self, layerID):
+    def layertype(self, layerID):
         """Return 'elevation' or 'landcover' depending on layerID."""
         return [key for key in self.productIDs.keys() if layerID in self.productIDs[key]][0]
         
@@ -272,8 +266,8 @@ class Region:
 
         # we now iterate through layerIDs
         for layerID in layerIDs:
-            layername = self.layername(layerID)
-            mapextents = self.wgs84extents[layername]
+            layertype = self.layertype(layerID)
+            mapextents = self.wgs84extents[layertype]
             xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250) # can be 100, 15, 25, 50, 75, 250
 
             response = clientRequest.service.getTiledDataDirectURLs2(xmlString)
@@ -299,8 +293,8 @@ class Region:
         """Retrieve the datafile associated with the URL.  This may require downloading it from the USGS servers or extracting it from a local archive."""
         fname = Region.getfn(downloadURL)
         layerdir = os.path.join(Region.downloadtop, layerID)
-        # FIXME: do this more elegantly
-        os.system('mkdir -p %s' % layerdir)
+        if not os.path.exists(layerdir):
+            os.makedirs(layerdir)
         downloadfile = os.path.join(layerdir, fname)
         # Apparently Range checks don't always work across Redirects
         # So find the final URL before starting the download
@@ -313,7 +307,6 @@ class Region:
                 dURL = webPage.url
             else:
                 break
-        print "dURL is ", dURL
         maxSize = int(webPage.headers['Content-Length'])
         webPage.close()
         if os.path.exists(downloadfile):
@@ -323,10 +316,7 @@ class Region:
         else:
             outputFile = open(downloadfile, 'wb')
             existSize = 0
-        print "existSize = ", existSize
         webPage = opener.open(req)
-        print webPage.headers
-        print "maxSize = ", maxSize
         if maxSize == existSize:
             print "Using cached file for layerID %s" % layerID
         else:
@@ -362,10 +352,10 @@ class Region:
             outputFile.close()
         # FIXME: this is grotesque
         extracthead = fname.split('.')[0]
-        layername = self.layername(layerID)
-        if layername == 'elevation':
+        layertype = self.layertype(layerID)
+        if layertype == 'elevation':
             extractfiles = [os.path.join(extracthead, '.'.join(['float%s_%s' % (extracthead, Region.exsuf[layerID]), suffix])) for suffix in 'flt', 'hdr', 'prj']
-        else: # if layername == 'landcover':
+        else: # if layertype == 'landcover':
             extractfiles = ['.'.join([extracthead, suffix]) for suffix in 'tif', 'tfw']
         for extractfile in extractfiles:
             if os.path.exists(os.path.join(layerdir, extractfile)):
@@ -390,7 +380,6 @@ class Region:
             # Generate warped GeoTIFFs
             tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
             warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.t_srs, vrtfile, tiffile)
-            print 'warping now lol'
             os.system('%s' % warpcmd)
 
     def buildmap(self, wantCL=True):
