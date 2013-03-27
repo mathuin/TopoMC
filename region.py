@@ -73,7 +73,8 @@ class Region:
     exsuf = { 'N3F': '13', 'N2F': '12', 'N1F': '1' }
 
     # download directory
-    downloaddir = os.path.join('Downloads')
+    downloadtop = os.path.abspath('Downloads')
+    regiontop = os.path.abspath('Regions')
 
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
@@ -147,7 +148,7 @@ class Region:
         self.doSchematics = doSchematics
 
         # crazy directory fun
-        self.regiondir = os.path.join('Regions', self.name)
+        self.regiondir = os.path.join(Region.regiontop, self.name)
         cleanmkdir(self.regiondir)
 
         self.mapsdir = os.path.join(self.regiondir, 'Datasets')
@@ -220,6 +221,10 @@ class Region:
         yaml.dump(self, stream)
         stream.close()
 
+    def layername(self, layerID):
+        """Return 'elevation' or 'landcover' depending on layerID."""
+        return [key for key in self.productIDs.keys() if layerID in self.productIDs[key]][0]
+        
     def checkavail(self, productlist, maptype):
         """Check availability with web service."""
         mapextents = self.wgs84extents[maptype]
@@ -267,7 +272,7 @@ class Region:
 
         # we now iterate through layerIDs
         for layerID in layerIDs:
-            layername = [key for key in self.productIDs.keys() if layerID in self.productIDs[key]][0]
+            layername = self.layername(layerID)
             mapextents = self.wgs84extents[layername]
             xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250) # can be 100, 15, 25, 50, 75, 250
 
@@ -293,7 +298,7 @@ class Region:
     def retrievefile(self, layerID, downloadURL):
         """Retrieve the datafile associated with the URL.  This may require downloading it from the USGS servers or extracting it from a local archive."""
         fname = Region.getfn(downloadURL)
-        layerdir = os.path.join(Region.downloaddir, layerID)
+        layerdir = os.path.join(Region.downloadtop, layerID)
         # FIXME: do this more elegantly
         os.system('mkdir -p %s' % layerdir)
         downloadfile = os.path.join(layerdir, fname)
@@ -357,12 +362,10 @@ class Region:
             outputFile.close()
         # FIXME: this is grotesque
         extracthead = fname.split('.')[0]
-        # lame but works
-        if layerID in Region.exsuf.keys():
-            # elevation
+        layername = self.layername(layerID)
+        if layername == 'elevation':
             extractfiles = [os.path.join(extracthead, '.'.join(['float%s_%s' % (extracthead, Region.exsuf[layerID]), suffix])) for suffix in 'flt', 'hdr', 'prj']
-        else:
-            # landcover
+        else: # if layername == 'landcover':
             extractfiles = ['.'.join([extracthead, suffix]) for suffix in 'tif', 'tfw']
         for extractfile in extractfiles:
             if os.path.exists(os.path.join(layerdir, extractfile)):
@@ -380,21 +383,25 @@ class Region:
             for downloadURL in downloadURLs[layerID]:
                 extractfile = self.retrievefile(layerID, downloadURL)
                 extractlist.append(extractfile)
-            # build VRTs here for now
-            # will put back if good SRS nonsense still required
+            # Build VRTs
             vrtfile = os.path.join(self.mapsdir, '%s.vrt' % layerID)
-            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join([extractfile for extractfile in extractlist]))
+            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join([os.path.abspath(extractfile) for extractfile in extractlist]))
             os.system('%s' % buildvrtcmd)
+            # Generate warped GeoTIFFs
+            tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.t_srs, vrtfile, tiffile)
+            print 'warping now lol'
+            os.system('%s' % warpcmd)
 
     def buildmap(self, wantCL=True):
         """Use downloaded files and other parameters to build multi-raster map."""
 
         # warp elevation data into new format
         # NB: can't do this to landcover until mode algorithm is supported
-        elvrt = os.path.join(self.mapsdir, '%s.vrt' % (self.ellayer)) 
-        elfile = os.path.join(self.mapsdir, '%s.tif' % (self.ellayer))
+        eltif = os.path.join(self.mapsdir, '%s.tif' % (self.ellayer)) 
+        elfile = os.path.join(self.mapsdir, '%s-new.tif' % (self.ellayer))
         elextents = self.albersextents['elevation']
-        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], elvrt, elfile)
+        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
 
         try:
             os.remove(elfile)
@@ -481,34 +488,34 @@ class Region:
         newcrust = None
 
         # read landcover array
-        lcvrt = os.path.join(self.mapsdir, '%s.vrt' % (self.lclayer)) 
-        lcfile = os.path.join(self.mapsdir, '%s.tif' % (self.lclayer))
+        lctif = os.path.join(self.mapsdir, '%s.tif' % (self.lclayer)) 
+        lcfile = os.path.join(self.mapsdir, '%s-new.tif' % (self.lclayer))
         # here are the things that need to happen
         lcextents = self.albersextents['landcover']
 
         # if True, use new code, if False, use gdalwarp
-        if False:
+        if True:
             # 1. the new file must be read into an array and flattened
-            vrtds = gdal.Open(lcvrt, GA_ReadOnly)
-            vrtgeotrans = vrtds.GetGeoTransform()
-            vrtband = vrtds.GetRasterBand(1)
-            # NB: this needs to be limited to the desired lcextents!
-            print "LCExtents:", lcextents
-            print "GeoTransform:", vrtgeotrans
-            return None
-            values = vrtband.ReadAsArray(0, 0, vrtds.RasterXSize, vrtds.RasterYSize)
+            tifds = gdal.Open(lctif, GA_ReadOnly)
+            tifgeotrans = tifds.GetGeoTransform()
+            tifband = tifds.GetRasterBand(1)
+            xminarr = int((lcextents['xmin']-tifgeotrans[0])/tifgeotrans[1])
+            xmaxarr = int((lcextents['xmax']-tifgeotrans[0])/tifgeotrans[1])
+            yminarr = int((lcextents['ymax']-tifgeotrans[3])/tifgeotrans[5])
+            ymaxarr = int((lcextents['ymin']-tifgeotrans[3])/tifgeotrans[5])
+            values = tifband.ReadAsArray(xminarr, yminarr, xmaxarr-xminarr, ymaxarr-yminarr)
             # nodata is treated as water, which is 11
-            vrtnodata = vrtband.GetNoDataValue()
-            if (vrtnodata == None):
-                vrtnodata = 0
-            values[values == vrtnodata] = 11
+            tifnodata = tifband.GetNoDataValue()
+            if (tifnodata == None):
+                tifnodata = 0
+            values[values == tifnodata] = 11
             values = values.flatten()
-            vrtband = None
+            tifband = None
             # 2. a new array of original scale coordinates must be created
-            vrtxrange = [vrtgeotrans[0] + vrtgeotrans[1] * x for x in xrange(vrtds.RasterXSize)]
-            vrtyrange = [vrtgeotrans[3] + vrtgeotrans[5] * y for y in xrange(vrtds.RasterYSize)]
-            vrtds = None
-            coords = numpy.array([(x, y) for y in vrtyrange for x in vrtxrange])
+            tifxrange = [tifgeotrans[0] + tifgeotrans[1] * x for x in xrange(xminarr, xmaxarr)]
+            tifyrange = [tifgeotrans[3] + tifgeotrans[5] * y for y in xrange(yminarr, ymaxarr)]
+            tifds = None
+            coords = numpy.array([(x, y) for y in tifyrange for x in tifxrange])
             # 3. a new array of goal scale coordinates must be made
             # landcover extents are used for the bathy depth array
             # yes, it's confusing.  sorry.
@@ -524,7 +531,7 @@ class Region:
             deptharray.resize((depthylen, depthxlen))
             lcCLIDT = None
         else:
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lcvrt, lcfile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
 
             try:
                 os.remove(lcfile)
