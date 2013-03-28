@@ -4,11 +4,11 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 ## Major changes:
 
-* TopoMC has been pushed closer towards compliance with style guides.  May not affect you much but it surely affects me! :-)
+* TopoMC downloads tiled data from the USGS.  These files can be quite large so they are now cached for reuse.
 
-* TopoMC now generates Anvil worlds with full 256-block heights thanks to @codewarrior0 and his changes to mcedit/pymclevel!  Thank you!
+* TopoMC generates Anvil worlds with full 256-block heights thanks to @codewarrior0 and his changes to mcedit/pymclevel!  Thank you!
 
-* TopoMC also now runs on Windows!  Kinda.  I think.  It works for me, anyway!  See [this](https://github.com/mathuin/TopoMC/wiki/RunningOnWindows) for more details!
+* TopoMC also runs on Windows!  Kinda.  I think.  It works for me, anyway!  See [this](https://github.com/mathuin/TopoMC/wiki/RunningOnWindows) for more details!
 
 * The array and world code has been replaced with region-based code which improve accuracy while saving CPU and memory.  The new commands to download, prepare, and build regions are documented below.
 
@@ -26,7 +26,7 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 You will need some additional software installed on your system before TopoMC can run.  On Ubuntu (precise pangolin), the following packages need to be installed:  
 
-`git gdal-bin python-scipy python-gdal python-suds python-yaml`
+`git gdal-bin python-scipy python-gdal python-suds python-yaml python-progressbar`
 
 Other operating systems use other packaging systems so you're on your own -- the error messages will tell you what's missing, but it's up to you to find it and install it!
 
@@ -36,28 +36,38 @@ The best way to get latitude and longitude is through Google Maps.  Choose your 
 
 Next, here's what to do!
 
-1.  Import the pymclevel submodule.  Must be done once before anything else.
+1.  Import the pymclevel submodule.  Must be done once before anything else!  There are two commands here, init and update:
 
-	`jmt@belle:~/git/TopoMC$ git submodule init
-    jmt@belle:~/git/TopoMC$ git submodule update`
+	```
+	jmt@belle:~/git/TopoMC$ git submodule init
+    jmt@belle:~/git/TopoMC$ git submodule update
+	```
 	
 2.  (Optional) Compile the accelerated NBT module in pymclevel.
 
-	`jmt@belle:~/git/TopoMC$ (cd pymclevel && python setup_nbt.py build)`
+	```
+	jmt@belle:~/git/TopoMC$ (cd pymclevel && python setup_nbt.py build)
+	```
 
 3.  Retrieve the region from the USGS.
 
-	`jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100`
+	```
+	jmt@belle:~/git/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
+	```
 
 4.  Prepare the region for processing.
 
-	`jmt@belle:~/git/TopoMC$ ./prepregion.py --name Provincetown`
+	```
+	jmt@belle:~/git/TopoMC$ ./PrepRegion.py --name Provincetown
+	```
 
 5.  Construct the Minecraft world based on the region.
 
-	`jmt@belle:~/git/TopoMC$ ./buildregion.py --name Provincetown`
+	```
+	jmt@belle:~/git/TopoMC$ ./BuildRegion.py --name Provincetown
+	```
 
-### Geek knobs for getregion.py
+### Geek knobs for GetRegion.py
 
 GetRegion.py has a number of optional arguments not shown above.
 
