@@ -24,6 +24,7 @@ import numpy as np
 from idt import IDT
 from elev import Elev
 
+
 class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
     """Handle temporary redirections by saving status."""
     def __init__(self):
@@ -34,6 +35,7 @@ class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
         result.status = code
         result.headers = headers
         return result
+
 
 class Region:
     """Primary class for regions."""
@@ -83,11 +85,11 @@ class Region:
         return os.path.join(self.regiondir, 'Map.tif')
 
     # product types in order of preference
-    productIDs = { 'elevation': ['N3F', 'N2F', 'N1F'],
-                   'landcover': sorted(Terrain.translate.keys()) }
+    productIDs = {'elevation': ['N3F', 'N2F', 'N1F'],
+                  'landcover': sorted(Terrain.translate.keys())}
     # file suffix for extraction
     # FIXME: check N2F value
-    exsuf = { 'N3F': '13', 'N2F': '12', 'N1F': '1' }
+    exsuf = {'N3F': '13', 'N2F': '12', 'N1F': '1'}
 
     def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcIDs=None, elIDs=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
@@ -179,9 +181,15 @@ class Region:
         self.wgs84extents = {'landcover': dict(), 'elevation': dict()}
 
         # Landcover needs a maxdepth-sized border for bathy calculations.
-        self.albersextents['elevation'] = {'xmax': self.tiles['xmax'] * realsize, 'xmin': self.tiles['xmin'] * realsize, 'ymax': self.tiles['ymax'] * realsize, 'ymin': self.tiles['ymin'] * realsize}
+        self.albersextents['elevation'] = {'xmax': self.tiles['xmax'] * realsize,
+                                           'xmin': self.tiles['xmin'] * realsize,
+                                           'ymax': self.tiles['ymax'] * realsize,
+                                           'ymin': self.tiles['ymin'] * realsize}
         borderwidth = self.maxdepth * self.scale
-        self.albersextents['landcover'] = {'xmax': self.albersextents['elevation']['xmax'] + borderwidth, 'xmin': self.albersextents['elevation']['xmin'] - borderwidth, 'ymax': self.albersextents['elevation']['ymax'] + borderwidth, 'ymin': self.albersextents['elevation']['ymin'] - borderwidth}
+        self.albersextents['landcover'] = {'xmax': self.albersextents['elevation']['xmax'] + borderwidth,
+                                           'xmin': self.albersextents['elevation']['xmin'] - borderwidth,
+                                           'ymax': self.albersextents['elevation']['ymax'] + borderwidth,
+                                           'ymin': self.albersextents['elevation']['ymin'] - borderwidth}
 
         # Now convert back from Albers to WGS84.
         for maptype in ['landcover', 'elevation']:
@@ -200,7 +208,7 @@ class Region:
     def layertype(self, layerID):
         """Return 'elevation' or 'landcover' depending on layerID."""
         return [key for key in self.productIDs.keys() if layerID in self.productIDs[key]][0]
-    
+
     @staticmethod
     def get_corners(fromCS, toCS, xmax, xmin, ymax, ymin):
         """Transform the given extents from a source SR to a destination SR."""
@@ -232,15 +240,15 @@ class Region:
         clientInv = suds.client.Client(wsdlInv)
 
         # ensure desired attributes are present
-        desiredAttributes = ['PRODUCTKEY','STATUS']
+        desiredAttributes = ['PRODUCTKEY', 'STATUS']
         attributes = []
         attributeList = clientInv.service.return_Attribute_List()
         for attribute in desiredAttributes:
             if attribute in attributeList[0]:
                 attributes.append(attribute)
         if len(attributes) != len(desiredAttributes):
-            raise AttributeError, "Not all attributes found"
-    
+            raise AttributeError('Not all attributes found')
+
         # return_attributes arguments dictionary
         rAdict = {'Attribs': ','.join(attributes), 'XMin': mapextents['xmin'], 'XMax': mapextents['xmax'], 'YMin': mapextents['ymin'], 'YMax': mapextents['ymax'], 'EPSG': '4326'}
         rAatts = clientInv.service.return_Attributes(**rAdict)
@@ -250,14 +258,13 @@ class Region:
         # which is apparently a ball full of crazy
         # NB: clean up this [0][0] crap!
         for elem in rAatts.ArrayOfCustomAttributes:
-            if (elem[0][0][0] == 'PRODUCTKEY' and elem[0][0][1] in productlist and
-                elem[0][1][0] == 'STATUS' and elem[0][1][1] == 'Tiled'):
+            if elem[0][0][0] == 'PRODUCTKEY' and elem[0][0][1] in productlist and elem[0][1][0] == 'STATUS' and elem[0][1][1] == 'Tiled':
                 offered.append(elem[0][0][1])
         # this should extract the first
         try:
             productID = [ID for ID in productlist if ID in offered][0]
         except IndexError:
-            raise AttributeError, "No products are available for this location!"
+            raise AttributeError('No products are available for this location!')
         return productID
 
     def request_validation(self, layerIDs):
@@ -272,7 +279,7 @@ class Region:
         for layerID in layerIDs:
             layertype = self.layertype(layerID)
             mapextents = self.wgs84extents[layertype]
-            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250) # can be 100, 15, 25, 50, 75, 250
+            xmlString = "<REQUEST_SERVICE_INPUT><AOI_GEOMETRY><EXTENT><TOP>%f</TOP><BOTTOM>%f</BOTTOM><LEFT>%f</LEFT><RIGHT>%f</RIGHT></EXTENT><SPATIALREFERENCE_WKID/></AOI_GEOMETRY><LAYER_INFORMATION><LAYER_IDS>%s</LAYER_IDS></LAYER_INFORMATION><CHUNK_SIZE>%d</CHUNK_SIZE><JSON></JSON></REQUEST_SERVICE_INPUT>" % (mapextents['ymax'], mapextents['ymin'], mapextents['xmin'], mapextents['xmax'], layerID, 250)
 
             response = clientRequest.service.getTiledDataDirectURLs2(xmlString)
 
@@ -359,7 +366,7 @@ class Region:
         layertype = self.layertype(layerID)
         if layertype == 'elevation':
             extractfiles = [os.path.join(extracthead, '.'.join(['float%s_%s' % (extracthead, Region.exsuf[layerID]), suffix])) for suffix in 'flt', 'hdr', 'prj']
-        else: # if layertype == 'landcover':
+        else:  # if layertype == 'landcover':
             extractfiles = ['.'.join([extracthead, suffix]) for suffix in 'tif', 'tfw']
         for extractfile in extractfiles:
             if os.path.exists(os.path.join(layerdir, extractfile)):
@@ -397,10 +404,10 @@ class Region:
 
         # warp elevation data into new format
         # NB: can't do this to landcover until mode algorithm is supported
-        eltif = os.path.join(self.mapsdir, '%s.tif' % (self.ellayer)) 
-        elfile = os.path.join(self.mapsdir, '%s-new.tif' % (self.ellayer))
+        eltif = os.path.join(self.mapsdir, '%s.tif' % self.ellayer)
+        elfile = os.path.join(self.mapsdir, '%s-new.tif' % self.ellayer)
         elextents = self.albersextents['elevation']
-        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.albers, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
+        warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
 
         try:
             os.remove(elfile)
@@ -488,8 +495,8 @@ class Region:
         newcrust = None
 
         # read landcover array
-        lctif = os.path.join(self.mapsdir, '%s.tif' % (self.lclayer)) 
-        lcfile = os.path.join(self.mapsdir, '%s-new.tif' % (self.lclayer))
+        lctif = os.path.join(self.mapsdir, '%s.tif' % self.lclayer)
+        lcfile = os.path.join(self.mapsdir, '%s-new.tif' % self.lclayer)
         # here are the things that need to happen
         lcextents = self.albersextents['landcover']
 
@@ -506,7 +513,7 @@ class Region:
             values = tifband.ReadAsArray(xminarr, yminarr, xmaxarr-xminarr, ymaxarr-yminarr)
             # nodata is treated as water, which is 11
             tifnodata = tifband.GetNoDataValue()
-            if (tifnodata == None):
+            if tifnodata is None:
                 tifnodata = 0
             values[values == tifnodata] = 11
             values = values.flatten()
@@ -531,7 +538,7 @@ class Region:
             deptharray = lcIDT(depthbase, depthshape, pickle_name=pickle_name)
             lcIDT = None
         else:
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near %s %s' % (Region.albers, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
+            warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r near %s %s' % (self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
 
             try:
                 os.remove(lcfile)
