@@ -257,6 +257,8 @@ class Region:
         # this returns an array of custom attributes
         # which is apparently a ball full of crazy
         # NB: clean up this [0][0] crap!
+        if not hasattr(rAatts, 'ArrayOfCustomAttributes'):
+            raise ValueError('Invalid coordinates supplied')
         for elem in rAatts.ArrayOfCustomAttributes:
             if elem[0][0][0] == 'PRODUCTKEY' and elem[0][0][1] in productlist and elem[0][1][0] == 'STATUS' and elem[0][1][1] == 'Tiled':
                 offered.append(elem[0][0][1])
