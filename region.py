@@ -564,9 +564,8 @@ class Region:
         if lcpid in Terrain.translate:
             trans = Terrain.translate[lcpid]
             for key in trans:
-                lcarray[lcarray == key] = 1000+trans[key]
-            lcarray[lcarray > 1000] -= 1000
-            for value in np.unique(lcarray).flat:
+                lcarray[lcarray == key] = trans[key]
+            for value in numpy.unique(lcarray).flat:
                 if value not in Terrain.terdict:
                     print "bad value: ", value
         mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)
