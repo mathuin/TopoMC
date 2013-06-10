@@ -374,7 +374,7 @@ class Region:
             if os.path.exists(os.path.join(layerdir, extractfile)):
                 print "Using existing file %s for layerID %s" % (extractfile, layerID)
             else:
-                os.system('unzip %s %s -d %s' % (downloadfile, extractfile, layerdir))
+                os.system('unzip "%s" "%s" -d "%s"' % (downloadfile, extractfile, layerdir))
         return os.path.join(layerdir, extractfiles[0])
 
     def getfiles(self):
@@ -388,11 +388,11 @@ class Region:
                 extractlist.append(extractfile)
             # Build VRTs
             vrtfile = os.path.join(self.mapsdir, '%s.vrt' % layerID)
-            buildvrtcmd = 'gdalbuildvrt %s %s' % (vrtfile, ' '.join([os.path.abspath(extractfile) for extractfile in extractlist]))
+            buildvrtcmd = 'gdalbuildvrt "%s" "%s"' % (vrtfile, ' '.join([os.path.abspath(extractfile) for extractfile in extractlist]))
             os.system('%s' % buildvrtcmd)
             # Generate warped GeoTIFFs
             tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.albers, vrtfile, tiffile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" "%s" "%s"' % (Region.albers, vrtfile, tiffile)
             os.system('%s' % warpcmd)
 
     def build_map(self, wantCL=True, do_pickle=False):
@@ -409,7 +409,7 @@ class Region:
         eltif = os.path.join(self.mapsdir, '%s.tif' % self.ellayer)
         elfile = os.path.join(self.mapsdir, '%s-new.tif' % self.ellayer)
         elextents = self.albersextents['elevation']
-        warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r cubic %s %s -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
+        warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r cubic "%s" "%s" -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
 
         try:
             os.remove(elfile)
@@ -540,7 +540,7 @@ class Region:
             deptharray = lcIDT(depthbase, depthshape, pickle_name=pickle_name)
             lcIDT = None
         else:
-            warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r near %s %s' % (self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
+            warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r near "%s" "%s"' % (self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
 
             try:
                 os.remove(lcfile)
