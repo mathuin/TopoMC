@@ -379,7 +379,7 @@ class Region:
             os.system('%s' % buildvrtcmd)
             # Generate warped GeoTIFFs
             tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" "%s" "%s"' % (Region.albers, vrtfile, tiffile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" "%s" "%s"' % (Region.t_srs, vrtfile, tiffile)
             os.system('%s' % warpcmd)
 
     def buildmap(self, wantCL=True):
@@ -390,14 +390,14 @@ class Region:
         eltif = os.path.join(self.mapsdir, '%s.tif' % (self.ellayer)) 
         elfile = os.path.join(self.mapsdir, '%s-new.tif' % (self.ellayer))
         elextents = self.albersextents['elevation']
-        warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r cubic "%s" "%s" -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
+        warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r cubic "%s" "%s" -srcnodata "-340282346638529993179660072199368212480.000" -dstnodata 0' % (Region.t_srs, self.scale, self.scale, elextents['xmin'], elextents['ymin'], elextents['xmax'], elextents['ymax'], eltif, elfile)
 
         try:
             os.remove(elfile)
         except OSError:
             pass
         # NB: make this work on Windows too!
-        os.system("%s" % warpcmd)
+        os.system('%s' % warpcmd)
 
         elds = gdal.Open(elfile, GA_ReadOnly)
         elgeotrans = elds.GetGeoTransform()
@@ -520,14 +520,14 @@ class Region:
             deptharray.resize((depthylen, depthxlen))
             lcCLIDT = None
         else:
-            warpcmd = 'gdalwarp -q -multi -tr %d %d -te %d %d %d %d -r near "%s" "%s"' % (self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" -tr %d %d -te %d %d %d %d -r near "%s" "%s"' % (Region.t_srs, self.scale, self.scale, lcextents['xmin'], lcextents['ymin'], lcextents['xmax'], lcextents['ymax'], lctif, lcfile)
 
             try:
                 os.remove(lcfile)
             except OSError:
                 pass
             # NB: make this work on Windows too!
-            os.system("%s" % warpcmd)
+            os.system('%s' % warpcmd)
             lcds = gdal.Open(lcfile, GA_ReadOnly)
             lcband = lcds.GetRasterBand(1)
             # depth array is entire landcover region, landcover array is subset
