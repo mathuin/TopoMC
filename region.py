@@ -379,7 +379,7 @@ class Region:
             os.system('%s' % buildvrtcmd)
             # Generate warped GeoTIFFs
             tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
-            warpcmd = 'gdalwarp -q -multi -t_srs "%s" %s %s' % (Region.t_srs, vrtfile, tiffile)
+            warpcmd = 'gdalwarp -q -multi -t_srs "%s" "%s" "%s"' % (Region.t_srs, vrtfile, tiffile)
             os.system('%s' % warpcmd)
 
     def buildmap(self, wantCL=True):
