@@ -388,7 +388,7 @@ class Region:
                 extractlist.append(extractfile)
             # Build VRTs
             vrtfile = os.path.join(self.mapsdir, '%s.vrt' % layerID)
-            buildvrtcmd = 'gdalbuildvrt "%s" "%s"' % (vrtfile, ' '.join([os.path.abspath(extractfile) for extractfile in extractlist]))
+            buildvrtcmd = 'gdalbuildvrt "%s" %s' % (vrtfile, ' '.join(['"%s"' % os.path.abspath(extractfile) for extractfile in extractlist]))
             os.system('%s' % buildvrtcmd)
             # Generate warped GeoTIFFs
             tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
@@ -565,7 +565,7 @@ class Region:
             trans = Terrain.translate[lcpid]
             for key in trans:
                 lcarray[lcarray == key] = trans[key]
-            for value in numpy.unique(lcarray).flat:
+            for value in np.unique(lcarray).flat:
                 if value not in Terrain.terdict:
                     print "bad value: ", value
         mapds.GetRasterBand(Region.rasters['landcover']).WriteArray(lcarray)
