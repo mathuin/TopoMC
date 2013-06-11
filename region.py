@@ -375,7 +375,7 @@ class Region:
                 extractlist.append(extractfile)
             # Build VRTs
             vrtfile = os.path.join(self.mapsdir, '%s.vrt' % layerID)
-            buildvrtcmd = 'gdalbuildvrt "%s" "%s"' % (vrtfile, ' '.join([os.path.abspath(extractfile) for extractfile in extractlist]))
+            buildvrtcmd = 'gdalbuildvrt "%s" %s' % (vrtfile, ' '.join(['"%s"' % os.path.abspath(extractfile) for extractfile in extractlist]))
             os.system('%s' % buildvrtcmd)
             # Generate warped GeoTIFFs
             tiffile = os.path.join(self.mapsdir, '%s.tif' % layerID)
