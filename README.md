@@ -52,19 +52,19 @@ Next, here's what to do!
 3.  Retrieve the region from the USGS.  The upper left latitude is the "ymax" value as seen below, and the lower right latitude is the "ymin".  For longitude, the upper left is the "xmin" while the lower right is the "xmax".
 
 	```
-	jmt@belle:~/git/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
+	jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
 	```
 
 4.  Prepare the region for processing.
 
 	```
-	jmt@belle:~/git/TopoMC$ ./PrepRegion.py --name Provincetown
+	jmt@belle:~/git/TopoMC$ ./prepregion.py --name Provincetown
 	```
 
 5.  Construct the Minecraft world based on the region.
 
 	```
-	jmt@belle:~/git/TopoMC$ ./BuildRegion.py --name Provincetown
+	jmt@belle:~/git/TopoMC$ ./buildregion.py --name Provincetown
 	```
 
 ### Geek knobs for GetRegion.py
