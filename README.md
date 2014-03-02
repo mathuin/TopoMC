@@ -32,7 +32,7 @@ Other operating systems use other packaging systems so you're on your own -- the
 
 ## How to use TopoMC
 
-The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet (still limited to the United States and its possessions, alas) and right-click to place latlong markers in the upper left and lower right of the region you wish to model.  This will give you the maximum and minimum latitude and longitude (Y and X in this model) values.
+The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet (still limited to the United States and its possessions, alas) and right-click the upper left corner of the region you wish to model.  Select 'What's here', and the tooltip should provide the latitude and longitude in decimal degrees.  Do the same for the lower right corner of the region.  
 
 Next, here's what to do!
 
@@ -49,22 +49,22 @@ Next, here's what to do!
 	jmt@belle:~/git/TopoMC$ (cd pymclevel && python setup_nbt.py build)
 	```
 
-3.  Retrieve the region from the USGS.
+3.  Retrieve the region from the USGS.  The upper left latitude is the "ymax" value as seen below, and the lower right latitude is the "ymin".  For longitude, the upper left is the "xmin" while the lower right is the "xmax".
 
 	```
-	jmt@belle:~/git/TopoMC$ ./GetRegion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
+	jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
 	```
 
 4.  Prepare the region for processing.
 
 	```
-	jmt@belle:~/git/TopoMC$ ./PrepRegion.py --name Provincetown
+	jmt@belle:~/git/TopoMC$ ./prepregion.py --name Provincetown
 	```
 
 5.  Construct the Minecraft world based on the region.
 
 	```
-	jmt@belle:~/git/TopoMC$ ./BuildRegion.py --name Provincetown
+	jmt@belle:~/git/TopoMC$ ./buildregion.py --name Provincetown
 	```
 
 ### Geek knobs for GetRegion.py

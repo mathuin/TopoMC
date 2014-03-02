@@ -1,3 +1,5 @@
 # ignore compiled Python files
 *.pyc
 *~
+*.pkl.gz
+*.png

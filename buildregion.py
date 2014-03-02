@@ -13,15 +13,17 @@ from tree import Tree, treeObjs
 from ore import Ore, oreObjs
 from pymclevel import mclevel
 
+
 def buildtile(args):
     """Given a region name and coordinates, build the corresponding tile."""
     # this should work for single and multi threaded cases
     (name, tilex, tiley) = args
-    yamlfile = file(os.path.join('Regions', name, 'Region.yaml'))
+    yamlfile = file(os.path.join('regions', name, 'Region.yaml'))
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
     myTile = Tile(myRegion, tilex, tiley)
     myTile()
+
 
 def main():
     """Builds a region."""
@@ -41,13 +43,13 @@ def main():
 
     # build the region
     print "Building region %s..." % args.name
-    yamlfile = file(os.path.join('Regions', args.name, 'Region.yaml'))
+    yamlfile = file(os.path.join('regions', args.name, 'Region.yaml'))
     myRegion = yaml.load(yamlfile)
     yamlfile.close()
 
     # exit if map does not exist
-    if not os.path.exists(myRegion.mapname):
-        raise IOError, "no map file exists"
+    if not os.path.exists(myRegion.mapfile):
+        raise IOError('no map file exists')
 
     # tree and ore variables
     treeobjs = dict([(tree.name, tree) for tree in treeObjs])
@@ -56,7 +58,7 @@ def main():
     ores = dict([(name, list()) for name in oreobjs])
 
     # generate overall world
-    worlddir = os.path.join('Worlds', args.name)
+    worlddir = os.path.join('worlds', args.name)
     world = mclevel.MCInfdevOldLevel(worlddir, create=True)
     peak = [0, 0, 0]
 
@@ -80,7 +82,7 @@ def main():
     print "Merging %d tiles into one world..." % len(tiles)
     for tile in tiles:
         (name, x, y) = tile
-        tiledir = os.path.join('Regions', name, 'Tiles', '%dx%d' % (x, y))
+        tiledir = os.path.join('regions', name, 'Tiles', '%dx%d' % (x, y))
         tilefile = file(os.path.join(tiledir, 'Tile.yaml'))
         newtile = yaml.load(tilefile)
         tilefile.close()
@@ -117,4 +119,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
