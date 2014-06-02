@@ -31,7 +31,8 @@ def setspawnandsave(world, point):
     for i, cPos in enumerate(world.allChunks, 1):
         ch = world.getChunk(*cPos)
         numchunks += 1
-        sizeOnDisk += ch.compressedSize()
+        # JMT: pymclevel no longer reports compressed sizes of chunks
+        #sizeOnDisk += ch.compressedSize()
     world.SizeOnDisk = sizeOnDisk
     world.saveInPlace()
 
@@ -39,7 +40,11 @@ def setspawnandsave(world, point):
 @memoize()
 def materialNamed(string):
     "Returns block ID for block with name given in string."
-    return [v.ID for v in alphaMaterials.allBlocks if v.name == string][0]
+    try:
+        retval = [v.ID for v in alphaMaterials.allBlocks if v.name == string][0]
+    except IndexError:
+        print "%s was not found!" % string
+    return retval
 
 
 @memoize()

@@ -26,15 +26,38 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 You will need some additional software installed on your system before TopoMC can run.  On Ubuntu (precise pangolin), the following packages need to be installed:  
 
-`git gdal-bin python-scipy python-gdal python-suds python-yaml python-progressbar`
+`git pip gdal-bin python-scipy python-gdal`
 
 Other operating systems use other packaging systems so you're on your own -- the error messages will tell you what's missing, but it's up to you to find it and install it!
+
+### Ubuntu 14.04
+
+Bad news for Ubuntu 14.04 users -- the gdal-bin and python-gdal packages are currently broken due to pointing at libnetcdf.so.6 instead of 7.  Until the Ubuntu packages are updated, here's a workaround:
+
+1.  Uninstall all gdal-related packages.  This includes libgdal-dev, libgdal1h, gdal-bin, python-gdal, and whatever else I'm missing.
+2.  Activate your virtualenv!
+3.  Download the source to GDAL 1.11.0 and extract it to a directory.
+4.  Configure the source with a prefix equal to that of your virtualenv and with the Python SWIG bindings enabled.
+5.  Compile and install the software.  It will install to your virtualenv.
+6.  Add the 'lib' directory in your virtualenv to LD_LIBRARY_PATH.
+7.  Test by opening a Python interpreter window and attempting to import the gdal package.
+
+If this workaround works for you, you will have to ensure that LD_LIBRARY_PATH is appropriately set whenever you use TopoMC.  I have temporarily modified my virtualenv activate script to do this.
 
 ## How to use TopoMC
 
 The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet (still limited to the United States and its possessions, alas) and right-click the upper left corner of the region you wish to model.  Select 'What's here', and the tooltip should provide the latitude and longitude in decimal degrees.  Do the same for the lower right corner of the region.  
 
 Next, here's what to do!
+
+0.  Create a virtualenv and populate it with the requirements.
+
+	```
+	jmt@nala:~/git/mathuin/TopoMC$ virtualenv ~/.virtualenvs/TopoMC
+	jmt@nala:~/git/mathuin/TopoMC$ source ~/.virtualenvs/TopoMC/bin/activate
+	(TopoMC)jmt@nala:~/git/mathuin/TopoMC$ pip install -r requirements.txt
+	```
+	
 
 1.  Import the pymclevel submodule.  Must be done once before anything else!  There are two commands here, init and update:
 
@@ -44,6 +67,7 @@ Next, here's what to do!
 	```
 	
 2.  (Optional) Compile the accelerated NBT module in pymclevel.
+    NB: This does not seem to work for everyone, don't worry if it doesn't work for you...
 
 	```
 	jmt@belle:~/git/TopoMC$ (cd pymclevel && python setup_nbt.py build)

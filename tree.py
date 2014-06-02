@@ -70,10 +70,12 @@ class Tree(object):
                 myleafy = leafbottom+leafy
                 myleafz = z+leafz-Tree.treeWidth
                 if self.pattern(leafx, leafy, leafz, leafheight-1):
-                    blocks.append((myleafx, myleafy, myleafz, 'Leaves'))
+                    # JMT: Leaves are different now!
+                    blocks.append((myleafx, myleafy, myleafz, 'Oak Leaves'))
                     datas.append((myleafx, myleafy, myleafz, self.data))
             for y in xrange(base, base+height):
-                blocks.append((x, y, z, 'Wood'))
+                # JMT: So is wood!
+                blocks.append((x, y, z, 'Oak Wood (Upright)'))
                 datas.append((x, y, z, self.data))
         return blocks, datas
 

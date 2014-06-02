@@ -76,7 +76,8 @@ class Terrain(object):
     def placegrass(x, y, z, crustval, tallgrassProb=0.05):
         if (random() < tallgrassProb):
             # 80% Tall Grass, 10% Flower, 10% Rose
-            choices = [('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1), 'Flower', 'Rose']
+            # JMT: Roses were pulled, Poppy is temporary substitute
+            choices = [('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1), 'Flower', 'Poppy']
             return (y+1, [(crustval, 'Dirt'), (1, 'Grass'), (1, choice(choices))], None)
         else:
             return (y, [(crustval, 'Dirt'), (1, 'Grass')], None)
@@ -153,7 +154,8 @@ class Terrain(object):
         return Terrain.placegrass(x, y, z, crustval, tallgrassProb=0.50)
 
     # 82: crops
-    @Schematic.use(82, 'Farm', 2, [[[(1, ('Farmland', 7)), (1, ('Crops', 7))]]], 1)
+    # JMT: out with the crops in with the wheat
+    @Schematic.use(82, 'Farm', 2, [[[(1, ('Farmland', 7)), (1, ('Wheat', 7))]]], 1)
     def eightytwo(x, y, z, crustval, bathyval, doSchematics):
         pass
 
