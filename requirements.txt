@@ -1,0 +1,6 @@
+suds
+progressbar
+pyyaml
+numpy
+gdal
+scipy
