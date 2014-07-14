@@ -1,3 +1,15 @@
+# 2014 Jul 13 Update
+
+Due to changes in Minecraft and the USGS, this project is on hiatus.  It will be revived when the following issues are resolved:
+* a simple, well-maintained API for Minecraft level creation is available for Python or Go, and
+* a replacement for the USGS web services is developed
+
+Minecraft changes very quickly, and its changes often break tools like pymclevel.  I do not have the time or the interest to roll my own equivalent to pymclevel, so I will wait until someone else does -- hopefully Mojang, but right now anyone who can keep up with the changes will do.  On the bright side, I'm really liking Go so either language is good for me.
+
+The USGS web services have become less and less useful over the past few years as they steer customers towards the National Map viewer.  I am looking into bulk data transfers (i.e., sending them a hard drive upon which they write terabytes of data before sending it back to me) but then I have to figure out how to store that data in something like PostGIS such that I can retrieve what I need as I have from the USGS in the past.  Making this change will also inconvenience anyone else running TopoMC since they too will have to solve the data problem, but if I do it right they can use the National Map viewer to download the portion of the United States that fits their requirements instead of the whole thing like me.
+
+I welcome any assistance with these issues.  
+
 # Welcome to TopoMC!
 
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
