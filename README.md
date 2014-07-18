@@ -2,9 +2,11 @@
 
 The TopoMC project facilitates the construction of superficially realistic Minecraft worlds leveraging USGS, specifically the NED and NLCD datasets.
 
-## Major changes:
+## New changes
 
-* TopoMC downloads tiled data from the USGS.  These files can be quite large so they are now cached for reuse.
+* TopoMC no longer downloads data from the USGS due to changes in their web services.  The current workaround is somewhat clumsy and awkward, but it does work.
+
+## Old changes
 
 * TopoMC generates Anvil worlds with full 256-block heights thanks to @codewarrior0 and his changes to mcedit/pymclevel!  Thank you!
 
@@ -26,21 +28,18 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 You will need some additional software installed on your system before TopoMC can run.  On Ubuntu (precise pangolin), the following packages need to be installed:  
 
-`git gdal-bin python-scipy python-gdal python-suds python-yaml python-progressbar`
+`git gdal-bin python-scipy python-gdal python-yaml`
 
 Other operating systems use other packaging systems so you're on your own -- the error messages will tell you what's missing, but it's up to you to find it and install it!
 
-## How to use TopoMC
-
-The best way to get latitude and longitude is through Google Maps.  Choose your chunk of the planet (still limited to the United States and its possessions, alas) and right-click the upper left corner of the region you wish to model.  Select 'What's here', and the tooltip should provide the latitude and longitude in decimal degrees.  Do the same for the lower right corner of the region.  
+## Installation
 
 Next, here's what to do!
 
-1.  Import the pymclevel submodule.  Must be done once before anything else!  There are two commands here, init and update:
+1.  Import the pymclevel submodule.  Must be done once before anything else!
 
 	```
-	jmt@belle:~/git/TopoMC$ git submodule init
-    jmt@belle:~/git/TopoMC$ git submodule update
+	jmt@belle:~/git/TopoMC$ git submodule update --init
 	```
 	
 2.  (Optional) Compile the accelerated NBT module in pymclevel.
@@ -49,19 +48,42 @@ Next, here's what to do!
 	jmt@belle:~/git/TopoMC$ (cd pymclevel && python setup_nbt.py build)
 	```
 
-3.  Retrieve the region from the USGS.  The upper left latitude is the "ymax" value as seen below, and the lower right latitude is the "ymin".  For longitude, the upper left is the "xmin" while the lower right is the "xmax".
+## Retrieving the map data
+
+Due to changes in the USGS web services, TopoMC no longer downloads files directly from the USGS.  Instead, the files must be downloaded using the [National Map viewer](http://nationalmap.gov/viewer.html).
+
+1.  Open the viewer, and find your region of interest.  Then click the "Download Data" button on the top of the browser frame to the right.
+
+2.  Select the region with your mouse, and in the next window, select "Land Cover" and "Elevation", then click "Next".
+
+3.  For "Land Cover", select any files marked "National Land Cover Database 2011 - Land Cover - 3x3 Degree Extents".  For the majority of cases, only one file will be required.
+
+4.  Click the "Elevation" bar to bring up the elevation files.  These choices are more complex.  Tips to keep in mind:
+    * As the page says, clicking on the products will reveal their footprints on the map. More than one product may be required to cover your entire region of interest.  Be sure to check all products required to cover your region.
+	* The highest resolution will give the best results.  1/9 arc-second is better than 1/3 arc-second which is better than 1 arc second.  Not all regions have 1/9 arc-second coverage -- in those cases, select 1/3 arc-second data.
+	* The only format currently supported for elevation data is IMG.
+	
+5.  After you click the "Next" button again, you will have one more opportunity to review your order before checkout.  When you have reviewed your order, check out and give your email address to the USGS so they can email you when your files are ready.  SAVE THAT EMAIL!  Not only will it contain links for downloading the data you requested, it will also contain the coordinates of your selection.  These will be needed for building the Minecraft world.  The coordinates will look like this:
 
 	```
-	jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --ymax 42.0901 --xmin -70.2611 --ymin 42.0091 --xmax -70.1100
+	(-70.261, 42.009), (-70.11, 42.09)
 	```
 
-4.  Prepare the region for processing.
+## Building the Minecraft world
+
+1.  Build the region based on the datasets retrieved from the USGS.  The values above directly translate into the command line coordinates, and don't forget the files!
+
+	```
+	jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --xmin -70.261 --ymin 42.009 --xmax -70.11 --ymax 42.09 --lcfile /home/jmt/nmvorders/800424/NLCD2011_LC_N42W069.zip --elfile /home/jmt/nmvorders/800424/n43w071.zip
+	```
+
+2.  Prepare the region for processing.
 
 	```
 	jmt@belle:~/git/TopoMC$ ./prepregion.py --name Provincetown
 	```
 
-5.  Construct the Minecraft world based on the region.
+3.  Construct the Minecraft world based on the region.
 
 	```
 	jmt@belle:~/git/TopoMC$ ./buildregion.py --name Provincetown
