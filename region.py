@@ -18,7 +18,7 @@ from osgeo.gdalconst import GDT_Int16, GA_ReadOnly
 from bathy import Bathy
 from crust import Crust
 import numpy as np
-#
+
 from idt import IDT
 from elev import Elev
 
@@ -196,7 +196,7 @@ class Region:
                      'landcover': ['%s']}
         suffixes = {'elevation': ['img'],
                     'landcover': ['tif', 'tfw']}
-        layerdir = os.path.join(self.mapsdir, layertype)
+        layerdir = os.path.join(Region.downloadtop, layertype)
         if not os.path.exists(layerdir):
             os.makedirs(layerdir)
         extracthead = os.path.basename(zipfile).split('.')[0]
