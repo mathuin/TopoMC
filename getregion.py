@@ -25,8 +25,8 @@ def main():
     parser.add_argument('--trim', type=int, help='trim value (default %d)' % Region.trim)
     parser.add_argument('--sealevel', type=int, help='sealevel value (default %d)' % Region.sealevel)
     parser.add_argument('--maxdepth', type=int, help='maxdepth value (default %d)' % Region.maxdepth)
-    parser.add_argument('--elfile', type=str, help='ZIP file containing elevation data retrieved from USGS')
-    parser.add_argument('--lcfile', type=str, help='ZIP file containing landcover data retrieved from USGS')
+    parser.add_argument('--elfiles', type=str, help='ZIP files containing elevation data retrieved from USGS')
+    parser.add_argument('--lcfiles', type=str, help='ZIP files containing landcover data retrieved from USGS')
     parser.add_argument('--disable-ore', action='store_false', dest='doOre', default=True, help='disable ore generation')
     parser.add_argument('--enable-schematics', action='store_true', dest='doSchematics', default=False, help='enable schematic usage')
     parser.add_argument('--debug', action='store_true', help='enable debug output')
@@ -39,7 +39,7 @@ def main():
 
     # create the region
     print "Creating new region %s..." % args.name
-    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcfile=args.lcfile, elfile=args.elfile, doOre=args.doOre, doSchematics=args.doSchematics)
+    myRegion = Region(name=args.name, xmax=args.xmax, xmin=args.xmin, ymax=args.ymax, ymin=args.ymin, scale=args.scale, vscale=args.vscale, trim=args.trim, tilesize=args.tilesize, sealevel=args.sealevel, maxdepth=args.maxdepth, lcfiles=args.lcfiles, elfiles=args.elfiles, doOre=args.doOre, doSchematics=args.doSchematics)
 
     print "Retrieving files..."
     myRegion.maketiffs()

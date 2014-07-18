@@ -6,24 +6,6 @@ The TopoMC project facilitates the construction of superficially realistic Minec
 
 * TopoMC no longer downloads data from the USGS due to changes in their web services.  The current workaround is somewhat clumsy and awkward, but it does work.
 
-## Old changes
-
-* TopoMC generates Anvil worlds with full 256-block heights thanks to @codewarrior0 and his changes to mcedit/pymclevel!  Thank you!
-
-* TopoMC also runs on Windows!  Kinda.  I think.  It works for me, anyway!  See [this](https://github.com/mathuin/TopoMC/wiki/RunningOnWindows) for more details!
-
-* The array and world code has been replaced with region-based code which improve accuracy while saving CPU and memory.  The new commands to download, prepare, and build regions are documented below.
-
-* GPGPU support has been added. Yes, your video card can help you build Minecraft worlds!  This latest feature relies on [PyOpenCL](http://mathema.tician.de/software/pyopencl) and its associated dependencies, and is not supported on all systems.
-
-* The landcover code has been rewritten to support the usage of MCEdit schematics as templates for certain areas, specifically croplands (farms) and developed areas.  More information about this feature can be found [here](https://github.com/mathuin/TopoMC/wiki/UsingSchematics).
-
-* pymclevel has been included as a submodule.  This release of pymclevel includes an accelerated NBT module which must be compiled before use, as seen below.  This module can have a significant impact on performance.
-
-* The test dataset has been removed.
-
-* The safehouse has been removed, but the default spawn point is still at the highest point in the dataset.
-
 ## Before running TopoMC
 
 You will need some additional software installed on your system before TopoMC can run.  On Ubuntu (precise pangolin), the following packages need to be installed:  
@@ -50,20 +32,21 @@ Next, here's what to do!
 
 ## Retrieving the map data
 
-Due to changes in the USGS web services, TopoMC no longer downloads files directly from the USGS.  Instead, the files must be downloaded using the [National Map viewer](http://nationalmap.gov/viewer.html).
+Due to changes in the USGS web services, TopoMC no longer downloads files directly from the USGS.  Instead, the files must be downloaded using the [National Map viewer](http://viewer.nationalmap.gov/viewer/).
 
 1.  Open the viewer, and find your region of interest.  Then click the "Download Data" button on the top of the browser frame to the right.
 
 2.  Select the region with your mouse, and in the next window, select "Land Cover" and "Elevation", then click "Next".
 
-3.  For "Land Cover", select any files marked "National Land Cover Database 2011 - Land Cover - 3x3 Degree Extents".  For the majority of cases, only one file will be required.
-
+3.  For "Land Cover", select any files marked "National Land Cover Database 2011 - Land Cover - 3x3 Degree Extents".
+    * As the page says, clicking on the products will reveal their footprints on the map. More than one product may be required to cover your entire region of interest.  Be sure to select all relevant products required to cover your region.  For the majority of cases, only one file will be required for land cover.
+	
 4.  Click the "Elevation" bar to bring up the elevation files.  These choices are more complex.  Tips to keep in mind:
-    * As the page says, clicking on the products will reveal their footprints on the map. More than one product may be required to cover your entire region of interest.  Be sure to check all products required to cover your region.
+	* More regions will require multiple elevation files than multiple land cover files, so it is even more important to select all relevant products for elevation.
 	* The highest resolution will give the best results.  1/9 arc-second is better than 1/3 arc-second which is better than 1 arc second.  Not all regions have 1/9 arc-second coverage -- in those cases, select 1/3 arc-second data.
 	* The only format currently supported for elevation data is IMG.
 	
-5.  After you click the "Next" button again, you will have one more opportunity to review your order before checkout.  When you have reviewed your order, check out and give your email address to the USGS so they can email you when your files are ready.  SAVE THAT EMAIL!  Not only will it contain links for downloading the data you requested, it will also contain the coordinates of your selection.  These will be needed for building the Minecraft world.  The coordinates will look like this:
+5.  After you click the "Next" button again, you will have one more opportunity to review your order before checkout.  When you have reviewed your order and confirmed that you indeed have all the files necessary to cover your region of interest, check out and give your email address to the USGS so they can email you when your files are ready.  SAVE THAT EMAIL!  Not only will it contain links for downloading the data you requested, it will also contain the coordinates of your selection.  These will be needed for building the Minecraft world.  The coordinates will look like this:
 
 	```
 	(-70.261, 42.009), (-70.11, 42.09)
@@ -74,8 +57,10 @@ Due to changes in the USGS web services, TopoMC no longer downloads files direct
 1.  Build the region based on the datasets retrieved from the USGS.  The values above directly translate into the command line coordinates, and don't forget the files!
 
 	```
-	jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --xmin -70.261 --ymin 42.009 --xmax -70.11 --ymax 42.09 --lcfile /home/jmt/nmvorders/800424/NLCD2011_LC_N42W069.zip --elfile /home/jmt/nmvorders/800424/n43w071.zip
-	```
+	jmt@belle:~/git/TopoMC$ ./getregion.py --name Provincetown --xmin -70.261 --ymin 42.009 --xmax -70.11 --ymax 42.09 --lcfile ~/Downloads/NLCD2011_LC_N42W069.zip,~/Downloads/NLCD2011_LC_N39W069.zip --elfile ~/Downloads/n43w071.zip
+    ```
+	
+	Note that multiple files are separated by commas.
 
 2.  Prepare the region for processing.
 

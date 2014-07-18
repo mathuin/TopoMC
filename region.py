@@ -2,10 +2,8 @@
 
 from __future__ import division
 from math import ceil, floor
-import re
 import os
-import urllib2
-import urlparse
+import os.path
 import yaml
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -70,7 +68,7 @@ class Region:
     def mapfile(self):
         return os.path.join(self.regiondir, 'Map.tif')
 
-    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcfile=None, elfile=None, doOre=True, doSchematics=False):
+    def __init__(self, name, xmax, xmin, ymax, ymin, tilesize=None, scale=None, vscale=None, trim=None, sealevel=None, maxdepth=None, lcfiles=None, elfiles=None, doOre=True, doSchematics=False):
         """Create a region based on lat-longs and other parameters."""
         # NB: smart people check names
         self.name = name
@@ -115,16 +113,24 @@ class Region:
         else:
             self.vscale = vscale
 
-        # lcfile and elfile are currently being passed as arguments
-        if lcfile is None:
-            raise AttributeError("lcfile required")
+        # lcfiles and elfiles are currently being passed as arguments
+        if lcfiles is None:
+            raise AttributeError("lcfiles required")
         else:
-            self.lcfile = lcfile
+            lclist = lcfiles.split(',')
+            for lcelem in lclist:
+                if not os.path.isfile(lcelem):
+                    raise AttributeError("%s is not a file", lcelem)
+            self.lcfiles = lclist
 
-        if elfile is None:
-            raise AttributeError("elfile required")
+        if elfiles is None:
+            raise AttributeError("elfiles required")
         else:
-            self.elfile = elfile
+            ellist = elfiles.split(',')
+            for elelem in ellist:
+                if not os.path.isfile(elelem):
+                    raise AttributeError("%s is not a file", elelem)
+            self.elfiles = ellist
 
         # enable or disable ore and schematics
         self.doOre = doOre
@@ -225,8 +231,8 @@ class Region:
         # JMT: at this point only one file per dataset works!
         # I am now thinking of redefining lcfile
         # "x,y,z" -> [x,y,z] "x" -> [x]
-        layerfiles = {'landcover': [self.lcfile],
-                      'elevation': [self.elfile]}
+        layerfiles = {'landcover': self.lcfiles,
+                      'elevation': self.elfiles}
 
         for layertype in layerfiles:
             zipfiles = layerfiles[layertype]
