@@ -13,6 +13,7 @@ from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
 
 from pymclevel import mclevel, box
+from pymclevel.mclevelbase import ChunkNotPresent
 from terrain import Terrain
 from tree import Tree, treeObjs
 from ore import Ore
@@ -84,6 +85,10 @@ class Tile(object):
             if mcy > self.peak[1]:
                 self.peak = [mcx, mcy, mcz]
             (blocks, datas, tree) = Terrain.place(mcx, mcy, mcz, lcval, crustval, bathyval, self.doSchematics)
+            # JMT: first pass at setting biome
+            # should be in pymclevel but it's not
+            # hardcoding at -1 for now
+            setBiomeAt(self.world, mcx, mcz, -1)
             [self.world.setBlockAt(mcx, y, mcz, block) for (y, block) in blocks if block != 0]
             [self.world.setBlockDataAt(mcx, y, mcz, data) for (y, data) in datas if data != 0]
             # if trees are placed, elevation cannot be changed
@@ -106,3 +111,18 @@ class Tile(object):
 
         # return peak
         return self.peak
+
+
+def setBiomeAt(world, x, z, biomeID):
+    """Sets biome value for this column."""
+    zc = z >> 4
+    xc = x >> 4
+    xInChunk = x & 0xf
+    zInChunk = z & 0xf
+
+    try:
+        ch = world.getChunk(xc, zc)
+    except ChunkNotPresent:
+        return 0
+
+    ch.Biomes[xInChunk, zInChunk] = biomeID

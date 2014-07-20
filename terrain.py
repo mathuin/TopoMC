@@ -75,8 +75,7 @@ class Terrain(object):
     @staticmethod
     def placegrass(x, y, z, crustval, tallgrassProb=0.05):
         if (random() < tallgrassProb):
-            # 80% Tall Grass, 10% Flower, 10% Rose
-            # JMT: Roses were pulled, Poppy is temporary substitute
+            # 80% Tall Grass, 10% Flower, 10% Rose (now Poppy)
             choices = [('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1),  ('Tall Grass', 1), 'Flower', 'Poppy']
             return (y+1, [(crustval, 'Dirt'), (1, 'Grass'), (1, choice(choices))], None)
         else:

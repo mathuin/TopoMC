@@ -44,6 +44,7 @@ def materialNamed(string):
         retval = [v.ID for v in alphaMaterials.allBlocks if v.name == string][0]
     except IndexError:
         print "%s was not found!" % string
+        retval = 0
     return retval
 
 
